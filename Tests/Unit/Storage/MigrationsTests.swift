@@ -1,0 +1,182 @@
+import GRDB
+@testable import Loom
+import XCTest
+
+final class MigrationsTests: XCTestCase {
+    func testV1CreatesAllRequiredTables() throws {
+        let db = try LoomDatabase.inMemory()
+        let tables = try db.queue.read { db in
+            try String.fetchAll(
+                db,
+                sql: "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+            )
+        }
+        // Per spec §3.2: setting, repo, task, task_assignee, github_status.
+        // sqlite_sequence appears when a table uses AUTOINCREMENT.
+        XCTAssertTrue(tables.contains("setting"), "tables=\(tables)")
+        XCTAssertTrue(tables.contains("repo"), "tables=\(tables)")
+        XCTAssertTrue(tables.contains("task"), "tables=\(tables)")
+        XCTAssertTrue(tables.contains("task_assignee"), "tables=\(tables)")
+        XCTAssertTrue(tables.contains("github_status"), "tables=\(tables)")
+    }
+
+    func testRepoUniqueConstraintOnOwnerName() throws {
+        let db = try LoomDatabase.inMemory()
+        try db.queue.write { db in
+            var first = Repo(
+                id: nil,
+                owner: "bsv-blockchain",
+                name: "teranode",
+                defaultBranch: "main",
+                localMainPath: nil,
+                addedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            )
+            try first.insert(db)
+        }
+        XCTAssertThrowsError(try db.queue.write { db in
+            var dup = Repo(
+                id: nil,
+                owner: "bsv-blockchain",
+                name: "teranode",
+                defaultBranch: "main",
+                localMainPath: nil,
+                addedAt: Date(timeIntervalSince1970: 1_700_000_001)
+            )
+            try dup.insert(db)
+        })
+    }
+
+    func testTaskRoundTripWithAssignees() throws {
+        let db = try LoomDatabase.inMemory()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        try db.queue.write { db in
+            var repo = Repo(
+                id: nil, owner: "bsv-blockchain", name: "teranode",
+                defaultBranch: "main", localMainPath: nil, addedAt: now
+            )
+            try repo.insert(db)
+            let repoID = repo.id!
+
+            var task = LoomTask(
+                id: nil, repoID: repoID, type: .pullRequest, number: 655,
+                title: "Add diff engine", body: "PR body…",
+                state: .open, authorLogin: "sigi",
+                githubURL: "https://github.com/bsv-blockchain/teranode/pull/655",
+                apiURL: "https://api.github.com/repos/bsv-blockchain/teranode/pulls/655",
+                createdAt: now, updatedAt: now, lastSyncedAt: now,
+                etag: "W/\"abc\""
+            )
+            try task.insert(db)
+            let taskID = task.id!
+
+            try TaskAssignee(taskID: taskID, login: "sigi").insert(db)
+            try TaskAssignee(taskID: taskID, login: "alice").insert(db)
+        }
+
+        let logins = try db.queue.read { db in
+            try String.fetchAll(
+                db,
+                sql: "SELECT login FROM task_assignee ORDER BY login"
+            )
+        }
+        XCTAssertEqual(logins, ["alice", "sigi"])
+    }
+
+    func testTaskUniqueOnRepoTypeNumber() throws {
+        let db = try LoomDatabase.inMemory()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        try db.queue.write { db in
+            var repo = Repo(
+                id: nil, owner: "o", name: "r",
+                defaultBranch: "main", localMainPath: nil, addedAt: now
+            )
+            try repo.insert(db)
+            let repoID = repo.id!
+
+            var task = LoomTask(
+                id: nil, repoID: repoID, type: .issue, number: 1,
+                title: "t", body: nil, state: .open, authorLogin: "a",
+                githubURL: "u", apiURL: "u",
+                createdAt: now, updatedAt: now, lastSyncedAt: now,
+                etag: nil
+            )
+            try task.insert(db)
+        }
+        XCTAssertThrowsError(try db.queue.write { db in
+            var dup = LoomTask(
+                id: nil, repoID: 1, type: .issue, number: 1,
+                title: "t2", body: nil, state: .open, authorLogin: "a",
+                githubURL: "u", apiURL: "u",
+                createdAt: now, updatedAt: now, lastSyncedAt: now,
+                etag: nil
+            )
+            try dup.insert(db)
+        })
+    }
+
+    func testDeletingRepoCascadesToTasksAndAssignees() throws {
+        let db = try LoomDatabase.inMemory()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        try db.queue.write { db in
+            var repo = Repo(
+                id: nil, owner: "o", name: "r",
+                defaultBranch: "main", localMainPath: nil, addedAt: now
+            )
+            try repo.insert(db)
+            let repoID = repo.id!
+
+            var task = LoomTask(
+                id: nil, repoID: repoID, type: .issue, number: 1,
+                title: "t", body: nil, state: .open, authorLogin: "a",
+                githubURL: "u", apiURL: "u",
+                createdAt: now, updatedAt: now, lastSyncedAt: now,
+                etag: nil
+            )
+            try task.insert(db)
+            try TaskAssignee(taskID: task.id!, login: "x").insert(db)
+
+            try repo.delete(db)
+        }
+        let taskCount = try db.queue.read { db in try LoomTask.fetchCount(db) }
+        let assigneeCount = try db.queue.read { db in try TaskAssignee.fetchCount(db) }
+        XCTAssertEqual(taskCount, 0)
+        XCTAssertEqual(assigneeCount, 0)
+    }
+
+    func testGitHubStatusRoundTrip() throws {
+        let db = try LoomDatabase.inMemory()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let status = try db.queue.write { db -> GitHubStatus in
+            var repo = Repo(
+                id: nil, owner: "o", name: "r",
+                defaultBranch: "main", localMainPath: nil, addedAt: now
+            )
+            try repo.insert(db)
+
+            var task = LoomTask(
+                id: nil, repoID: repo.id!, type: .pullRequest, number: 1,
+                title: "t", body: nil, state: .open, authorLogin: "a",
+                githubURL: "u", apiURL: "u",
+                createdAt: now, updatedAt: now, lastSyncedAt: now,
+                etag: nil
+            )
+            try task.insert(db)
+
+            let status = GitHubStatus(
+                taskID: task.id!, ciState: "success", ciURL: "https://ci",
+                mergeable: true, mergeableState: "clean",
+                reviewState: "APPROVED", unreadCommentsCount: 0,
+                lastSeenCommentID: nil, fetchedAt: now
+            )
+            try status.insert(db)
+            return status
+        }
+        let read = try db.queue.read { db in
+            try GitHubStatus.fetchOne(db, key: status.taskID)
+        }
+        XCTAssertEqual(read?.ciState, "success")
+        XCTAssertEqual(read?.mergeable, true)
+        XCTAssertEqual(read?.reviewState, "APPROVED")
+    }
+}
