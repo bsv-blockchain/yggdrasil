@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "type": "NOT_FOUND",
+      "message": "Could not resolve to a Repository with the name 'bsv-blockchain/nope'."
+    }
+  ]
+}

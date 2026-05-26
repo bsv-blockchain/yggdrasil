@@ -1,0 +1,22 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "mergeable": "MERGEABLE",
+        "mergeStateStatus": "CLEAN",
+        "reviewDecision": "APPROVED",
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "statusCheckRollup": { "state": "SUCCESS" }
+              }
+            }
+          ]
+        },
+        "comments": { "totalCount": 5 },
+        "reviews": { "totalCount": 2 }
+      }
+    }
+  }
+}

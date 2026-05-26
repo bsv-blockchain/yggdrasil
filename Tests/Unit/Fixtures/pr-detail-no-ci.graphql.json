@@ -1,0 +1,22 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "mergeable": "UNKNOWN",
+        "mergeStateStatus": "UNKNOWN",
+        "reviewDecision": null,
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "statusCheckRollup": null
+              }
+            }
+          ]
+        },
+        "comments": { "totalCount": 0 },
+        "reviews": { "totalCount": 0 }
+      }
+    }
+  }
+}

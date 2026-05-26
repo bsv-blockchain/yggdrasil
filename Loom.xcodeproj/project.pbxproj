@@ -10,6 +10,7 @@
 		03F5AA3F44277B035954E3FD /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 72948A8C9B18C19E1D4C35D1 /* SwiftTerm */; };
 		13928AE42F895ADB3C509302 /* TaskAssignee.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87DD3CBCFF1F6ED6BD5E0DAD /* TaskAssignee.swift */; };
 		181598A3CE05594945D7A7A3 /* SettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B67392FF13BE6CBE8F0F4F6D /* SettingsStoreTests.swift */; };
+		1BD055D4E0D2F2E95CA33EE3 /* GraphQLClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD919DBB349F5EE2742FD85B /* GraphQLClient.swift */; };
 		2089433B70604764F52AB203 /* LoomLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9786B37C938624B51D1C5C8 /* LoomLogger.swift */; };
 		209A6F4AACB0F18B3A32C952 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 680463771A1913695ADBD74D /* KeychainStore.swift */; };
 		2836556DFF4C07B9206E0118 /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A37491B6F40A34647CBC6AA7 /* SmokeTests.swift */; };
@@ -26,6 +27,7 @@
 		70558F82CFF93CD3B4E8059A /* GHCLIAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9605E4EE932DDCB19AB72B /* GHCLIAuth.swift */; };
 		9033AED24F2992D05A26B09B /* GHCLIAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08FFC0A9D825AA8D145CEE1 /* GHCLIAuthTests.swift */; };
 		907E23454D4E7051C9DB5690 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = 8FC486CC428D00943AD1887E /* KeychainAccess */; };
+		92B48F465A3302E8F8742C59 /* GraphQLClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84806CB003A61137C0777445 /* GraphQLClientTests.swift */; };
 		9304EFC64B979CD01B5AF8CB /* BackoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2CBAFC5EF92D128135D3F05 /* BackoffTests.swift */; };
 		94F93BFF9F49536A3D1F7E1F /* DependencySmokeImports.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1A652303E2BC6EB80B64FA /* DependencySmokeImports.swift */; };
 		A8A48D249F4257421EBFC782 /* AuthServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C32969291BABB883AE4FCB /* AuthServiceTests.swift */; };
@@ -73,6 +75,7 @@
 		6E6E64FD9D6B923A722BBACC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6E9605E4EE932DDCB19AB72B /* GHCLIAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GHCLIAuth.swift; sourceTree = "<group>"; };
 		72D0F7C7949A5F3B33B48E7D /* Repo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repo.swift; sourceTree = "<group>"; };
+		84806CB003A61137C0777445 /* GraphQLClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphQLClientTests.swift; sourceTree = "<group>"; };
 		879315D3D2B7186766F53DDE /* GitHubStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubStatus.swift; sourceTree = "<group>"; };
 		87DD3CBCFF1F6ED6BD5E0DAD /* TaskAssignee.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskAssignee.swift; sourceTree = "<group>"; };
 		8B62A3B00A8A4F40F3F2A92A /* Loom.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Loom.entitlements; sourceTree = "<group>"; };
@@ -97,6 +100,7 @@
 		F2CBAFC5EF92D128135D3F05 /* BackoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffTests.swift; sourceTree = "<group>"; };
 		F6C32969291BABB883AE4FCB /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
 		FD7BC2543AD208BD2CF22525 /* GitHubError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubError.swift; sourceTree = "<group>"; };
+		FD919DBB349F5EE2742FD85B /* GraphQLClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphQLClient.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -232,6 +236,7 @@
 			children = (
 				F2CBAFC5EF92D128135D3F05 /* BackoffTests.swift */,
 				E19BF1D79E0DBAA564B3A039 /* ETagStoreTests.swift */,
+				84806CB003A61137C0777445 /* GraphQLClientTests.swift */,
 				4ECDFC95289A7B6830F8DFE3 /* HTTPClientTests.swift */,
 				B0C9460A29E5F663743C9F53 /* RESTClientTests.swift */,
 			);
@@ -280,6 +285,7 @@
 				9B1D333E293A9B1CC752EA00 /* Endpoints.swift */,
 				BF8FF2D0E98D9BDC31F1F946 /* ETagStore.swift */,
 				FD7BC2543AD208BD2CF22525 /* GitHubError.swift */,
+				FD919DBB349F5EE2742FD85B /* GraphQLClient.swift */,
 				910F7265E64BB1FF01A716DC /* HTTPClient.swift */,
 				6A13DF4D55317A689600A192 /* RESTClient.swift */,
 			);
@@ -415,6 +421,7 @@
 				70558F82CFF93CD3B4E8059A /* GHCLIAuth.swift in Sources */,
 				5E1D6FF961164DF2EB889B18 /* GitHubError.swift in Sources */,
 				FB007E0D6F7C94AA62BDA3FE /* GitHubStatus.swift in Sources */,
+				1BD055D4E0D2F2E95CA33EE3 /* GraphQLClient.swift in Sources */,
 				EF67246D6169F891967950B1 /* HTTPClient.swift in Sources */,
 				209A6F4AACB0F18B3A32C952 /* KeychainStore.swift in Sources */,
 				B23664D17B40E8A19A8A288C /* LoomApp.swift in Sources */,
@@ -439,6 +446,7 @@
 				9304EFC64B979CD01B5AF8CB /* BackoffTests.swift in Sources */,
 				DC977A348B16AF50472BE63B /* ETagStoreTests.swift in Sources */,
 				9033AED24F2992D05A26B09B /* GHCLIAuthTests.swift in Sources */,
+				92B48F465A3302E8F8742C59 /* GraphQLClientTests.swift in Sources */,
 				FC039C1B5C8B97C01763CFE7 /* HTTPClientTests.swift in Sources */,
 				BCFD1689C0B79E45F2E13DB5 /* MigrationsTests.swift in Sources */,
 				2D85955C8BF1967CC050FD03 /* RESTClientTests.swift in Sources */,
