@@ -22,7 +22,9 @@
 		3AC6F503620BD36D144D8D6D /* Clibgit2 in Frameworks */ = {isa = PBXBuildFile; productRef = 5EF5D474713DE008E0402BEF /* Clibgit2 */; };
 		3C200CDD21EC4D19BA68BB37 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D355679242F0256CEFCEC699 /* SettingsStore.swift */; };
 		3D3298A3A4AC93471D24D673 /* BackoffRetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99A541B9E805ED457C4A2363 /* BackoffRetry.swift */; };
+		3D8F2D71BB48E1C1E73D202E /* FixtureGitRepo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79553E3181CF1D76FE703B0A /* FixtureGitRepo.swift */; };
 		4ECD2C745F5DE7206449EBD8 /* Repo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0F7C7949A5F3B33B48E7D /* Repo.swift */; };
+		4F5D324A69106444A56018D4 /* WorktreeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7EAA88AE870E9108768F29E /* WorktreeManager.swift */; };
 		516C5055D1918BBA58610A73 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6E6E64FD9D6B923A722BBACC /* Assets.xcassets */; };
 		53F92F83F0F7376730A5D339 /* WorktreeError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13CBE7B660EECC9CD4A008C9 /* WorktreeError.swift */; };
 		5532DF8F18062D66991E5AAB /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197855D26AA9AEB4088AF08C /* AppDelegate.swift */; };
@@ -41,6 +43,7 @@
 		A8A48D249F4257421EBFC782 /* AuthServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C32969291BABB883AE4FCB /* AuthServiceTests.swift */; };
 		A9B827F6D308FD42E6291FCE /* APIResponses.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F674F2D820F173F9971796D /* APIResponses.swift */; };
 		A9D79C3526B59E33BCD2E012 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E07BDC71363619A1E5FE9D9 /* AuthService.swift */; };
+		AAC6B0964629178F586CCB8D /* WorktreeManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68589EDD4EB0E76985003347 /* WorktreeManagerTests.swift */; };
 		B045EBBFD0B90FA5E3D5B062 /* DebugMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD637F24CBF0FE3793017936 /* DebugMenu.swift */; };
 		B115BA55BF7BF53709973B8D /* LoomDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B5DDCD59C803D57C4D6A26 /* LoomDatabase.swift */; };
 		B23664D17B40E8A19A8A288C /* LoomApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B517E6E2DF8C49D037D18E77 /* LoomApp.swift */; };
@@ -90,11 +93,13 @@
 		4FB935EE1FF6EE3F23F0BFA4 /* Fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Fixtures; path = Tests/Unit/Fixtures; sourceTree = SOURCE_ROOT; };
 		6128D22DFDA7A39957AA3C9E /* SyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncScheduler.swift; sourceTree = "<group>"; };
 		680463771A1913695ADBD74D /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		68589EDD4EB0E76985003347 /* WorktreeManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeManagerTests.swift; sourceTree = "<group>"; };
 		6890109E5E3076A96D71C69F /* LoomTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoomTask.swift; sourceTree = "<group>"; };
 		6A13DF4D55317A689600A192 /* RESTClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RESTClient.swift; sourceTree = "<group>"; };
 		6E6E64FD9D6B923A722BBACC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6E9605E4EE932DDCB19AB72B /* GHCLIAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GHCLIAuth.swift; sourceTree = "<group>"; };
 		72D0F7C7949A5F3B33B48E7D /* Repo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repo.swift; sourceTree = "<group>"; };
+		79553E3181CF1D76FE703B0A /* FixtureGitRepo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureGitRepo.swift; sourceTree = "<group>"; };
 		7AF42D22CA2F5E4B7FB58F74 /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
 		84806CB003A61137C0777445 /* GraphQLClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphQLClientTests.swift; sourceTree = "<group>"; };
 		878B0F36B6165280BC512CBD /* GitRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRunnerTests.swift; sourceTree = "<group>"; };
@@ -126,6 +131,7 @@
 		DA866E83ACA13FF4C4B67A76 /* WorktreeInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeInfo.swift; sourceTree = "<group>"; };
 		DD1A652303E2BC6EB80B64FA /* DependencySmokeImports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencySmokeImports.swift; sourceTree = "<group>"; };
 		E19BF1D79E0DBAA564B3A039 /* ETagStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ETagStoreTests.swift; sourceTree = "<group>"; };
+		E7EAA88AE870E9108768F29E /* WorktreeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeManager.swift; sourceTree = "<group>"; };
 		F2CBAFC5EF92D128135D3F05 /* BackoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffTests.swift; sourceTree = "<group>"; };
 		F6C32969291BABB883AE4FCB /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
 		FA798D587199F39EA6CD559F /* BranchSlug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchSlug.swift; sourceTree = "<group>"; };
@@ -187,6 +193,7 @@
 				BBDCC7E2C0056A34781ECCB3 /* GitRunner.swift */,
 				13CBE7B660EECC9CD4A008C9 /* WorktreeError.swift */,
 				DA866E83ACA13FF4C4B67A76 /* WorktreeInfo.swift */,
+				E7EAA88AE870E9108768F29E /* WorktreeManager.swift */,
 			);
 			path = Git;
 			sourceTree = "<group>";
@@ -213,7 +220,9 @@
 			isa = PBXGroup;
 			children = (
 				998F9FBC78B6E359AD707CB7 /* BranchSlugTests.swift */,
+				79553E3181CF1D76FE703B0A /* FixtureGitRepo.swift */,
 				878B0F36B6165280BC512CBD /* GitRunnerTests.swift */,
+				68589EDD4EB0E76985003347 /* WorktreeManagerTests.swift */,
 			);
 			path = Git;
 			sourceTree = "<group>";
@@ -515,6 +524,7 @@
 				01AABF5B57F81075C7A2B083 /* TaskSyncService.swift in Sources */,
 				53F92F83F0F7376730A5D339 /* WorktreeError.swift in Sources */,
 				C43FF24F657911A26A11BCFE /* WorktreeInfo.swift in Sources */,
+				4F5D324A69106444A56018D4 /* WorktreeManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -527,6 +537,7 @@
 				9304EFC64B979CD01B5AF8CB /* BackoffTests.swift in Sources */,
 				A2ECD2D8EFA8C94DBD444C0D /* BranchSlugTests.swift in Sources */,
 				DC977A348B16AF50472BE63B /* ETagStoreTests.swift in Sources */,
+				3D8F2D71BB48E1C1E73D202E /* FixtureGitRepo.swift in Sources */,
 				9033AED24F2992D05A26B09B /* GHCLIAuthTests.swift in Sources */,
 				BC8AB244645AF73AA95DBA2E /* GitHubLiveSyncIntegrationTests.swift in Sources */,
 				F214AFF555015845B7F361F8 /* GitRunnerTests.swift in Sources */,
@@ -538,6 +549,7 @@
 				2836556DFF4C07B9206E0118 /* SmokeTests.swift in Sources */,
 				2738BC7003C35D380D6FAB6D /* SyncSchedulerTests.swift in Sources */,
 				C4343384EB79A90D051E6591 /* TaskSyncServiceTests.swift in Sources */,
+				AAC6B0964629178F586CCB8D /* WorktreeManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

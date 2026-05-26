@@ -1,0 +1,103 @@
+import Foundation
+
+/// Owns git worktree lifecycle for tracked repos. Pure git-subprocess mechanics — no
+/// GitHub coupling beyond accepting a `Repo` model.
+///
+/// Worktrees live at `<parent-of-main-clone>/.worktrees/<branch-slug>` per spec §2.1.
+actor WorktreeManager {
+    private let git: GitRunner
+
+    init(git: GitRunner = GitRunner()) {
+        self.git = git
+    }
+
+    // MARK: - Public API
+
+    /// Ensure a worktree for `branch` exists. Idempotent — if the worktree at the
+    /// expected path is already on the right branch, returns its URL without doing
+    /// any git work.
+    func ensure(repo: Repo, branch: String, baseRef: String? = nil) async throws -> URL {
+        guard let mainPath = repo.localMainPath else {
+            throw WorktreeError.parseFailure(reason: "repo \(repo.fullName) has no localMainPath")
+        }
+        let mainURL = URL(fileURLWithPath: mainPath, isDirectory: true)
+        let worktreesDir = mainURL.deletingLastPathComponent()
+            .appendingPathComponent(".worktrees", isDirectory: true)
+        let slug = BranchSlug.slug(for: branch)
+        // isDirectory: true so the URL representation is stable regardless of whether
+        // the directory exists on disk yet (avoids "/path/foo" vs "/path/foo/" drift
+        // between idempotent calls).
+        let target = worktreesDir.appendingPathComponent(slug, isDirectory: true)
+
+        // Case 1: a worktree is already registered at `target` — idempotent.
+        // Resolve both sides through symlinks because git outputs canonical paths
+        // (e.g. /private/var/...) but our `target` is built from the user-facing form
+        // (e.g. /var/folders/...).
+        let canonicalTarget = target.resolvingSymlinksInPath().path
+        let existing = try await listWorktrees(at: mainURL)
+        if let match = existing.first(where: {
+            $0.path.resolvingSymlinksInPath().path == canonicalTarget
+        }) {
+            if match.branch == branch || match.branch == nil {
+                return target
+            }
+            throw WorktreeError.existsOnDifferentBranch(
+                path: target, found: match.branch ?? "<detached>", expected: branch
+            )
+        }
+
+        // Case 2: create the .worktrees parent if needed.
+        try FileManager.default.createDirectory(
+            at: worktreesDir, withIntermediateDirectories: true
+        )
+
+        // Case 3: `git worktree add -b <branch> <target> <baseRef ?? default>`.
+        let base = baseRef ?? repo.defaultBranch
+        do {
+            try await git.run(
+                args: ["worktree", "add", "-b", branch, target.path, base],
+                cwd: mainURL
+            )
+        } catch let WorktreeError.gitFailed(stderr, code) {
+            // Map git's reference-resolution failure to a typed error so callers can
+            // distinguish "you typoed the base ref" from arbitrary git failures.
+            if Self.stderrIndicatesUnknownRef(stderr) {
+                // Best-effort cleanup: in case git left a partial dir behind.
+                try? FileManager.default.removeItem(at: target)
+                throw WorktreeError.unknownRef(base)
+            }
+            throw WorktreeError.gitFailed(stderr: stderr, exitCode: code)
+        }
+
+        return target
+    }
+
+    /// `git worktree list --porcelain` parsed into `[WorktreeInfo]`. Includes the
+    /// main clone as the first entry.
+    func list(for repo: Repo) async throws -> [WorktreeInfo] {
+        guard let mainPath = repo.localMainPath else {
+            return []
+        }
+        return try await listWorktrees(at: URL(fileURLWithPath: mainPath))
+    }
+
+    // MARK: - Internals
+
+    private func listWorktrees(at mainURL: URL) async throws -> [WorktreeInfo] {
+        let result = try await git.run(args: ["worktree", "list", "--porcelain"], cwd: mainURL)
+        return try WorktreeInfo.parsePorcelain(result.stdout)
+    }
+
+    /// Git reference-resolution failure messages we want to map to .unknownRef.
+    /// Heuristic matches several flavours of `git`'s wording.
+    private static func stderrIndicatesUnknownRef(_ stderr: String) -> Bool {
+        let lower = stderr.lowercased()
+        return lower.contains("invalid reference")
+            || lower.contains("unknown revision")
+            || lower.contains("not a valid object")
+            || lower.contains("ambiguous argument")
+            || lower.contains("fatal: revision walk")
+            || lower.contains("not a valid ref")
+            || (lower.contains("fatal:") && lower.contains("not a tree object"))
+    }
+}
