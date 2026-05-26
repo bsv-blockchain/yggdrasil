@@ -2,7 +2,6 @@
 import XCTest
 
 final class BranchSlugTests: XCTestCase {
-
     func testReplacesSlashesWithDashes() {
         XCTAssertEqual(BranchSlug.slug(for: "feat/foo"), "feat-foo")
         XCTAssertEqual(BranchSlug.slug(for: "release/v1.2.3"), "release-v1.2.3")
@@ -45,11 +44,11 @@ final class BranchSlugTests: XCTestCase {
 
     func testShortNamesNotTruncated() {
         // 59 chars: untouched.
-        let s = String(repeating: "a", count: 59)
-        XCTAssertEqual(BranchSlug.slug(for: s), s)
+        let short59 = String(repeating: "a", count: 59)
+        XCTAssertEqual(BranchSlug.slug(for: short59), short59)
         // 60 chars exactly: untouched.
-        let s60 = String(repeating: "a", count: 60)
-        XCTAssertEqual(BranchSlug.slug(for: s60), s60)
+        let exactly60 = String(repeating: "a", count: 60)
+        XCTAssertEqual(BranchSlug.slug(for: exactly60), exactly60)
     }
 
     func testStableForSameInput() {
