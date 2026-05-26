@@ -76,11 +76,14 @@ Tests/Integration/
 
 ---
 
-## Open questions to resolve before I start
+## Resolved decisions (from boot Q&A)
 
-1. **Tracked repos for the hard-coded seed list.** Spec says: "Tracked repos seeded from a hard-coded list in `setting` table for now ... Reasonable defaults: a few bsv-blockchain repos." Which repos do you want? Common candidates: `bsv-blockchain/teranode`, `bsv-blockchain/bdk`, etc. — I'll need 2–5 names.
-2. **Polling interval defaults locked at 60s** (per spec §2.1). OK to ship that?
-3. **Integration-test token in CI.** I'll add a `LOOM_TEST_GITHUB_TOKEN` env var that CI feeds from a secret. Want me to wire it now (with a stub secret name) or leave that for when you set up the secret in GitHub?
+1. **No hard-coded tracked repos.** Deviates from spec §Phase 1 ("seeded from a hard-coded list"). The user adds repos via a debug-menu item; tracked repos = whatever lives in the `repo` table. On a fresh DB the table is empty and `fullSync()` is a no-op. New tasks added:
+   - Task 7.2 gains a **"Add Tracked Repo…"** menu item that prompts (NSAlert + two text fields) for `owner` + `name` and inserts a row into `repo`.
+   - Task 7.2 also gains a **"Remove Tracked Repo…"** item showing the current list.
+   This shift is logged in `decisions.md` at implementation time.
+2. **Polling interval locked at 60s** per spec §2.1.
+3. **CI gets the `LOOM_TEST_GITHUB_TOKEN` secret reference now.** The integration test is `XCTSkip`-guarded so it stays green when the secret isn't set. Wiring goes into `.github/workflows/ci.yml` as part of Task 7.
 
 ---
 
