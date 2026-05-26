@@ -35,6 +35,7 @@ identifier_name:
     - id
     - ui
     - db
+    - t      # GRDB table-definition closure parameter
 
 file_length:
   warning: 500
