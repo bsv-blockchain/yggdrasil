@@ -62,4 +62,9 @@ jobs:
         run: make build
 
       - name: Test
+        env:
+          # Optional: when this secret is set in the GitHub repo settings, the
+          # integration tests under Tests/Integration/ run against the real
+          # GitHub API. When unset, those tests XCTSkip silently.
+          LOOM_TEST_GITHUB_TOKEN: ${{ secrets.LOOM_TEST_GITHUB_TOKEN }}
         run: make test

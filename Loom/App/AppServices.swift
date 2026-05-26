@@ -1,0 +1,40 @@
+import Foundation
+
+/// Lazily-built production dependency graph. Created once at app launch in
+/// `AppDelegate.applicationDidFinishLaunching` and passed everywhere via singletons
+/// on the AppDelegate.
+///
+/// Tests never construct this — they wire their own mock components.
+@MainActor
+final class AppServices {
+    let database: LoomDatabase
+    let authService: AuthService
+    let httpClient: URLSessionHTTPClient
+    let restClient: RESTClient
+    let graphqlClient: GraphQLClient
+    let syncService: TaskSyncService
+    let scheduler: SyncScheduler
+
+    init() throws {
+        let database = try LoomDatabase.openDefault()
+        self.database = database
+
+        let keychain = KeychainAccessStore()
+        let authService = AuthService(gh: GHCLIAuth(), keychain: keychain)
+        self.authService = authService
+
+        let etags = ETagStore(database: database)
+        let httpClient = URLSessionHTTPClient(session: .shared, auth: authService, etags: etags)
+        self.httpClient = httpClient
+        self.restClient = RESTClient(http: httpClient)
+        self.graphqlClient = GraphQLClient(http: httpClient)
+
+        let syncService = TaskSyncService(database: database, rest: self.restClient, graphql: self.graphqlClient)
+        self.syncService = syncService
+
+        // Hold a local reference so the closure can capture without going through `self`.
+        self.scheduler = SyncScheduler(interval: .seconds(60)) { [syncService] in
+            try await syncService.fullSync()
+        }
+    }
+}

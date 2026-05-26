@@ -11,6 +11,7 @@ struct LoomApp: App {
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            DebugMenu()
         }
     }
 }

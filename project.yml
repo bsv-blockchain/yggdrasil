@@ -93,6 +93,7 @@ targets:
       - path: Tests/Unit/Fixtures
         type: folder
         buildPhase: resources
+      - path: Tests/Integration
     dependencies:
       - target: Loom
     settings:
