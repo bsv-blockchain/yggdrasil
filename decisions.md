@@ -49,3 +49,17 @@ Design decisions made during the build that weren't in the spec, with rationale 
 **Trade-offs.** No Mac App Store distribution path (acceptable per spec §6: out of scope). Hardened runtime stays enabled so we keep the security floor.
 
 ---
+
+## 2026-05-26 — Work directly on `main` (exception to spec §0.2 step 4)
+
+**Spec §0.2 step 4 says:** *"Commit everything on a branch named `phase-N/<short-description>`."*
+
+**Decision.** Phase 1+ commits land directly on `main`. Phase branches and worktrees are not used for now.
+
+**Rationale.** No collaborators yet; no remote; no risk of stepping on shared state. The branch ceremony adds friction without adding safety in a solo pre-public phase.
+
+**Trade-offs.** Lose the ability to keep a Phase N+1 work-in-progress while Phase N is in human review. Acceptable while no review queue exists. If/when the repo gains collaborators or goes public, revert to the spec's branch-per-phase convention — `decisions.md` is the place to overturn this entry.
+
+**Approval.** User instructed *"Just work in main for now, as an exception. Nobody is using this yet"* after Phase 0 approval.
+
+---

@@ -4,8 +4,9 @@
     {
       "phase": 0,
       "name": "Foundation",
-      "approved": false,
-      "branch": "phase-0/foundation",
+      "approved": true,
+      "approved_at": "2026-05-26T20:00:00Z",
+      "branch": "main",
       "git_sha": "c7de0606c5434d5e7ecb781d7ac3b96ecdba2262",
       "completed_at": "2026-05-26T19:48:00Z",
       "blockers": [
