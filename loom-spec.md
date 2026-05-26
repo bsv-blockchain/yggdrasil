@@ -79,7 +79,7 @@ Performance is the headline feature. Cold start under 800ms. Tab switching under
 | Language | Swift 5.10+ | |
 | UI | SwiftUI with AppKit interop where needed | NSWindow root, NSSplitView for resizable sidebar |
 | Min macOS | 14 (Sonoma) | `@Observable`, latest SwiftUI |
-| Terminal | SwiftTerm | https://github.com/migueldeicaza/SwiftTerm — actively maintained, real PTY, Metal-accelerated |
+| Coding-agent surface | SwiftTerm | https://github.com/migueldeicaza/SwiftTerm — real PTY, Metal-accelerated. Used as the rendering surface for whatever coding-agent process the user has configured (Claude, Codex, Grok, …). Not exposed as a generic shell. |
 | GitHub view | WKWebView | Persistent `WKWebsiteDataStore` so login carries across restarts |
 | Local storage | GRDB.swift (SQLite) | `~/Library/Application Support/Loom/loom.sqlite` |
 | Git operations | `git` subprocess for worktrees + status; SwiftGit2/libgit2 for diff computation | libgit2's worktree support is incomplete; subprocess is more reliable |
@@ -96,7 +96,8 @@ Performance is the headline feature. Cold start under 800ms. Tab switching under
 ### 2.1 Conventions
 
 - **Worktree path:** `<parent-of-main-clone>/.worktrees/<branch-slug>` where `<branch-slug>` is the branch name with `/` replaced by `-` and any other non-`[a-zA-Z0-9._-]` char dropped.
-- **Claude Code launch:** `/bin/zsh -i -c "claude --dangerously-skip-permissions"` from the worktree path. The exact command must live in user preferences with that as the default.
+- **Coding agents.** A tab does not run a generic shell. It runs a *coding agent* — one of a set of profiles the user has pre-configured (Claude, Codex, Grok, …). Each profile has a name, an executable command, and a list of default arguments. When an issue becomes a PR (or when starting any new tab), the user picks **which** configured agent to spawn. The first launched profile, "Claude", defaults to command `claude` with args `--dangerously-skip-permissions`; the user can edit/add/remove profiles freely.
+- **Coding-agent launch:** spawn `<profile.command> <profile.args>` directly inside a PTY at the worktree path. No interactive shell wrapper. This is deliberate: a per-agent profile, not "the user's $SHELL".
 - **Polling intervals** (defaults, in user preferences):
   - GitHub task list sync: 60s
   - Per-task GitHub status (CI, mergeable, comments): 90s for focused, 5min for unfocused
@@ -112,12 +113,12 @@ Performance is the headline feature. Cold start under 800ms. Tab switching under
 ```mermaid
 flowchart LR
     subgraph App["Loom (single macOS process)"]
-        UI["SwiftUI views<br/>Sidebar · Main pane (Terminal/GitHub/Diff)"]
+        UI["SwiftUI views<br/>Sidebar · Main pane (Agent/GitHub/Diff)"]
         VM["ViewModels<br/>@Observable, actor-isolated"]
         Store[("GRDB SQLite<br/>~/Library/Application Support/Loom")]
         Sync["GitHub sync engine<br/>REST + GraphQL, ETag-cached"]
         WT["Worktree manager<br/>git subprocess"]
-        PTY["PTY supervisor<br/>SwiftTerm sessions"]
+        PTY["Coding-agent runner<br/>SwiftTerm-hosted PTY"]
         WV["WKWebView pool"]
         Diff["Diff engine<br/>libgit2 + bundled diff2html"]
     end
@@ -159,10 +160,14 @@ task
 task_assignee
   task_id FK, login (composite PK)
 
+coding_agent   -- a user-configured agent profile (Claude, Codex, Grok, …)
+  id PK, name UNIQUE, command, args_json, is_default BOOL, position INT,
+  created_at, updated_at
+
 tab
-  id PK, task_id FK NULL, position INT,
+  id PK, task_id FK NULL, coding_agent_id FK NULL, position INT,
   branch_name, worktree_path,
-  last_main_view ENUM(terminal,github,diff),
+  last_main_view ENUM(agent,github,diff),
   created_at, last_active_at
 
 github_status   -- one row per task, refreshed periodically
@@ -172,8 +177,8 @@ github_status   -- one row per task, refreshed periodically
   fetched_at
 
 session_state   -- one row per tab, what we restore on launch
-  tab_id PK, cwd, claude_command, last_known_exit_code,
-  pty_started_at, pty_ended_at
+  tab_id PK, cwd, agent_command, agent_args_json,
+  last_known_exit_code, pty_started_at, pty_ended_at
 
 setting
   key PK, value
@@ -311,31 +316,34 @@ Each phase below is canonical. Don't change the order. Don't merge phases.
 
 ---
 
-### Phase 3 — Embedded PTY terminal
+### Phase 3 — Embedded coding-agent runner
 
-**Goal:** open multiple independent Claude Code sessions inside the app, one per tab, fully embedded.
+**Goal:** open multiple independent **coding-agent** sessions inside the app, one per tab, fully embedded. A tab is **not** a generic terminal — it hosts a single coding-agent process selected from a list of pre-configured profiles (Claude, Codex, Grok, …). A user wanting a real shell should use Terminal.app; that's out of scope for Loom.
 
 **Deliverables:**
-- `TerminalSession` class wrapping a `SwiftTerm.LocalProcessTerminalView`.
-- Spawns `/bin/zsh -i -c "<command>"` in the worktree directory; default command is `claude --dangerously-skip-permissions`, overridable per-tab.
-- Persists `session_state` row on every meaningful state change (started, exited).
-- Captures last 4KB of output to a ring buffer (used by Phase 6 fallback status detection).
-- Clean shutdown: SIGTERM on tab close, SIGKILL after 5s if still alive.
+- GRDB migration `v2` adding the `coding_agent` table (per §3.2). Seed one row on first boot: `{ name: "Claude", command: "claude", args: ["--dangerously-skip-permissions"], is_default: true }`. User can edit/add/remove later via the debug menu (Phase 3) → Preferences (Phase 8).
+- `CodingAgentStore` — typed CRUD over the `coding_agent` table.
+- `CodingAgentRunner` class wrapping a `SwiftTerm.LocalProcessTerminalView`. Given a `CodingAgent` profile and a worktree path, spawns `<command>` directly (no shell wrapper) with `args`, cwd = worktree path, environment inherited from the parent process.
+- Persists a `session_state` row on every meaningful state change (started, exited). Records `agent_command` and `agent_args_json` so a restart can offer to resume the same agent.
+- Captures last 4KB of agent stdout/stderr to a ring buffer (used by Phase 6 fallback status detection).
+- Clean shutdown: SIGTERM on tab close, SIGKILL after 5s if the agent is still alive.
 - Resize handled (forwarded to PTY via `TIOCSWINSZ`).
 - Copy / paste / select working (SwiftTerm handles most of this; verify).
 - Font, colour scheme matches macOS dark/light mode automatically (Phase 8 will add user override).
 
 **Acceptance criteria:**
-- [ ] Open one session → Claude Code prompt visible within 2s
+- [ ] Default Claude profile is seeded on a fresh DB
+- [ ] Debug menu: "Add Agent…" / "Remove Agent…" / "Set Default Agent…" all round-trip through the `coding_agent` table
+- [ ] Open one session with the default agent → its prompt visible within 2s
 - [ ] Open 5 sessions in 5 different worktrees → all run independently, no crosstalk
-- [ ] Each session shows correct `pwd` matching its worktree
-- [ ] Kill app via ⌘Q → all PTYs terminated within 5s (verified by `ps`)
-- [ ] Crash recovery: previous session's exit code visible in `session_state` after restart
+- [ ] Each session shows correct `pwd` matching its worktree (asserted via the agent's own output, e.g. by running an agent that prints cwd, or by inspecting the PTY child's `/proc`-equivalent via `proc_pidpath`)
+- [ ] Kill app via ⌘Q → all PTY children terminated within 5s (verified by `ps`)
+- [ ] Crash recovery: previous session's exit code + agent command visible in `session_state` after restart
 - [ ] Memory: 10 open/close cycles, RSS growth < 50MB net
 - [ ] ⌘C, ⌘V, scrollback all work
-- [ ] Unit test for PTY supervisor lifecycle using `/bin/echo` as the command
+- [ ] Unit test for PTY supervisor lifecycle using `/bin/echo` as a stand-in agent command (proves spawn/exit/exit-code wiring without depending on a real coding agent being installed)
 
-**Forbidden:** no sidebar yet. Sessions for now are created via a debug menu "+ New Session" prompting for a worktree path.
+**Forbidden:** no sidebar yet. Sessions for now are created via a debug menu "+ New Session" that prompts for (a) a worktree path and (b) which configured agent to spawn.
 
 ---
 
@@ -480,7 +488,11 @@ Each phase below is canonical. Don't change the order. Don't merge phases.
 
 **Deliverables:**
 - App icon set (1024 down to 16), dock icon, menu bar.
-- Preferences window: tracked repos (add/remove with autocomplete from `gh repo list`), refresh intervals, Claude command override, theme (auto/light/dark), font.
+- Preferences window:
+  - Tracked repos (add/remove with autocomplete from `gh repo list`).
+  - **Coding-agent profiles**: list + edit + add + remove + reorder + set default. Each profile is `{ name, command, args }`. The default profile is what `+ New Session` uses unless the user picks another.
+  - Refresh intervals.
+  - Theme (auto/light/dark), font.
 - Onboarding sheet on first launch: detect `gh`, prompt to `gh auth login` if not authenticated, walk through adding first repo.
 - Crash reporter — local file in `~/Library/Logs/Loom/crashes/` with a "Reveal in Finder" action in the menu.
 - Help → "Diagnostics" — copies anonymised system info + recent logs to clipboard.
@@ -502,11 +514,12 @@ Each phase below is canonical. Don't change the order. Don't merge phases.
 
 ## 5. Glossary
 
-- **Tab** — a row in Loom's sidebar. May or may not be linked to a GitHub task. Has a worktree, optionally a PTY session.
+- **Tab** — a row in Loom's sidebar. May or may not be linked to a GitHub task. Has a worktree, and optionally a running coding-agent session.
 - **Task** — a GitHub issue or PR assigned to the user.
 - **Tracked repo** — a repo the user has added; Loom syncs assigned tasks from it.
 - **Worktree** — a `git worktree`-managed checkout living at `<repo-parent>/.worktrees/<branch-slug>`.
-- **Session** — a single PTY process running Claude Code (or whatever the user configured) in a worktree.
+- **Coding agent** — a user-configured profile (`name`, `command`, `args`) describing an AI coding tool to run. Examples: Claude, Codex, Grok. Profiles live in the `coding_agent` table. A new tab spawns the **default** profile unless the user picks another at creation time.
+- **Session** — a single PTY-hosted process running one **coding agent** in a worktree. Loom does not run generic shells; users wanting a shell open Terminal.app.
 - **Phase report** — `phase-N-report.md`, written at every checkpoint.
 - **Coverage ledger** — `coverage-ledger.md`, the rolling status of every acceptance criterion across all phases.
 
