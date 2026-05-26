@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Observation
 
@@ -19,6 +20,10 @@ final class SessionsModel {
     var sessions: [OpenSession] = []
     var selectedID: Int64?
 
+    /// `AgentTerminalSurface.Coordinator` registers its PID here so app-quit
+    /// can iterate and SIGTERM every live agent. Tab id → PID.
+    private var livePIDs: [Int64: pid_t] = [:]
+
     func add(_ session: OpenSession) {
         sessions.append(session)
         selectedID = session.id
@@ -26,8 +31,24 @@ final class SessionsModel {
 
     func remove(id: Int64) {
         sessions.removeAll { $0.id == id }
+        livePIDs[id] = nil
         if selectedID == id {
             selectedID = sessions.first?.id
         }
+    }
+
+    func registerLivePID(_ pid: pid_t, for tabID: Int64) {
+        livePIDs[tabID] = pid
+    }
+
+    func unregisterLivePID(for tabID: Int64) {
+        livePIDs[tabID] = nil
+    }
+
+    /// Returns the snapshot of live agent PIDs at call time. Used by
+    /// `AppDelegate.applicationWillTerminate` to SIGTERM every running agent
+    /// before the app's own process exits.
+    func snapshotLivePIDs() -> [pid_t] {
+        Array(livePIDs.values)
     }
 }

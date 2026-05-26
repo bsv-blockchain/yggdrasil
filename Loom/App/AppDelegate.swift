@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Built lazily on first launch; nil before applicationDidFinishLaunching fires
@@ -36,6 +37,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         LoomLog.ui.info("Loom will terminate")
         if let scheduler = services?.scheduler {
             Task { await scheduler.stop() }
+        }
+        // SIGTERM every live agent PTY. SwiftUI's own dismantleNSView paths
+        // catch most cases, but the model is the authoritative registry.
+        if let pids = services?.sessions.snapshotLivePIDs() {
+            for pid in pids {
+                LoomLog.pty.info("Sending SIGTERM to agent pid=\(pid, privacy: .public) on app quit")
+                kill(pid, SIGTERM)
+            }
         }
     }
 

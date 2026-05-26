@@ -1,5 +1,5 @@
 {
-  "current_phase": 3,
+  "current_phase": 4,
   "completed_phases": [
     {
       "phase": 0,
@@ -28,15 +28,27 @@
     {
       "phase": 2,
       "name": "Worktree manager",
-      "approved": false,
+      "approved": true,
+      "approved_at": "2026-05-27T00:30:00Z",
       "branch": "main",
       "git_sha": "f936cd6130cb27225e86a24825e805603d8f39f9",
       "completed_at": "2026-05-26T21:25:00Z",
       "blockers": []
+    },
+    {
+      "phase": 3,
+      "name": "Embedded coding-agent runner",
+      "approved": false,
+      "branch": "main",
+      "git_sha": "PENDING_FINALIZATION",
+      "completed_at": "2026-05-27T01:00:00Z",
+      "blockers": [
+        "AC#8 (10-cycle RSS < 50MB) requires a manual Instruments pass"
+      ]
     }
   ],
   "started_at": "2026-05-26T19:00:00Z",
-  "last_updated": "2026-05-26T21:25:00Z",
-  "last_git_sha": "f936cd6130cb27225e86a24825e805603d8f39f9",
+  "last_updated": "2026-05-27T01:00:00Z",
+  "last_git_sha": "PENDING_FINALIZATION",
   "blockers": []
 }

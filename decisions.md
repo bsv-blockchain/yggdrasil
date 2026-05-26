@@ -63,3 +63,22 @@ Design decisions made during the build that weren't in the spec, with rationale 
 **Approval.** User instructed *"Just work in main for now, as an exception. Nobody is using this yet"* after Phase 0 approval.
 
 ---
+
+## 2026-05-27 — Headless agent runner uses `/bin/sh -c 'cd && exec'`; UI surface uses native `currentDirectory`
+
+**Spec §2.1 says:** *"spawn `<profile.command> <profile.args>` directly inside a PTY at the worktree path. No interactive shell wrapper."*
+
+**Decision.** Two code paths in Phase 3, differing only in how cwd is set:
+
+- **UI path (`AgentTerminalSurface`)** uses `SwiftTerm.LocalProcessTerminalView.startProcess(executable:, args:, currentDirectory:)`, which accepts the cwd directly. **Zero shell wrap.** Matches spec exactly.
+- **Headless test path (`CodingAgentRunner`)** uses bare `SwiftTerm.LocalProcess`, which does NOT accept a `currentDirectory` parameter. Minimal wrap: `/bin/sh -c 'cd "<cwd>" && exec <cmd> <args>'`. Non-interactive (no `-i`), reads no rc files, and `exec` replaces the shell so signals reach the agent directly.
+
+**Rationale.** Spec's "no interactive shell wrapper" is about avoiding the user's `.zshrc` / `.bashrc` / `.profile` ceremony, not banning every conceivable `/bin/sh` invocation. The non-interactive `sh -c` form satisfies the spirit (no profile loading) and is required because bare `LocalProcess` has no cwd parameter.
+
+**Trade-offs.**
+- Two slightly-different spawn implementations.
+- If/when SwiftTerm exposes `currentDirectory` on `LocalProcess` (or we patch our fork), drop the wrap and converge on one path. Tracked as a Phase 8 cleanup item.
+
+**Approval.** Self-documented at Phase 3 finalization; surfaced in `phase-3-report.md` §3.1 for review.
+
+---

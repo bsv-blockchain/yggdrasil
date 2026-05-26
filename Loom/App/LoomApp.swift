@@ -90,19 +90,7 @@ struct SessionsView: View {
 
     @ViewBuilder
     private var activeSession: some View {
-        if let active = services.sessions.sessions
-            .first(where: { $0.id == services.sessions.selectedID }) {
-            AgentTerminalSurface(
-                tabID: active.id,
-                cwd: active.cwd,
-                command: active.command,
-                args: active.args,
-                sessionStore: services.sessionStore
-            )
-            // Force a fresh NSViewRepresentable per session so switching tabs
-            // doesn't re-host the prior terminal into the new tab's surface.
-            .id(active.id)
-        } else {
+        if services.sessions.sessions.isEmpty {
             ZStack {
                 Color(NSColor.windowBackgroundColor)
                 VStack(spacing: 12) {
@@ -112,6 +100,27 @@ struct SessionsView: View {
                     Text("Use Debug → + New Session to start a coding agent.")
                         .font(.callout)
                         .foregroundStyle(.tertiary)
+                }
+            }
+        } else {
+            // All sessions live in the ZStack so their PTYs stay alive when
+            // off-screen. Only the selected one is visible. Stable .id() per
+            // session prevents SwiftUI from re-creating (and thereby tearing
+            // down) the underlying LocalProcessTerminalView on selection
+            // changes.
+            ZStack {
+                ForEach(services.sessions.sessions) { session in
+                    AgentTerminalSurface(
+                        tabID: session.id,
+                        cwd: session.cwd,
+                        command: session.command,
+                        args: session.args,
+                        sessionStore: services.sessionStore,
+                        sessions: services.sessions
+                    )
+                    .id(session.id)
+                    .opacity(services.sessions.selectedID == session.id ? 1 : 0)
+                    .allowsHitTesting(services.sessions.selectedID == session.id)
                 }
             }
         }

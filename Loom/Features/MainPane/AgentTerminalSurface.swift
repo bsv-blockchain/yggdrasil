@@ -20,11 +20,28 @@ struct AgentTerminalSurface: NSViewRepresentable {
     let command: String
     let args: [String]
     let sessionStore: SessionStateStore
+    let sessions: SessionsModel?
+
+    init(
+        tabID: Int64,
+        cwd: String,
+        command: String,
+        args: [String],
+        sessionStore: SessionStateStore,
+        sessions: SessionsModel? = nil
+    ) {
+        self.tabID = tabID
+        self.cwd = cwd
+        self.command = command
+        self.args = args
+        self.sessionStore = sessionStore
+        self.sessions = sessions
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             tabID: tabID, cwd: cwd, command: command, args: args,
-            sessionStore: sessionStore
+            sessionStore: sessionStore, sessions: sessions
         )
     }
 
@@ -51,6 +68,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
         let command: String
         let args: [String]
         let sessionStore: SessionStateStore
+        private weak var sessions: SessionsModel?
         private weak var attachedView: LocalProcessTerminalView?
         private let lock = NSLock()
         private var ring = OutputRingBuffer.makeAgentOutputRing()
@@ -60,13 +78,14 @@ struct AgentTerminalSurface: NSViewRepresentable {
 
         init(
             tabID: Int64, cwd: String, command: String, args: [String],
-            sessionStore: SessionStateStore
+            sessionStore: SessionStateStore, sessions: SessionsModel?
         ) {
             self.tabID = tabID
             self.cwd = cwd
             self.command = command
             self.args = args
             self.sessionStore = sessionStore
+            self.sessions = sessions
             super.init()
         }
 
@@ -94,6 +113,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
                 currentDirectory: cwd
             )
             pid = view.process.shellPid
+            sessions?.registerLivePID(pid, for: tabID)
             LoomLog.pty.info("Spawned agent pid=\(self.pid, privacy: .public) command=\(self.command, privacy: .public)")
         }
 
@@ -130,6 +150,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
             } catch {
                 LoomLog.pty.error("Failed to write session_state.end: \(String(describing: error), privacy: .public)")
             }
+            sessions?.unregisterLivePID(for: tabID)
             LoomLog.pty.info("Agent pid=\(self.pid, privacy: .public) exited code=\(resolved, privacy: .public)")
         }
     }
