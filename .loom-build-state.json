@@ -40,7 +40,7 @@
       "name": "Embedded coding-agent runner",
       "approved": false,
       "branch": "main",
-      "git_sha": "PENDING_FINALIZATION",
+      "git_sha": "29c74596eebaecbe97d139b518be4989af033537",
       "completed_at": "2026-05-27T01:00:00Z",
       "blockers": [
         "AC#8 (10-cycle RSS < 50MB) requires a manual Instruments pass"
@@ -49,6 +49,6 @@
   ],
   "started_at": "2026-05-26T19:00:00Z",
   "last_updated": "2026-05-27T01:00:00Z",
-  "last_git_sha": "PENDING_FINALIZATION",
+  "last_git_sha": "29c74596eebaecbe97d139b518be4989af033537",
   "blockers": []
 }
