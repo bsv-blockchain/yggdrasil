@@ -1,0 +1,113 @@
+name: Loom
+options:
+  bundleIdPrefix: com.bsvassociation
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  defaultConfig: Debug
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: "NO"
+    GCC_TREAT_WARNINGS_AS_ERRORS: "NO"
+configs:
+  Debug: debug
+  Release: release
+packages:
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    from: "1.2.0"
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    from: "6.29.0"
+  Clibgit2:
+    path: Vendor/Clibgit2
+  KeychainAccess:
+    url: https://github.com/kishikawakatsumi/KeychainAccess
+    from: "4.2.2"
+targets:
+  Loom:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Loom
+        excludes:
+          - "**/.gitkeep"
+    resources:
+      - path: Loom/Resources/Assets.xcassets
+        optional: true
+      - path: Loom/Resources/diff2html
+        optional: true
+    info:
+      path: Loom/Info.plist
+      properties:
+        CFBundleName: Loom
+        CFBundleDisplayName: Loom
+        CFBundleIdentifier: com.bsvassociation.loom
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        LSMinimumSystemVersion: "14.0"
+        NSHumanReadableCopyright: ""
+        NSPrincipalClass: NSApplication
+        NSMainStoryboardFile: ""
+        LSApplicationCategoryType: public.app-category.developer-tools
+    entitlements:
+      path: Loom/Loom.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        com.apple.security.network.client: true
+        com.apple.security.network.server: false
+        com.apple.security.files.user-selected.read-write: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bsvassociation.loom
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        ENABLE_HARDENED_RUNTIME: "YES"
+        INFOPLIST_KEY_NSPrincipalClass: NSApplication
+        COMBINE_HIDPI_IMAGES: "YES"
+    dependencies:
+      - package: SwiftTerm
+        product: SwiftTerm
+      - package: GRDB
+        product: GRDB
+      - package: Clibgit2
+        product: Clibgit2
+      - package: KeychainAccess
+        product: KeychainAccess
+
+  LoomTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tests/Unit
+    dependencies:
+      - target: Loom
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+        PRODUCT_BUNDLE_IDENTIFIER: com.bsvassociation.loom.unit-tests
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Loom.app/Contents/MacOS/Loom"
+
+schemes:
+  Loom:
+    build:
+      targets:
+        Loom: all
+        LoomTests: [test]
+    test:
+      targets:
+        - LoomTests
+      gatherCoverageData: true
+    run:
+      config: Debug
+    archive:
+      config: Release

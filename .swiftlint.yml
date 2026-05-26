@@ -1,0 +1,55 @@
+# SwiftLint configuration for Loom.
+
+included:
+  - Loom
+  - Tests
+
+excluded:
+  - Loom.xcodeproj
+  - Vendor
+  - DerivedData
+  - build
+  - .build
+  - Loom/Resources
+
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - explicit_init
+  - first_where
+  - last_where
+  - sorted_first_last
+  - toggle_bool
+
+analyzer_rules:
+  - unused_import
+  - unused_declaration
+
+disabled_rules:
+  - todo
+  - line_length          # enforced by SwiftFormat instead
+  - trailing_comma       # SwiftFormat handles
+
+identifier_name:
+  excluded:
+    - id
+    - ui
+    - db
+
+file_length:
+  warning: 500
+  error: 1000
+
+type_body_length:
+  warning: 300
+  error: 500
+
+function_body_length:
+  warning: 60
+  error: 120
+
+cyclomatic_complexity:
+  warning: 12
+  error: 20
+
+reporter: emoji

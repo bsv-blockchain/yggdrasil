@@ -1,8 +1,20 @@
 {
-  "current_phase": 0,
-  "completed_phases": [],
-  "started_at": "2026-05-26T00:00:00Z",
-  "last_updated": "2026-05-26T00:00:00Z",
-  "last_git_sha": "",
+  "current_phase": 1,
+  "completed_phases": [
+    {
+      "phase": 0,
+      "name": "Foundation",
+      "approved": false,
+      "branch": "phase-0/foundation",
+      "git_sha": "PENDING_FINALIZATION",
+      "completed_at": "2026-05-26T19:48:00Z",
+      "blockers": [
+        "AC#4 (CI green on GitHub) blocked until repo has an origin remote"
+      ]
+    }
+  ],
+  "started_at": "2026-05-26T19:00:00Z",
+  "last_updated": "2026-05-26T19:48:00Z",
+  "last_git_sha": "PENDING_FINALIZATION",
   "blockers": []
 }

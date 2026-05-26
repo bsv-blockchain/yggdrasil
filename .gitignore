@@ -18,7 +18,9 @@ xcuserdata/
 .swiftpm/
 .build/
 Packages/
-Package.resolved
+# Note: do NOT ignore Package.resolved — for an Xcode app we commit the resolved
+# manifest at Loom.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+# so CI builds against pinned versions.
 
 # Loom runtime data
 ~/Library/Application Support/Loom/

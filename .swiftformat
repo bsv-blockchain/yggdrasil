@@ -1,0 +1,23 @@
+# SwiftFormat configuration for Loom.
+# See https://github.com/nicklockwood/SwiftFormat for option reference.
+
+--swiftversion 5.10
+--indent 4
+--maxwidth 120
+--trimwhitespace always
+--commas inline
+--semicolons never
+--ranges spaced
+--operatorfunc spaced
+--header strip
+
+# Disable rules that conflict with house style.
+--disable redundantSelf
+--disable wrapMultilineStatementBraces
+
+# Excludes — generated artefacts and vendored sources.
+--exclude Loom.xcodeproj
+--exclude Vendor
+--exclude DerivedData
+--exclude build
+--exclude .build

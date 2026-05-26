@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: build + test (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    env:
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Show Xcode + Swift versions
+        run: |
+          xcodebuild -version
+          swift --version
+          sw_vers
+
+      - name: Install Homebrew deps (xcodegen, swiftlint, swiftformat, libgit2)
+        run: |
+          brew update
+          brew install xcodegen swiftlint swiftformat libgit2
+
+      - name: Xcode first-launch + Metal toolchain
+        run: |
+          sudo xcodebuild -runFirstLaunch
+          sudo xcodebuild -downloadComponent MetalToolchain
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: spm-${{ runner.os }}-${{ hashFiles('project.yml', 'Vendor/Clibgit2/Package.swift') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
+      - name: Generate Xcode project
+        run: make project
+
+      - name: SwiftFormat lint
+        run: swiftformat . --lint
+
+      - name: SwiftLint
+        run: make lint
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: make test
