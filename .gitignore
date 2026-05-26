@@ -1,0 +1,27 @@
+# Worktrees (per CLAUDE.md convention)
+.worktrees/
+
+# macOS
+.DS_Store
+*.swp
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+*.xcscheme
+!*.xcodeproj/xcshareddata/xcschemes/*.xcscheme
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+Package.resolved
+
+# Loom runtime data
+~/Library/Application Support/Loom/
+
+# Logs
+*.log
