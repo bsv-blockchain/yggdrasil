@@ -78,7 +78,36 @@ actor WorktreeManager {
         guard let mainPath = repo.localMainPath else {
             return []
         }
-        return try await listWorktrees(at: URL(fileURLWithPath: mainPath))
+        return try await listWorktrees(at: URL(fileURLWithPath: mainPath, isDirectory: true))
+    }
+
+    /// Remove a worktree. Refuses if the worktree is dirty unless `force: true`.
+    func remove(repo: Repo, path: URL, force: Bool) async throws {
+        guard let mainPath = repo.localMainPath else {
+            throw WorktreeError.parseFailure(reason: "repo \(repo.fullName) has no localMainPath")
+        }
+        let mainURL = URL(fileURLWithPath: mainPath, isDirectory: true)
+
+        if !force {
+            let status = try await git.run(args: ["status", "--porcelain"], cwd: path)
+            if !status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                throw WorktreeError.dirty(path: path)
+            }
+        }
+
+        var args = ["worktree", "remove", path.path]
+        if force {
+            args.append("--force")
+        }
+        try await git.run(args: args, cwd: mainURL)
+    }
+
+    /// `git worktree prune` — drops administrative entries for worktree directories
+    /// that no longer exist on disk.
+    func cleanupOrphans(for repo: Repo) async throws {
+        guard let mainPath = repo.localMainPath else { return }
+        let mainURL = URL(fileURLWithPath: mainPath, isDirectory: true)
+        try await git.run(args: ["worktree", "prune"], cwd: mainURL)
     }
 
     // MARK: - Internals

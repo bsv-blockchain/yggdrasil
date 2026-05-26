@@ -93,4 +93,69 @@ final class WorktreeManagerTests: XCTestCase {
         XCTAssertEqual(entries.count, 1)
         XCTAssertEqual(entries[0].branch, "main")
     }
+
+    // MARK: - remove()
+
+    func testRemoveCleanWorktreeSucceeds() async throws {
+        let manager = WorktreeManager()
+        let path = try await manager.ensure(repo: fixture.repo, branch: "feat/foo", baseRef: nil)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: path.path))
+
+        try await manager.remove(repo: fixture.repo, path: path, force: false)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path.path))
+        let remaining = try await manager.list(for: fixture.repo)
+        XCTAssertFalse(remaining.contains { $0.branch == "feat/foo" })
+    }
+
+    func testRemoveDirtyWorktreeWithoutForceThrowsDirty() async throws {
+        let manager = WorktreeManager()
+        let path = try await manager.ensure(repo: fixture.repo, branch: "feat/foo", baseRef: nil)
+        // Dirty it: drop a file inside the worktree.
+        let scratch = path.appendingPathComponent("hello.txt")
+        try Data("hi".utf8).write(to: scratch)
+
+        do {
+            try await manager.remove(repo: fixture.repo, path: path, force: false)
+            XCTFail("expected throw")
+        } catch let WorktreeError.dirty(reportedPath) {
+            XCTAssertEqual(
+                reportedPath.resolvingSymlinksInPath().path,
+                path.resolvingSymlinksInPath().path
+            )
+        } catch {
+            XCTFail("expected .dirty, got \(error)")
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: path.path),
+                      "dirty worktree must not be removed")
+    }
+
+    func testRemoveDirtyWorktreeWithForceSucceeds() async throws {
+        let manager = WorktreeManager()
+        let path = try await manager.ensure(repo: fixture.repo, branch: "feat/foo", baseRef: nil)
+        let scratch = path.appendingPathComponent("hello.txt")
+        try Data("hi".utf8).write(to: scratch)
+
+        try await manager.remove(repo: fixture.repo, path: path, force: true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path.path))
+    }
+
+    // MARK: - cleanupOrphans()
+
+    func testCleanupOrphansRemovesAdminEntryForDeletedWorktreeDir() async throws {
+        let manager = WorktreeManager()
+        let path = try await manager.ensure(repo: fixture.repo, branch: "feat/foo", baseRef: nil)
+        let preCount = try await manager.list(for: fixture.repo).count
+        XCTAssertEqual(preCount, 2)
+
+        // User nuked the worktree directory out from under git (the orphan case).
+        try FileManager.default.removeItem(at: path)
+        // Until prune, git still lists it (as `prunable`).
+
+        try await manager.cleanupOrphans(for: fixture.repo)
+
+        // After prune, the worktree is no longer in the registry.
+        let remaining = try await manager.list(for: fixture.repo)
+        XCTAssertFalse(remaining.contains { $0.branch == "feat/foo" }, "stale entry should be pruned")
+    }
 }
