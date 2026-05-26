@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -16,8 +17,29 @@ struct LoomApp: App {
     }
 }
 
+/// Top-level main window. Phase 3 replaces the placeholder with a row of session
+/// tabs along the top and the active agent's terminal in the body. Phase 4 swaps
+/// the row for the proper sidebar.
 struct RootView: View {
+
+    /// Pulled lazily so SwiftUI doesn't crash under XCTest where AppServices is nil.
+    private var services: AppServices? {
+        (NSApplication.shared.delegate as? AppDelegate)?.services
+    }
+
     var body: some View {
+        Group {
+            if let services {
+                SessionsView(services: services)
+            } else {
+                placeholder
+            }
+        }
+        .frame(minWidth: 800, minHeight: 600)
+        .accessibilityIdentifier("loom.root")
+    }
+
+    private var placeholder: some View {
         ZStack {
             Color.clear
             Text("Loom")
@@ -25,7 +47,73 @@ struct RootView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("loom.placeholder.title")
         }
-        .frame(minWidth: 800, minHeight: 600)
-        .accessibilityIdentifier("loom.root")
+    }
+}
+
+/// The "tabs strip + active agent terminal" UI for Phase 3.
+struct SessionsView: View {
+    let services: AppServices
+
+    var body: some View {
+        VStack(spacing: 0) {
+            tabsStrip
+            Divider()
+            activeSession
+        }
+    }
+
+    private var tabsStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 4) {
+                ForEach(services.sessions.sessions) { session in
+                    Button {
+                        services.sessions.selectedID = session.id
+                    } label: {
+                        Text(session.displayName)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(
+                                services.sessions.selectedID == session.id
+                                    ? Color.accentColor.opacity(0.25)
+                                    : Color.clear
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
+            .padding(8)
+        }
+        .frame(height: 38)
+    }
+
+    @ViewBuilder
+    private var activeSession: some View {
+        if let active = services.sessions.sessions
+            .first(where: { $0.id == services.sessions.selectedID }) {
+            AgentTerminalSurface(
+                tabID: active.id,
+                cwd: active.cwd,
+                command: active.command,
+                args: active.args,
+                sessionStore: services.sessionStore
+            )
+            // Force a fresh NSViewRepresentable per session so switching tabs
+            // doesn't re-host the prior terminal into the new tab's surface.
+            .id(active.id)
+        } else {
+            ZStack {
+                Color(NSColor.windowBackgroundColor)
+                VStack(spacing: 12) {
+                    Text("No sessions yet")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                    Text("Use Debug → + New Session to start a coding agent.")
+                        .font(.callout)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
     }
 }
