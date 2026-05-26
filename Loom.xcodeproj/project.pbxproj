@@ -60,6 +60,7 @@
 		E5ECEBB9B7ABC39712DE0B96 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF42D22CA2F5E4B7FB58F74 /* AppServices.swift */; };
 		EF67246D6169F891967950B1 /* HTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910F7265E64BB1FF01A716DC /* HTTPClient.swift */; };
 		F05753ED7B789D82CCE9B5C3 /* Endpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1D333E293A9B1CC752EA00 /* Endpoints.swift */; };
+		F16C61F1A8FA363F069EB4CC /* FileLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB1AC5F6ABF606215C34828 /* FileLock.swift */; };
 		F214AFF555015845B7F361F8 /* GitRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 878B0F36B6165280BC512CBD /* GitRunnerTests.swift */; };
 		F2F8E3D62A0EA28602FDEF41 /* Setting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7156A915B0B1A14BCFFB897 /* Setting.swift */; };
 		FB007E0D6F7C94AA62BDA3FE /* GitHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879315D3D2B7186766F53DDE /* GitHubStatus.swift */; };
@@ -106,6 +107,7 @@
 		879315D3D2B7186766F53DDE /* GitHubStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubStatus.swift; sourceTree = "<group>"; };
 		87DD3CBCFF1F6ED6BD5E0DAD /* TaskAssignee.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskAssignee.swift; sourceTree = "<group>"; };
 		8B62A3B00A8A4F40F3F2A92A /* Loom.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Loom.entitlements; sourceTree = "<group>"; };
+		8EB1AC5F6ABF606215C34828 /* FileLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileLock.swift; sourceTree = "<group>"; };
 		910F7265E64BB1FF01A716DC /* HTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPClient.swift; sourceTree = "<group>"; };
 		91B5DDCD59C803D57C4D6A26 /* LoomDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoomDatabase.swift; sourceTree = "<group>"; };
 		965174FB87136638BA643B4C /* LoomTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LoomTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -190,6 +192,7 @@
 			isa = PBXGroup;
 			children = (
 				FA798D587199F39EA6CD559F /* BranchSlug.swift */,
+				8EB1AC5F6ABF606215C34828 /* FileLock.swift */,
 				BBDCC7E2C0056A34781ECCB3 /* GitRunner.swift */,
 				13CBE7B660EECC9CD4A008C9 /* WorktreeError.swift */,
 				DA866E83ACA13FF4C4B67A76 /* WorktreeInfo.swift */,
@@ -502,6 +505,7 @@
 				94F93BFF9F49536A3D1F7E1F /* DependencySmokeImports.swift in Sources */,
 				6533A1FFA7FFB508F399842F /* ETagStore.swift in Sources */,
 				F05753ED7B789D82CCE9B5C3 /* Endpoints.swift in Sources */,
+				F16C61F1A8FA363F069EB4CC /* FileLock.swift in Sources */,
 				70558F82CFF93CD3B4E8059A /* GHCLIAuth.swift in Sources */,
 				5E1D6FF961164DF2EB889B18 /* GitHubError.swift in Sources */,
 				FB007E0D6F7C94AA62BDA3FE /* GitHubStatus.swift in Sources */,

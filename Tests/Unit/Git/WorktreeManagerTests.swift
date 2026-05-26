@@ -142,6 +142,99 @@ final class WorktreeManagerTests: XCTestCase {
 
     // MARK: - cleanupOrphans()
 
+    // MARK: - PR branch fetch (stubbed git)
+
+    /// Exercises the PR-ref code path with a StubSubprocessRunner so we don't need
+    /// to set up a 2-repo origin with `refs/pull/<n>/head` actually present.
+    func testEnsurePullRequestRefIssuesFetchThenWorktreeAdd() async throws {
+        let stub = StubSubprocessRunner(responses: [
+            // 1. `git worktree list --porcelain` — return just the main clone.
+            SubprocessResult(
+                stdout: """
+                worktree /tmp/repo
+                HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                branch refs/heads/main
+
+                """,
+                stderr: "", exitCode: 0
+            ),
+            // 2. `git fetch origin pull/655/head:pr-655` — succeeds silently.
+            SubprocessResult(stdout: "", stderr: "", exitCode: 0),
+            // 3. `git worktree add /tmp/.worktrees/pr-655 pr-655` — succeeds.
+            SubprocessResult(stdout: "", stderr: "", exitCode: 0),
+        ])
+        let manager = WorktreeManager(git: GitRunner(runner: stub, gitExecutable: "/usr/bin/git"))
+        let repo = Repo(
+            id: 1, owner: "bsv-blockchain", name: "teranode",
+            defaultBranch: "main", localMainPath: "/tmp/repo", addedAt: Date()
+        )
+        _ = try await manager.ensure(repo: repo, branch: "pr-655", baseRef: "refs/pull/655/head")
+
+        let calls = await stub.recordedCalls()
+        XCTAssertEqual(calls.count, 3)
+        XCTAssertEqual(calls[0].arguments, ["-C", "/tmp/repo", "worktree", "list", "--porcelain"])
+        XCTAssertEqual(
+            calls[1].arguments,
+            ["-C", "/tmp/repo", "fetch", "origin", "pull/655/head:pr-655"]
+        )
+        XCTAssertEqual(calls[2].arguments[0..<5], ["-C", "/tmp/repo", "worktree", "add", "/tmp/.worktrees/pr-655"])
+        XCTAssertEqual(calls[2].arguments.last, "pr-655")
+        // Crucially: no `-b` flag on the worktree add step (the branch already exists
+        // locally after the fetch).
+        XCTAssertFalse(calls[2].arguments.contains("-b"))
+    }
+
+    func testEnsurePullRequestRefUnknownPullSurfacesUnknownRef() async throws {
+        let stub = StubSubprocessRunner(responses: [
+            SubprocessResult(
+                stdout: """
+                worktree /tmp/repo
+                HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                branch refs/heads/main
+
+                """,
+                stderr: "", exitCode: 0
+            ),
+            // Fetch fails with the "unknown revision" wording.
+            SubprocessResult(
+                stdout: "",
+                stderr: "fatal: couldn't find remote ref pull/9999/head\nfatal: unknown revision",
+                exitCode: 128
+            ),
+        ])
+        let manager = WorktreeManager(git: GitRunner(runner: stub, gitExecutable: "/usr/bin/git"))
+        let repo = Repo(
+            id: 1, owner: "x", name: "y",
+            defaultBranch: "main", localMainPath: "/tmp/repo", addedAt: Date()
+        )
+        do {
+            _ = try await manager.ensure(repo: repo, branch: "pr-9999", baseRef: "refs/pull/9999/head")
+            XCTFail("expected throw")
+        } catch WorktreeError.unknownRef(let ref) {
+            XCTAssertEqual(ref, "refs/pull/9999/head")
+        } catch {
+            XCTFail("expected .unknownRef, got \(error)")
+        }
+    }
+
+    // MARK: - Concurrency
+
+    func testConcurrentEnsureCallsAreSerialisedAndBothSucceed() async throws {
+        let manager = WorktreeManager()
+        async let pathFoo = manager.ensure(repo: fixture.repo, branch: "feat/foo", baseRef: nil)
+        async let pathBar = manager.ensure(repo: fixture.repo, branch: "feat/bar", baseRef: nil)
+        let foo = try await pathFoo
+        let bar = try await pathBar
+
+        XCTAssertNotEqual(foo, bar)
+        let list = try await manager.list(for: fixture.repo)
+        let branches = Set(list.compactMap(\.branch))
+        XCTAssertTrue(branches.contains("feat/foo"))
+        XCTAssertTrue(branches.contains("feat/bar"))
+        XCTAssertTrue(branches.contains("main"))
+        XCTAssertEqual(list.count, 3)
+    }
+
     func testCleanupOrphansRemovesAdminEntryForDeletedWorktreeDir() async throws {
         let manager = WorktreeManager()
         let path = try await manager.ensure(repo: fixture.repo, branch: "feat/foo", baseRef: nil)

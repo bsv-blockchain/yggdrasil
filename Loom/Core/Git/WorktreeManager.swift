@@ -13,9 +13,17 @@ actor WorktreeManager {
 
     // MARK: - Public API
 
+    /// Matches `refs/pull/<N>/head` (the GitHub PR convention). Captures the number.
+    private static let pullRefRegex = #"^refs/pull/(\d+)/head$"#
+
     /// Ensure a worktree for `branch` exists. Idempotent — if the worktree at the
     /// expected path is already on the right branch, returns its URL without doing
     /// any git work.
+    ///
+    /// - For PR refs (`baseRef` matching `refs/pull/<N>/head`): first runs
+    ///   `git fetch origin pull/<N>/head:<branch>` to materialise the local branch,
+    ///   then `git worktree add <path> <branch>`.
+    /// - For regular refs: `git worktree add -b <branch> <path> <baseRef ?? default>`.
     func ensure(repo: Repo, branch: String, baseRef: String? = nil) async throws -> URL {
         guard let mainPath = repo.localMainPath else {
             throw WorktreeError.parseFailure(reason: "repo \(repo.fullName) has no localMainPath")
@@ -28,6 +36,11 @@ actor WorktreeManager {
         // the directory exists on disk yet (avoids "/path/foo" vs "/path/foo/" drift
         // between idempotent calls).
         let target = worktreesDir.appendingPathComponent(slug, isDirectory: true)
+
+        // Acquire the per-repo POSIX file lock — cross-process serialisation per spec
+        // §Phase 2. (Same-actor calls are already serialised by actor isolation.)
+        let lock = try FileLock.acquireExclusive(at: worktreesDir.appendingPathComponent(".loom.lock"))
+        defer { lock.release() }
 
         // Case 1: a worktree is already registered at `target` — idempotent.
         // Resolve both sides through symlinks because git outputs canonical paths
@@ -51,7 +64,27 @@ actor WorktreeManager {
             at: worktreesDir, withIntermediateDirectories: true
         )
 
-        // Case 3: `git worktree add -b <branch> <target> <baseRef ?? default>`.
+        // Case 3a: PR ref → fetch then worktree add (no -b).
+        if let baseRef, let prNumber = Self.pullRequestNumber(from: baseRef) {
+            do {
+                try await git.run(
+                    args: ["fetch", "origin", "pull/\(prNumber)/head:\(branch)"],
+                    cwd: mainURL
+                )
+            } catch let WorktreeError.gitFailed(stderr, code) {
+                if Self.stderrIndicatesUnknownRef(stderr) {
+                    throw WorktreeError.unknownRef(baseRef)
+                }
+                throw WorktreeError.gitFailed(stderr: stderr, exitCode: code)
+            }
+            try await git.run(
+                args: ["worktree", "add", target.path, branch],
+                cwd: mainURL
+            )
+            return target
+        }
+
+        // Case 3b: regular ref → `git worktree add -b <branch> <target> <baseRef ?? default>`.
         let base = baseRef ?? repo.defaultBranch
         do {
             try await git.run(
@@ -70,6 +103,16 @@ actor WorktreeManager {
         }
 
         return target
+    }
+
+    private static func pullRequestNumber(from baseRef: String) -> Int? {
+        let regex = try? NSRegularExpression(pattern: pullRefRegex)
+        let range = NSRange(baseRef.startIndex..., in: baseRef)
+        guard let match = regex?.firstMatch(in: baseRef, range: range),
+              match.numberOfRanges == 2,
+              let numberRange = Range(match.range(at: 1), in: baseRef)
+        else { return nil }
+        return Int(baseRef[numberRange])
     }
 
     /// `git worktree list --porcelain` parsed into `[WorktreeInfo]`. Includes the

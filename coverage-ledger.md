@@ -34,3 +34,17 @@ Statuses are exactly one of `[DONE]` (with evidence) or `[BLOCKED]` (with reason
 | 9 | Integration test hits real GitHub with a test token (token via env var in CI) | `[DONE]` | `Tests/Integration/GitHubLiveSyncIntegrationTests.swift` — `XCTSkipUnless` on `LOOM_TEST_GITHUB_TOKEN`. CI workflow `.github/workflows/ci.yml` passes `secrets.LOOM_TEST_GITHUB_TOKEN` to `make test`. When the secret is absent (current state — no remote yet), the test correctly skips: latest `make test` reports "with 1 test skipped". |
 
 ---
+
+## Phase 2 — Worktree manager
+
+| # | Criterion | Status | Evidence |
+|---|-----------|--------|----------|
+| 1 | Unit tests create + remove + list worktrees in a fixture repo | `[DONE]` | `Tests/Unit/Git/FixtureGitRepo.swift` spins up a real on-disk git repo per test (`git init -b main` + identity config + empty initial commit). `WorktreeManagerTests` covers create (`testEnsureCreatesWorktreeAtExpectedPath`), remove (`testRemoveCleanWorktreeSucceeds`), list (`testListIncludesNewlyCreatedWorktree`, `testListOnFreshRepoReturnsOnlyMainClone`). |
+| 2 | Slug function: `feat/foo bar` → `feat-foo-bar`; long names truncated to 60 chars with hash suffix | `[DONE]` | `Tests/Unit/Git/BranchSlugTests.swift` — 8 tests covering slashes→dashes, dropped punctuation (`fix#123: do thing` → `fix123-do-thing`), preserved `._-`, edge cases (empty, single slash), dash collapsing, 80-char truncation with 8-char SHA-256 suffix, determinism, 59/60-char threshold. |
+| 3 | Idempotence: calling `ensure` twice with same args = same path, no error | `[DONE]` | `testEnsureIdempotentWhenBranchAlreadyExists`. Backed by `git worktree list --porcelain` parse + symlink-resolved path comparison + `isDirectory: true` URL construction (so the returned URL is stable). |
+| 4 | App restart: existing worktrees are discovered (no orphan creation) | `[DONE]` | `testEnsureDiscoversExistingWorktreeAcrossManagerInstances` constructs a fresh `WorktreeManager` after the first, verifies same URL returned and no duplicate created. |
+| 5 | Dirty worktree: `remove` without force throws `WorktreeError.dirty(path:)`; with force succeeds | `[DONE]` | `testRemoveDirtyWorktreeWithoutForceThrowsDirty` + `testRemoveDirtyWorktreeWithForceSucceeds`. Implemented via `git status --porcelain` precheck inside the worktree. |
+| 6 | Missing base ref: throws `WorktreeError.unknownRef`, no partial state left on disk | `[DONE]` | `testEnsureWithUnknownBaseRefThrowsAndLeavesNoPartialState` (regular ref) + `testEnsurePullRequestRefUnknownPullSurfacesUnknownRef` (PR ref). Implementation: stderr-pattern heuristic maps git's various "not a valid object/reference" messages to `.unknownRef`; best-effort cleanup of any partial dir. |
+| 7 | Concurrent `ensure` calls on the same repo are serialised (verified by test with two tasks) | `[DONE]` | `testConcurrentEnsureCallsAreSerialisedAndBothSucceed` — two `async let` calls to ensure() on the same actor; both succeed, list shows both. Actor isolation handles in-process serialisation; `FileLock` (POSIX `flock(LOCK_EX)` on `<parent>/.worktrees/.loom.lock`) handles cross-process per spec §Phase 2. |
+
+---
