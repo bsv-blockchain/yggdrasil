@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		01AABF5B57F81075C7A2B083 /* TaskSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D816452DC6DF06C51D6A7E /* TaskSyncService.swift */; };
 		03F5AA3F44277B035954E3FD /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 72948A8C9B18C19E1D4C35D1 /* SwiftTerm */; };
+		12BDD4B0CFB442E611DBCE34 /* CodingAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81C351F2B2D33F09C38CADCA /* CodingAgent.swift */; };
 		13928AE42F895ADB3C509302 /* TaskAssignee.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87DD3CBCFF1F6ED6BD5E0DAD /* TaskAssignee.swift */; };
 		181598A3CE05594945D7A7A3 /* SettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B67392FF13BE6CBE8F0F4F6D /* SettingsStoreTests.swift */; };
 		1BD055D4E0D2F2E95CA33EE3 /* GraphQLClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD919DBB349F5EE2742FD85B /* GraphQLClient.swift */; };
@@ -17,6 +18,7 @@
 		209A6F4AACB0F18B3A32C952 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 680463771A1913695ADBD74D /* KeychainStore.swift */; };
 		2738BC7003C35D380D6FAB6D /* SyncSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9696FDDBD0F4E674192A87A4 /* SyncSchedulerTests.swift */; };
 		2836556DFF4C07B9206E0118 /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A37491B6F40A34647CBC6AA7 /* SmokeTests.swift */; };
+		2C9C2D0D25A0FE2A761587F5 /* MigrationV2Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFBB835BE2F8DC7BAD3C1051 /* MigrationV2Tests.swift */; };
 		2D85955C8BF1967CC050FD03 /* RESTClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C9460A29E5F663743C9F53 /* RESTClientTests.swift */; };
 		3980493894B456C98C4B922C /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A66185DB8D17A184A10D654 /* Migrations.swift */; };
 		3AC6F503620BD36D144D8D6D /* Clibgit2 in Frameworks */ = {isa = PBXBuildFile; productRef = 5EF5D474713DE008E0402BEF /* Clibgit2 */; };
@@ -51,6 +53,7 @@
 		BAA12A13427C955F2B0095D9 /* Subprocess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FCC4E437B6AAD7E2289DD09 /* Subprocess.swift */; };
 		BC8AB244645AF73AA95DBA2E /* GitHubLiveSyncIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 409A26BB4B438DF0FC52D8B0 /* GitHubLiveSyncIntegrationTests.swift */; };
 		BCFD1689C0B79E45F2E13DB5 /* MigrationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2DECD7F1ED591D1306A7FD /* MigrationsTests.swift */; };
+		BF375870D3A53EC8A435590A /* SessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB89AC70E704AE90DAEE14EF /* SessionState.swift */; };
 		C4343384EB79A90D051E6591 /* TaskSyncServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD191387277D1AD519F17C5 /* TaskSyncServiceTests.swift */; };
 		C43FF24F657911A26A11BCFE /* WorktreeInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA866E83ACA13FF4C4B67A76 /* WorktreeInfo.swift */; };
 		CE9C96D0223628E382FE9C8D /* Backoff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A41270D5FD2913859F5156 /* Backoff.swift */; };
@@ -63,6 +66,7 @@
 		F16C61F1A8FA363F069EB4CC /* FileLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB1AC5F6ABF606215C34828 /* FileLock.swift */; };
 		F214AFF555015845B7F361F8 /* GitRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 878B0F36B6165280BC512CBD /* GitRunnerTests.swift */; };
 		F2F8E3D62A0EA28602FDEF41 /* Setting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7156A915B0B1A14BCFFB897 /* Setting.swift */; };
+		F9F651540C792C0B4EE8D83B /* Tab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E460F91480FE3584AEEF4B /* Tab.swift */; };
 		FB007E0D6F7C94AA62BDA3FE /* GitHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879315D3D2B7186766F53DDE /* GitHubStatus.swift */; };
 		FC039C1B5C8B97C01763CFE7 /* HTTPClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECDFC95289A7B6830F8DFE3 /* HTTPClientTests.swift */; };
 		FCC66C2E468F711C3C2ED032 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = 4FB935EE1FF6EE3F23F0BFA4 /* Fixtures */; };
@@ -102,6 +106,7 @@
 		72D0F7C7949A5F3B33B48E7D /* Repo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repo.swift; sourceTree = "<group>"; };
 		79553E3181CF1D76FE703B0A /* FixtureGitRepo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureGitRepo.swift; sourceTree = "<group>"; };
 		7AF42D22CA2F5E4B7FB58F74 /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
+		81C351F2B2D33F09C38CADCA /* CodingAgent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingAgent.swift; sourceTree = "<group>"; };
 		84806CB003A61137C0777445 /* GraphQLClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphQLClientTests.swift; sourceTree = "<group>"; };
 		878B0F36B6165280BC512CBD /* GitRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRunnerTests.swift; sourceTree = "<group>"; };
 		879315D3D2B7186766F53DDE /* GitHubStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubStatus.swift; sourceTree = "<group>"; };
@@ -130,10 +135,13 @@
 		CFB0FB42BDCFD78AC68A01BF /* Loom.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Loom.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D1D816452DC6DF06C51D6A7E /* TaskSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskSyncService.swift; sourceTree = "<group>"; };
 		D355679242F0256CEFCEC699 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		D5E460F91480FE3584AEEF4B /* Tab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tab.swift; sourceTree = "<group>"; };
 		DA866E83ACA13FF4C4B67A76 /* WorktreeInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeInfo.swift; sourceTree = "<group>"; };
+		DB89AC70E704AE90DAEE14EF /* SessionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionState.swift; sourceTree = "<group>"; };
 		DD1A652303E2BC6EB80B64FA /* DependencySmokeImports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencySmokeImports.swift; sourceTree = "<group>"; };
 		E19BF1D79E0DBAA564B3A039 /* ETagStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ETagStoreTests.swift; sourceTree = "<group>"; };
 		E7EAA88AE870E9108768F29E /* WorktreeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeManager.swift; sourceTree = "<group>"; };
+		EFBB835BE2F8DC7BAD3C1051 /* MigrationV2Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationV2Tests.swift; sourceTree = "<group>"; };
 		F2CBAFC5EF92D128135D3F05 /* BackoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffTests.swift; sourceTree = "<group>"; };
 		F6C32969291BABB883AE4FCB /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
 		FA798D587199F39EA6CD559F /* BranchSlug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchSlug.swift; sourceTree = "<group>"; };
@@ -168,10 +176,13 @@
 		23A91B0CAB9949BB591651BF /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				81C351F2B2D33F09C38CADCA /* CodingAgent.swift */,
 				879315D3D2B7186766F53DDE /* GitHubStatus.swift */,
 				6890109E5E3076A96D71C69F /* LoomTask.swift */,
 				72D0F7C7949A5F3B33B48E7D /* Repo.swift */,
+				DB89AC70E704AE90DAEE14EF /* SessionState.swift */,
 				C7156A915B0B1A14BCFFB897 /* Setting.swift */,
+				D5E460F91480FE3584AEEF4B /* Tab.swift */,
 				87DD3CBCFF1F6ED6BD5E0DAD /* TaskAssignee.swift */,
 			);
 			path = Models;
@@ -205,6 +216,7 @@
 			isa = PBXGroup;
 			children = (
 				AA2DECD7F1ED591D1306A7FD /* MigrationsTests.swift */,
+				EFBB835BE2F8DC7BAD3C1051 /* MigrationV2Tests.swift */,
 				B67392FF13BE6CBE8F0F4F6D /* SettingsStoreTests.swift */,
 			);
 			path = Storage;
@@ -501,6 +513,7 @@
 				CE9C96D0223628E382FE9C8D /* Backoff.swift in Sources */,
 				3D3298A3A4AC93471D24D673 /* BackoffRetry.swift in Sources */,
 				B8B30C0BE74E09342FCB1447 /* BranchSlug.swift in Sources */,
+				12BDD4B0CFB442E611DBCE34 /* CodingAgent.swift in Sources */,
 				B045EBBFD0B90FA5E3D5B062 /* DebugMenu.swift in Sources */,
 				94F93BFF9F49536A3D1F7E1F /* DependencySmokeImports.swift in Sources */,
 				6533A1FFA7FFB508F399842F /* ETagStore.swift in Sources */,
@@ -520,10 +533,12 @@
 				3980493894B456C98C4B922C /* Migrations.swift in Sources */,
 				D26959C3FF2BB50181FD5C33 /* RESTClient.swift in Sources */,
 				4ECD2C745F5DE7206449EBD8 /* Repo.swift in Sources */,
+				BF375870D3A53EC8A435590A /* SessionState.swift in Sources */,
 				F2F8E3D62A0EA28602FDEF41 /* Setting.swift in Sources */,
 				3C200CDD21EC4D19BA68BB37 /* SettingsStore.swift in Sources */,
 				BAA12A13427C955F2B0095D9 /* Subprocess.swift in Sources */,
 				6A80CD79CE2203A19BEDFD58 /* SyncScheduler.swift in Sources */,
+				F9F651540C792C0B4EE8D83B /* Tab.swift in Sources */,
 				13928AE42F895ADB3C509302 /* TaskAssignee.swift in Sources */,
 				01AABF5B57F81075C7A2B083 /* TaskSyncService.swift in Sources */,
 				53F92F83F0F7376730A5D339 /* WorktreeError.swift in Sources */,
@@ -547,6 +562,7 @@
 				F214AFF555015845B7F361F8 /* GitRunnerTests.swift in Sources */,
 				92B48F465A3302E8F8742C59 /* GraphQLClientTests.swift in Sources */,
 				FC039C1B5C8B97C01763CFE7 /* HTTPClientTests.swift in Sources */,
+				2C9C2D0D25A0FE2A761587F5 /* MigrationV2Tests.swift in Sources */,
 				BCFD1689C0B79E45F2E13DB5 /* MigrationsTests.swift in Sources */,
 				2D85955C8BF1967CC050FD03 /* RESTClientTests.swift in Sources */,
 				181598A3CE05594945D7A7A3 /* SettingsStoreTests.swift in Sources */,
