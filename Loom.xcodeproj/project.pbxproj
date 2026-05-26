@@ -45,11 +45,13 @@
 		9304EFC64B979CD01B5AF8CB /* BackoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2CBAFC5EF92D128135D3F05 /* BackoffTests.swift */; };
 		94F93BFF9F49536A3D1F7E1F /* DependencySmokeImports.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1A652303E2BC6EB80B64FA /* DependencySmokeImports.swift */; };
 		A2ECD2D8EFA8C94DBD444C0D /* BranchSlugTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998F9FBC78B6E359AD707CB7 /* BranchSlugTests.swift */; };
+		A7F3A5FA5112AA4BAB7A8EDE /* CodingAgentRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A328AAAE007F1972D05F8E /* CodingAgentRunner.swift */; };
 		A8A48D249F4257421EBFC782 /* AuthServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C32969291BABB883AE4FCB /* AuthServiceTests.swift */; };
 		A9B827F6D308FD42E6291FCE /* APIResponses.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F674F2D820F173F9971796D /* APIResponses.swift */; };
 		A9D79C3526B59E33BCD2E012 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E07BDC71363619A1E5FE9D9 /* AuthService.swift */; };
 		AA1651CBA89E4B26258CE889 /* OutputRingBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50C2D7ECAEBA8DE77D0442DF /* OutputRingBuffer.swift */; };
 		AAC6B0964629178F586CCB8D /* WorktreeManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68589EDD4EB0E76985003347 /* WorktreeManagerTests.swift */; };
+		AE7AA009A2A8244BD2571662 /* CodingAgentRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB1B95E1CA928B901523C7F7 /* CodingAgentRunnerTests.swift */; };
 		B045EBBFD0B90FA5E3D5B062 /* DebugMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD637F24CBF0FE3793017936 /* DebugMenu.swift */; };
 		B115BA55BF7BF53709973B8D /* LoomDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B5DDCD59C803D57C4D6A26 /* LoomDatabase.swift */; };
 		B23664D17B40E8A19A8A288C /* LoomApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B517E6E2DF8C49D037D18E77 /* LoomApp.swift */; };
@@ -152,6 +154,8 @@
 		DD1A652303E2BC6EB80B64FA /* DependencySmokeImports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencySmokeImports.swift; sourceTree = "<group>"; };
 		E19BF1D79E0DBAA564B3A039 /* ETagStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ETagStoreTests.swift; sourceTree = "<group>"; };
 		E7EAA88AE870E9108768F29E /* WorktreeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeManager.swift; sourceTree = "<group>"; };
+		E8A328AAAE007F1972D05F8E /* CodingAgentRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingAgentRunner.swift; sourceTree = "<group>"; };
+		EB1B95E1CA928B901523C7F7 /* CodingAgentRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingAgentRunnerTests.swift; sourceTree = "<group>"; };
 		EEDE6F1D641D9C03B762767C /* SessionStateStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStateStoreTests.swift; sourceTree = "<group>"; };
 		EFBB835BE2F8DC7BAD3C1051 /* MigrationV2Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationV2Tests.swift; sourceTree = "<group>"; };
 		F2CBAFC5EF92D128135D3F05 /* BackoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffTests.swift; sourceTree = "<group>"; };
@@ -180,6 +184,7 @@
 		187C9D515691B2D1D99B4D73 /* Terminal */ = {
 			isa = PBXGroup;
 			children = (
+				EB1B95E1CA928B901523C7F7 /* CodingAgentRunnerTests.swift */,
 				979884903E6B7AC7CD387EAF /* OutputRingBufferTests.swift */,
 			);
 			path = Terminal;
@@ -425,6 +430,7 @@
 		F9763EC594C243CE5AF7636A /* Terminal */ = {
 			isa = PBXGroup;
 			children = (
+				E8A328AAAE007F1972D05F8E /* CodingAgentRunner.swift */,
 				50C2D7ECAEBA8DE77D0442DF /* OutputRingBuffer.swift */,
 			);
 			path = Terminal;
@@ -548,6 +554,7 @@
 				3D3298A3A4AC93471D24D673 /* BackoffRetry.swift in Sources */,
 				B8B30C0BE74E09342FCB1447 /* BranchSlug.swift in Sources */,
 				12BDD4B0CFB442E611DBCE34 /* CodingAgent.swift in Sources */,
+				A7F3A5FA5112AA4BAB7A8EDE /* CodingAgentRunner.swift in Sources */,
 				6E5864FC0260E2AF7BB8FBEE /* CodingAgentStore.swift in Sources */,
 				B045EBBFD0B90FA5E3D5B062 /* DebugMenu.swift in Sources */,
 				94F93BFF9F49536A3D1F7E1F /* DependencySmokeImports.swift in Sources */,
@@ -592,6 +599,7 @@
 				204548C8CF2106ED7BA53FD9 /* BackoffRetryTests.swift in Sources */,
 				9304EFC64B979CD01B5AF8CB /* BackoffTests.swift in Sources */,
 				A2ECD2D8EFA8C94DBD444C0D /* BranchSlugTests.swift in Sources */,
+				AE7AA009A2A8244BD2571662 /* CodingAgentRunnerTests.swift in Sources */,
 				851D8E7517642267849AFFC4 /* CodingAgentStoreTests.swift in Sources */,
 				DC977A348B16AF50472BE63B /* ETagStoreTests.swift in Sources */,
 				3D8F2D71BB48E1C1E73D202E /* FixtureGitRepo.swift in Sources */,
