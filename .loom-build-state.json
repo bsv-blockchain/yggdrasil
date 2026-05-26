@@ -6,7 +6,7 @@
       "name": "Foundation",
       "approved": false,
       "branch": "phase-0/foundation",
-      "git_sha": "PENDING_FINALIZATION",
+      "git_sha": "c7de0606c5434d5e7ecb781d7ac3b96ecdba2262",
       "completed_at": "2026-05-26T19:48:00Z",
       "blockers": [
         "AC#4 (CI green on GitHub) blocked until repo has an origin remote"
@@ -15,6 +15,6 @@
   ],
   "started_at": "2026-05-26T19:00:00Z",
   "last_updated": "2026-05-26T19:48:00Z",
-  "last_git_sha": "PENDING_FINALIZATION",
+  "last_git_sha": "c7de0606c5434d5e7ecb781d7ac3b96ecdba2262",
   "blockers": []
 }
