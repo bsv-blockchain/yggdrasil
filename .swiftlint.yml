@@ -36,6 +36,7 @@ identifier_name:
     - ui
     - db
     - t      # GRDB table-definition closure parameter
+    - gh     # 'gh' (GitHub CLI) is a well-known acronym in this project
 
 file_length:
   warning: 500
