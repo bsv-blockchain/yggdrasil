@@ -81,7 +81,7 @@ struct GraphQLClient {
     func prDetail(owner: String, repo: String, number: Int) async throws -> PRDetail {
         let payload: [String: Any] = [
             "query": Self.prDetailQuery,
-            "variables": ["owner": owner, "name": repo, "number": number],
+            "variables": ["owner": owner, "name": repo, "number": number]
         ]
         let body = try JSONSerialization.data(withJSONObject: payload)
         let result = try await http.post(
