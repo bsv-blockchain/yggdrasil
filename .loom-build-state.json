@@ -30,13 +30,13 @@
       "name": "Worktree manager",
       "approved": false,
       "branch": "main",
-      "git_sha": "PENDING_FINALIZATION",
+      "git_sha": "f936cd6130cb27225e86a24825e805603d8f39f9",
       "completed_at": "2026-05-26T21:25:00Z",
       "blockers": []
     }
   ],
   "started_at": "2026-05-26T19:00:00Z",
   "last_updated": "2026-05-26T21:25:00Z",
-  "last_git_sha": "PENDING_FINALIZATION",
+  "last_git_sha": "f936cd6130cb27225e86a24825e805603d8f39f9",
   "blockers": []
 }

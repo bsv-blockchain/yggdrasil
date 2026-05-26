@@ -59,11 +59,15 @@ the spec's 7 acceptance criteria.
 ## 2. Test summary
 
 ```
-Executed N tests, with 1 test skipped and 0 failures (0 unexpected)
+Executed 98 tests, with 1 test skipped and 0 failures (0 unexpected) in 2.524s
 ```
 
-(N to be filled by the final `make test` run that the harness is finishing.
-Last green count was 97 unit + 1 conditional integration skip.)
+97 unit tests + 1 conditional integration skip. All 17 test suites green
+(BackoffTests, BackoffRetryTests, BranchSlugTests, ETagStoreTests,
+GHCLIAuthTests, GitHubLiveSyncIntegrationTests, GitRunnerTests,
+GraphQLClientTests, HTTPClientTests, MigrationsTests, RESTClientTests,
+SettingsStoreTests, SmokeTests, SyncSchedulerTests, TaskSyncServiceTests,
+WorktreeInfoTests, WorktreeManagerTests).
 
 - 0 SwiftLint violations
 - 0 SwiftFormat-required formatting changes
@@ -98,10 +102,15 @@ Plus `BranchSlugTests` (8), `GitRunnerTests` (4), `WorktreeInfoTests` (4).
 ### 4.1 BranchSlug character mapping (clarification, not deviation)
 Spec §2.1 prose: *"`/` replaced by `-` and any other non-`[a-zA-Z0-9._-]` char dropped"*. Spec §Phase 2 AC #2: *"`feat/foo bar` → `feat-foo-bar`"*. These contradict — the AC requires the space to become a dash, not be dropped. I followed the AC: separator-like chars (slashes, whitespace) → `-`; pure punctuation (`#`, `:`, etc.) → dropped; other unknown chars → `-` so words don't smush. All 8 slug tests pass.
 
-### 4.2 Concurrency test uses actor isolation, not external lock contention
+### 4.2 FileLock uses LOCK_NB + async retry (not the naive LOCK_EX)
+Initial implementation used `flock(LOCK_EX)` (blocking). Inside an actor that holds the lock across an `await`, a second actor message could enter (because the actor releases control at `await`) and try to acquire the lock from the same process — but flock allows it; the issue was that the second `flock(LOCK_EX)` call would block on the FIRST fd's lock, wedging the cooperative thread and preventing the first message's continuation from ever running. Symptom: `WorktreeManagerTests` hung forever, all other suites finished in <1s.
+
+Fix: `FileLock.acquireExclusive(at:timeout:pollInterval:)` is async. Uses `LOCK_NB` and polls every 20ms via `Task.sleep` (default timeout 30s, throws `.timedOut`). The poll yield gives the actor a chance to process the holder's continuation. After fix, the full suite runs in 2.5s.
+
+### 4.3 Concurrency test uses actor isolation, not external lock contention
 Spec §Phase 2: *"Concurrent ensure calls on the same repo are serialised (verified by test with two tasks)."* Test uses two `async let` calls on a single `WorktreeManager` actor; both succeed, the resulting `list()` shows both. Actor isolation guarantees in-process serialisation; the `FileLock` adds cross-process protection (would require a second OS process to demonstrate, which is out of scope for a unit test).
 
-### 4.3 PR ensure() reuses the single `ensure()` entry point
+### 4.4 PR ensure() reuses the single `ensure()` entry point
 The spec lists one method `ensure(repo:, branch:, baseRef:)`. I encode the
 PR convention via the `baseRef` argument: if it matches `refs/pull/<N>/head`,
 the fetch-then-worktree-add path is taken; otherwise the regular
