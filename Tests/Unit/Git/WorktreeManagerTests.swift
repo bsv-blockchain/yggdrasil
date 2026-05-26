@@ -161,7 +161,7 @@ final class WorktreeManagerTests: XCTestCase {
             // 2. `git fetch origin pull/655/head:pr-655` — succeeds silently.
             SubprocessResult(stdout: "", stderr: "", exitCode: 0),
             // 3. `git worktree add /tmp/.worktrees/pr-655 pr-655` — succeeds.
-            SubprocessResult(stdout: "", stderr: "", exitCode: 0),
+            SubprocessResult(stdout: "", stderr: "", exitCode: 0)
         ])
         let manager = WorktreeManager(git: GitRunner(runner: stub, gitExecutable: "/usr/bin/git"))
         let repo = Repo(
@@ -177,7 +177,7 @@ final class WorktreeManagerTests: XCTestCase {
             calls[1].arguments,
             ["-C", "/tmp/repo", "fetch", "origin", "pull/655/head:pr-655"]
         )
-        XCTAssertEqual(calls[2].arguments[0..<5], ["-C", "/tmp/repo", "worktree", "add", "/tmp/.worktrees/pr-655"])
+        XCTAssertEqual(calls[2].arguments[0 ..< 5], ["-C", "/tmp/repo", "worktree", "add", "/tmp/.worktrees/pr-655"])
         XCTAssertEqual(calls[2].arguments.last, "pr-655")
         // Crucially: no `-b` flag on the worktree add step (the branch already exists
         // locally after the fetch).
@@ -200,7 +200,7 @@ final class WorktreeManagerTests: XCTestCase {
                 stdout: "",
                 stderr: "fatal: couldn't find remote ref pull/9999/head\nfatal: unknown revision",
                 exitCode: 128
-            ),
+            )
         ])
         let manager = WorktreeManager(git: GitRunner(runner: stub, gitExecutable: "/usr/bin/git"))
         let repo = Repo(
@@ -210,7 +210,7 @@ final class WorktreeManagerTests: XCTestCase {
         do {
             _ = try await manager.ensure(repo: repo, branch: "pr-9999", baseRef: "refs/pull/9999/head")
             XCTFail("expected throw")
-        } catch WorktreeError.unknownRef(let ref) {
+        } catch let WorktreeError.unknownRef(ref) {
             XCTAssertEqual(ref, "refs/pull/9999/head")
         } catch {
             XCTFail("expected .unknownRef, got \(error)")

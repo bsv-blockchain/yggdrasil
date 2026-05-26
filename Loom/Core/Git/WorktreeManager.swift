@@ -38,8 +38,12 @@ actor WorktreeManager {
         let target = worktreesDir.appendingPathComponent(slug, isDirectory: true)
 
         // Acquire the per-repo POSIX file lock — cross-process serialisation per spec
-        // §Phase 2. (Same-actor calls are already serialised by actor isolation.)
-        let lock = try FileLock.acquireExclusive(at: worktreesDir.appendingPathComponent(".loom.lock"))
+        // §Phase 2. (Same-actor calls are already serialised by actor isolation; the
+        // flock is purely for cross-process protection.) FileLock uses LOCK_NB + async
+        // retry so a contending caller doesn't wedge the cooperative thread.
+        let lock = try await FileLock.acquireExclusive(
+            at: worktreesDir.appendingPathComponent(".loom.lock")
+        )
         defer { lock.release() }
 
         // Case 1: a worktree is already registered at `target` — idempotent.
