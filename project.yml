@@ -88,6 +88,11 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: Tests/Unit
+        excludes:
+          - "Fixtures/**"
+      - path: Tests/Unit/Fixtures
+        type: folder
+        buildPhase: resources
     dependencies:
       - target: Loom
     settings:

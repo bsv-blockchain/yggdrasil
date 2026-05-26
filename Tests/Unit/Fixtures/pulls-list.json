@@ -1,0 +1,30 @@
+[
+  {
+    "url": "https://api.github.com/repos/bsv-blockchain/teranode/pulls/655",
+    "html_url": "https://github.com/bsv-blockchain/teranode/pull/655",
+    "number": 655,
+    "title": "Add diff engine",
+    "user": { "login": "sigi" },
+    "state": "open",
+    "body": "Implements the bonus phase.",
+    "created_at": "2026-05-24T10:00:00Z",
+    "updated_at": "2026-05-26T12:00:00Z",
+    "assignees": [{ "login": "sigi" }],
+    "draft": false,
+    "merged_at": null
+  },
+  {
+    "url": "https://api.github.com/repos/bsv-blockchain/teranode/pulls/660",
+    "html_url": "https://github.com/bsv-blockchain/teranode/pull/660",
+    "number": 660,
+    "title": "Bump SwiftTerm",
+    "user": { "login": "bob" },
+    "state": "open",
+    "body": null,
+    "created_at": "2026-05-25T08:00:00Z",
+    "updated_at": "2026-05-25T08:00:00Z",
+    "assignees": [],
+    "draft": true,
+    "merged_at": null
+  }
+]

@@ -34,6 +34,7 @@ final class StubURLProtocol: URLProtocol {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest {
         request
     }
+
     // swiftlint:enable static_over_final_class
 
     override func startLoading() {
