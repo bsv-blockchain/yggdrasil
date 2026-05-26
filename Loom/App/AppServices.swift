@@ -33,8 +33,12 @@ final class AppServices {
         self.syncService = syncService
 
         // Hold a local reference so the closure can capture without going through `self`.
+        // Each scheduler tick retries the sync with exponential backoff on failure
+        // (1s, 2s, 4s, 8s, 16s, then give up for this tick) per spec §Phase 1.
         self.scheduler = SyncScheduler(interval: .seconds(60)) { [syncService] in
-            try await syncService.fullSync()
+            try await BackoffRetry.attempt(maxAttempts: 5) {
+                try await syncService.fullSync()
+            }
         }
     }
 }

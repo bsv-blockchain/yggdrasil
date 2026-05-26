@@ -12,6 +12,7 @@
 		13928AE42F895ADB3C509302 /* TaskAssignee.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87DD3CBCFF1F6ED6BD5E0DAD /* TaskAssignee.swift */; };
 		181598A3CE05594945D7A7A3 /* SettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B67392FF13BE6CBE8F0F4F6D /* SettingsStoreTests.swift */; };
 		1BD055D4E0D2F2E95CA33EE3 /* GraphQLClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD919DBB349F5EE2742FD85B /* GraphQLClient.swift */; };
+		204548C8CF2106ED7BA53FD9 /* BackoffRetryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 364D0F8EEA347E9E53FA5531 /* BackoffRetryTests.swift */; };
 		2089433B70604764F52AB203 /* LoomLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9786B37C938624B51D1C5C8 /* LoomLogger.swift */; };
 		209A6F4AACB0F18B3A32C952 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 680463771A1913695ADBD74D /* KeychainStore.swift */; };
 		2738BC7003C35D380D6FAB6D /* SyncSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9696FDDBD0F4E674192A87A4 /* SyncSchedulerTests.swift */; };
@@ -20,6 +21,7 @@
 		3980493894B456C98C4B922C /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A66185DB8D17A184A10D654 /* Migrations.swift */; };
 		3AC6F503620BD36D144D8D6D /* Clibgit2 in Frameworks */ = {isa = PBXBuildFile; productRef = 5EF5D474713DE008E0402BEF /* Clibgit2 */; };
 		3C200CDD21EC4D19BA68BB37 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D355679242F0256CEFCEC699 /* SettingsStore.swift */; };
+		3D3298A3A4AC93471D24D673 /* BackoffRetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99A541B9E805ED457C4A2363 /* BackoffRetry.swift */; };
 		4ECD2C745F5DE7206449EBD8 /* Repo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0F7C7949A5F3B33B48E7D /* Repo.swift */; };
 		516C5055D1918BBA58610A73 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6E6E64FD9D6B923A722BBACC /* Assets.xcassets */; };
 		5532DF8F18062D66991E5AAB /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197855D26AA9AEB4088AF08C /* AppDelegate.swift */; };
@@ -72,6 +74,7 @@
 		197855D26AA9AEB4088AF08C /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		254A61C8ABDED56F14FC03F8 /* Clibgit2 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Clibgit2; path = Vendor/Clibgit2; sourceTree = SOURCE_ROOT; };
 		2A66185DB8D17A184A10D654 /* Migrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Migrations.swift; sourceTree = "<group>"; };
+		364D0F8EEA347E9E53FA5531 /* BackoffRetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffRetryTests.swift; sourceTree = "<group>"; };
 		3F674F2D820F173F9971796D /* APIResponses.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponses.swift; sourceTree = "<group>"; };
 		409A26BB4B438DF0FC52D8B0 /* GitHubLiveSyncIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubLiveSyncIntegrationTests.swift; sourceTree = "<group>"; };
 		4516AEB75C15BFDA1D7DDB62 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -94,6 +97,7 @@
 		91B5DDCD59C803D57C4D6A26 /* LoomDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoomDatabase.swift; sourceTree = "<group>"; };
 		965174FB87136638BA643B4C /* LoomTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LoomTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9696FDDBD0F4E674192A87A4 /* SyncSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncSchedulerTests.swift; sourceTree = "<group>"; };
+		99A541B9E805ED457C4A2363 /* BackoffRetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffRetry.swift; sourceTree = "<group>"; };
 		9B1D333E293A9B1CC752EA00 /* Endpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoints.swift; sourceTree = "<group>"; };
 		9E07BDC71363619A1E5FE9D9 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		A37491B6F40A34647CBC6AA7 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
@@ -260,6 +264,7 @@
 		B4540640295DBD7961A6C60A /* GitHub */ = {
 			isa = PBXGroup;
 			children = (
+				364D0F8EEA347E9E53FA5531 /* BackoffRetryTests.swift */,
 				F2CBAFC5EF92D128135D3F05 /* BackoffTests.swift */,
 				E19BF1D79E0DBAA564B3A039 /* ETagStoreTests.swift */,
 				84806CB003A61137C0777445 /* GraphQLClientTests.swift */,
@@ -311,6 +316,7 @@
 			children = (
 				3F674F2D820F173F9971796D /* APIResponses.swift */,
 				10A41270D5FD2913859F5156 /* Backoff.swift */,
+				99A541B9E805ED457C4A2363 /* BackoffRetry.swift */,
 				9B1D333E293A9B1CC752EA00 /* Endpoints.swift */,
 				BF8FF2D0E98D9BDC31F1F946 /* ETagStore.swift */,
 				FD7BC2543AD208BD2CF22525 /* GitHubError.swift */,
@@ -447,6 +453,7 @@
 				E5ECEBB9B7ABC39712DE0B96 /* AppServices.swift in Sources */,
 				A9D79C3526B59E33BCD2E012 /* AuthService.swift in Sources */,
 				CE9C96D0223628E382FE9C8D /* Backoff.swift in Sources */,
+				3D3298A3A4AC93471D24D673 /* BackoffRetry.swift in Sources */,
 				B045EBBFD0B90FA5E3D5B062 /* DebugMenu.swift in Sources */,
 				94F93BFF9F49536A3D1F7E1F /* DependencySmokeImports.swift in Sources */,
 				6533A1FFA7FFB508F399842F /* ETagStore.swift in Sources */,
@@ -478,6 +485,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A8A48D249F4257421EBFC782 /* AuthServiceTests.swift in Sources */,
+				204548C8CF2106ED7BA53FD9 /* BackoffRetryTests.swift in Sources */,
 				9304EFC64B979CD01B5AF8CB /* BackoffTests.swift in Sources */,
 				DC977A348B16AF50472BE63B /* ETagStoreTests.swift in Sources */,
 				9033AED24F2992D05A26B09B /* GHCLIAuthTests.swift in Sources */,
