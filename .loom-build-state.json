@@ -78,7 +78,7 @@
       "name": "Bonus: native diff view",
       "approved": false,
       "branch": "main",
-      "git_sha": "PENDING_FINALIZATION",
+      "git_sha": "8389bf04d43c93a76806ec42faa84ca9d3f6143d",
       "completed_at": "2026-05-27T12:30:00Z",
       "blockers": [
         "FSEvents auto-refresh on commit (AC #5) deferred to Phase 8 polish",
@@ -88,6 +88,6 @@
   ],
   "started_at": "2026-05-26T19:00:00Z",
   "last_updated": "2026-05-27T12:30:00Z",
-  "last_git_sha": "PENDING_FINALIZATION",
+  "last_git_sha": "8389bf04d43c93a76806ec42faa84ca9d3f6143d",
   "blockers": []
 }
