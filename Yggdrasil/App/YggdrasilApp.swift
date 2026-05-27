@@ -13,8 +13,10 @@ struct YggdrasilApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             TabCommands()
-            DebugMenu()
             DiagnosticsCommands()
+            // "Coding" menu lives in AppKit (CodingMenuController) — SwiftUI
+            // CommandMenu stops dispatching once MenuBarExtra joins the
+            // Scene graph, hence the AppKit detour.
         }
 
         PreferencesScene()

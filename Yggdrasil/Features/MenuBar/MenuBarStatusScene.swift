@@ -24,8 +24,14 @@ struct MenuBarStatusScene: Scene {
         } label: {
             // Template rendering: macOS recolours the icon to match the menu
             // bar (light text on dark menu bar / dark text on light).
+            // Without an explicit frame the asset renders at its intrinsic
+            // 128px, which makes the menu bar icon enormous; constrain to
+            // ~18pt — the size NSStatusItem uses for native icons.
             Image("YggdrasilMark")
                 .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
         }
         .menuBarExtraStyle(.window)
     }

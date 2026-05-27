@@ -10,6 +10,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     /// placeholder branch indefinitely).
     @Published private(set) var services: AppServices?
 
+    /// Owns the AppKit "Coding" main-menu items. Built in AppKit (not SwiftUI
+    /// `CommandMenu`) because SwiftUI's command routing stops firing menu
+    /// actions once `MenuBarExtra` is in the Scene graph.
+    private var codingMenu: CodingMenuController?
+
     func applicationDidFinishLaunching(_: Notification) {
         YggdrasilLog.ui
             .info("Yggdrasil did finish launching (pid=\(ProcessInfo.processInfo.processIdentifier, privacy: .public))")
@@ -39,6 +44,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             }
         } catch {
             YggdrasilLog.ui.error("Failed to build AppServices: \(String(describing: error), privacy: .public)")
+        }
+
+        // Install the AppKit "Coding" menu after the main menu bar is built.
+        // SwiftUI sets up the bar during its own scene init; defer one tick
+        // so NSApp.mainMenu's View item exists by the time we insert after it.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let controller = CodingMenuController(appDelegate: self)
+            controller.install()
+            self.codingMenu = controller
         }
     }
 

@@ -69,6 +69,7 @@
 		7488BB4471858CAE7341486B /* Subprocess.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA7EE5A957004D99E791FF2D /* Subprocess.swift */; };
 		74C152AAC39D7108FE5BC4BD /* DiffEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3658E313884CEE797A94D59 /* DiffEngine.swift */; };
 		76642A91AD7739574F27C910 /* TaskSyncServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA6EE609F1B67BB1A30B48F9 /* TaskSyncServiceTests.swift */; };
+		7A20D8905A8233E41667FF18 /* CodingMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B3B12085F0CA95C6A059DCD /* CodingMenuController.swift */; };
 		7AB9655B92BB8DCB0727F8F0 /* MigrationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9118B23EDBB71CED83EDB88 /* MigrationsTests.swift */; };
 		7C0B5CE421A96306020C85B0 /* Repo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C7ABCB5C463A7C4CE3D439B /* Repo.swift */; };
 		7C7B55E9E25B30F43EE5B22D /* WebViewPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C388E8EEB6766ACD41088087 /* WebViewPool.swift */; };
@@ -179,6 +180,7 @@
 		37C59963B176CA5B2FAFD12C /* highlight-github.min.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = "highlight-github.min.css"; sourceTree = "<group>"; };
 		3822992A97D0625D635CAE36 /* SettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStoreTests.swift; sourceTree = "<group>"; };
 		39A3F996A99BE839DF3BAB2E /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		3B3B12085F0CA95C6A059DCD /* CodingMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingMenuController.swift; sourceTree = "<group>"; };
 		3D39743809B1945013F42382 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		3F61C5690D1BA51C291B7C8B /* AgentTerminalSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTerminalSurface.swift; sourceTree = "<group>"; };
 		42AC4ECC1A08E5604A2057FC /* GitHubStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubStatus.swift; sourceTree = "<group>"; };
@@ -529,6 +531,7 @@
 			children = (
 				3D39743809B1945013F42382 /* AppDelegate.swift */,
 				5D5AF0A53AAFED77992EE2CE /* AppServices.swift */,
+				3B3B12085F0CA95C6A059DCD /* CodingMenuController.swift */,
 				50A21AE81239B21D83CAB04D /* DebugMenu.swift */,
 				9CF3A58689FCE476DAB8A711 /* DebugMenuPrompts.swift */,
 				7B807AA6EDFF979585823C68 /* DiagnosticsCommands.swift */,
@@ -863,6 +866,7 @@
 				A33A054379216EEAE42B34D3 /* CodingAgent.swift in Sources */,
 				2FCBC32DD6A4EF32B64B77AF /* CodingAgentRunner.swift in Sources */,
 				E95FF9A36B1FBA30ECEA91A7 /* CodingAgentStore.swift in Sources */,
+				7A20D8905A8233E41667FF18 /* CodingMenuController.swift in Sources */,
 				A3997180E23DA17E17C4087F /* DebugMenu.swift in Sources */,
 				C24F0673AAD1CDBEFCF54BF3 /* DebugMenuPrompts.swift in Sources */,
 				9C1EB4A8828B56AB450E8522 /* DependencySmokeImports.swift in Sources */,
