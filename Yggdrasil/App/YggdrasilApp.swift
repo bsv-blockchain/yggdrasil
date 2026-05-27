@@ -72,7 +72,6 @@ struct SidebarSessionsLayout: View {
                 SidebarView(services: services) { _ in
                     services.sessions.selectedID = services.tabs.selectedID
                 }
-                .frame(minWidth: 240, idealWidth: 320, maxWidth: 600)
                 mainPane
                     .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
             }
