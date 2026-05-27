@@ -69,10 +69,14 @@ final class AppServices {
         // Hold a local reference so the closure can capture without going through `self`.
         // Each scheduler tick retries the sync with exponential backoff on failure
         // (1s, 2s, 4s, 8s, 16s, then give up for this tick) per spec §Phase 1.
-        self.scheduler = SyncScheduler(interval: .seconds(60)) { [syncService] in
+        // After every successful sync, refresh `tabsModel` so the chrome pill's
+        // pending-review count and the lazy task-link map (tasksByTabID) pick up
+        // anything new — review-requests added or dismissed since the last tick.
+        self.scheduler = SyncScheduler(interval: .seconds(60)) { [syncService, tabsModel] in
             try await BackoffRetry.attempt(maxAttempts: 5) {
                 try await syncService.fullSync()
             }
+            await MainActor.run { tabsModel.reload() }
         }
     }
 }

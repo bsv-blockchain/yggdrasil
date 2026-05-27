@@ -201,15 +201,33 @@ struct AssignedTaskPicker: View {
                 let candidateTasks: [YggdrasilTask]
                 switch mode {
                 case .assigned:
-                    candidateTasks = try YggdrasilTask
-                        .order(Column("updated_at").desc)
-                        .fetchAll(db)
-                case .review:
+                    // Issues assigned to me + PRs I authored. The task table
+                    // holds all assigned issues (from /issues?filter=assigned)
+                    // plus the PRs we mirror in pr_authored.
                     candidateTasks = try YggdrasilTask.fetchAll(
                         db,
                         sql: """
                         SELECT task.* FROM task
-                        JOIN pr_review_request ON pr_review_request.task_id = task.id
+                        WHERE task.type = 'issue'
+                           OR task.id IN (SELECT task_id FROM pr_authored)
+                        ORDER BY task.updated_at DESC
+                        """
+                    )
+                case .review:
+                    // PRs to review = review-requested ∪ assigned-but-not-authored.
+                    // A PR I both authored and was review-requested on lands
+                    // here too (rare but possible); the picker still excludes
+                    // it once a tab shadows it.
+                    candidateTasks = try YggdrasilTask.fetchAll(
+                        db,
+                        sql: """
+                        SELECT task.* FROM task
+                        WHERE task.type = 'pr'
+                          AND (
+                            task.id IN (SELECT task_id FROM pr_review_request)
+                         OR (task.id IN (SELECT task_id FROM pr_assigned)
+                             AND task.id NOT IN (SELECT task_id FROM pr_authored))
+                          )
                         ORDER BY task.updated_at DESC
                         """
                     )
@@ -233,6 +251,7 @@ struct AssignedTaskPicker: View {
     private func syncNow() async {
         do {
             try await services.syncService.fullSync()
+            services.tabs.reload()
             reload()
         } catch {
             self.error = "Sync failed: \(error.localizedDescription)"

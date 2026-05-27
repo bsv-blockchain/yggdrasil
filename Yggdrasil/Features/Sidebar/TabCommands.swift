@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Window-wide keyboard shortcuts for sidebar navigation. Installed under the
-/// "YggdrasilTab" menu so they show up in the menu bar and aren't tied to sidebar focus.
+/// Window-wide keyboard shortcuts for sidebar navigation. Folded into the
+/// system View menu (after "Show Sidebar") rather than a custom top-level
+/// menu, since these all act on sidebar selection.
 ///
 /// - ⌥↑ / ⌥↓ — move selection up/down
 /// - ⌘W — close the selected tab (with confirm)
@@ -12,8 +13,9 @@ struct TabCommands: Commands {
     }
 
     var body: some Commands {
-        CommandMenu("YggdrasilTab") {
-            Button("Previous") {
+        CommandGroup(after: .sidebar) {
+            Divider()
+            Button("Previous Tab") {
                 services?.tabs.moveSelection(by: -1)
                 if let id = services?.tabs.selectedID {
                     services?.sessions.selectedID = id
@@ -21,7 +23,7 @@ struct TabCommands: Commands {
             }
             .keyboardShortcut(.upArrow, modifiers: [.option])
 
-            Button("Next") {
+            Button("Next Tab") {
                 services?.tabs.moveSelection(by: 1)
                 if let id = services?.tabs.selectedID {
                     services?.sessions.selectedID = id
@@ -29,9 +31,7 @@ struct TabCommands: Commands {
             }
             .keyboardShortcut(.downArrow, modifiers: [.option])
 
-            Divider()
-
-            Button("Close YggdrasilTab…") {
+            Button("Close Tab…") {
                 guard let services, let id = services.tabs.selectedID else { return }
                 SidebarActions.removeTab(id: id, services: services)
             }

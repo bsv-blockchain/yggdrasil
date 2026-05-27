@@ -78,9 +78,17 @@ final class TabsModel {
             tasksByTabID = taskMap
             repoByTabID = repoMap
             pendingReviewCount = try database.queue.read { db in
+                // Match AssignedTaskPicker(.review) — review-requested ∪
+                // assigned-but-not-authored — minus what's already a tab.
                 try Int.fetchOne(db, sql: """
-                    SELECT COUNT(*) FROM pr_review_request
-                    WHERE task_id NOT IN (SELECT task_id FROM tab WHERE task_id IS NOT NULL)
+                    SELECT COUNT(*) FROM task
+                    WHERE task.type = 'pr'
+                      AND (
+                        task.id IN (SELECT task_id FROM pr_review_request)
+                     OR (task.id IN (SELECT task_id FROM pr_assigned)
+                         AND task.id NOT IN (SELECT task_id FROM pr_authored))
+                      )
+                      AND task.id NOT IN (SELECT task_id FROM tab WHERE task_id IS NOT NULL)
                     """) ?? 0
             }
             // Resolve per-tab agent identity from CodingAgent.command via the

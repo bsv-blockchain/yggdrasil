@@ -7,7 +7,10 @@ import SwiftUI
 /// - "Reveal Crash Logs" opens `~/Library/Logs/Yggdrasil/crashes/` in Finder.
 struct DiagnosticsCommands: Commands {
     var body: some Commands {
-        CommandMenu("Help") {
+        // Adds into the auto-built Help menu rather than creating a second
+        // one. macOS otherwise renders a stray duplicate "Help" alongside the
+        // standard help menu.
+        CommandGroup(replacing: .help) {
             Button("Diagnostics") {
                 Diagnostics.copyToClipboard()
             }

@@ -17,6 +17,21 @@ enum Endpoints {
         return components.url!
     }
 
+    /// `/search/issues?q=is:pr+is:open+author:@me&per_page=100`
+    ///
+    /// PRs the authenticated user authored. Same `{ items: […] }` envelope
+    /// as the other search endpoints. Used to populate the Open Assigned
+    /// picker (issues-assigned-to-me + PRs-I-authored).
+    static func authoredPRs(perPage: Int = 100) -> URL {
+        var components = URLComponents(url: restBase.appendingPathComponent("search/issues"),
+                                       resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "q", value: "is:pr is:open author:@me archived:false"),
+            URLQueryItem(name: "per_page", value: String(perPage))
+        ]
+        return components.url!
+    }
+
     /// `/search/issues?q=is:pr+is:open+review-requested:@me&per_page=100`
     ///
     /// GitHub's `/search/issues` returns both issues and PRs; the `is:pr`

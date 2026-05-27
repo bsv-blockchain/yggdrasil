@@ -42,10 +42,17 @@ struct RESTClient {
     /// No ETag-cached If-None-Match here; search responses change too often
     /// to make the conditional GET worthwhile.
     func reviewRequestedPRs() async throws -> [RawTask] {
-        let result = try await http.get(
-            url: Endpoints.reviewRequestedPRs(),
-            accept: "application/vnd.github+json"
-        )
+        try await searchIssues(url: Endpoints.reviewRequestedPRs())
+    }
+
+    /// PRs authored by the authenticated user. Same endpoint shape and
+    /// caveats as `reviewRequestedPRs`.
+    func authoredPRs() async throws -> [RawTask] {
+        try await searchIssues(url: Endpoints.authoredPRs())
+    }
+
+    private func searchIssues(url: URL) async throws -> [RawTask] {
+        let result = try await http.get(url: url, accept: "application/vnd.github+json")
         let body = result.body ?? Data()
         struct Envelope: Decodable { let items: [RESTIssueDTO] }
         let dtos: [RESTIssueDTO]

@@ -2,8 +2,10 @@ import AppKit
 import GRDB
 import SwiftUI
 
-/// Commands installed under a top-level "Debug" menu. Wired in Phase 1 to the
-/// `AppServices` graph the AppDelegate built at launch.
+/// Top-level "Coding" menu — tracked-repo / agent / session management. Was
+/// "Debug" earlier but every item here is part of the normal workflow, not
+/// debug-only, so the name lied. Wired in Phase 1 to the `AppServices` graph
+/// the AppDelegate built at launch.
 struct DebugMenu: Commands {
     /// Pulled fresh on every menu click to dodge passing the live AppDelegate
     /// reference through SwiftUI's environment.
@@ -12,8 +14,9 @@ struct DebugMenu: Commands {
     }
 
     var body: some Commands {
-        CommandMenu("Debug") {
+        CommandMenu("Coding") {
             Button("Add Tracked Repo…") {
+                YggdrasilLog.ui.info("Coding menu: Add Tracked Repo clicked")
                 handleAddTrackedRepo()
             }
             .keyboardShortcut("R", modifiers: [.command, .shift])
@@ -57,6 +60,7 @@ struct DebugMenu: Commands {
     // MARK: - Handlers
 
     private func handleAddTrackedRepo() {
+        YggdrasilLog.ui.info("Coding menu: handleAddTrackedRepo entered")
         guard let database = services?.database else {
             YggdrasilLog.ui.warning("AddTrackedRepo: no services available (running under tests?)")
             return
@@ -77,7 +81,11 @@ struct DebugMenu: Commands {
     }
 
     private func handleRemoveTrackedRepo() {
-        guard let database = services?.database else { return }
+        YggdrasilLog.ui.info("Coding menu: handleRemoveTrackedRepo entered")
+        guard let database = services?.database else {
+            YggdrasilLog.ui.warning("RemoveTrackedRepo: no services available")
+            return
+        }
         do {
             let repos = try database.queue.read { db in try Repo.fetchAll(db) }
             guard !repos.isEmpty else {
@@ -93,7 +101,11 @@ struct DebugMenu: Commands {
     }
 
     private func handleForceSync() {
-        guard let sync = services?.syncService else { return }
+        YggdrasilLog.ui.info("Coding menu: handleForceSync entered")
+        guard let sync = services?.syncService else {
+            YggdrasilLog.ui.warning("ForceSync: no services available")
+            return
+        }
         Task {
             do {
                 try await sync.fullSync()
@@ -104,7 +116,11 @@ struct DebugMenu: Commands {
     }
 
     private func handleDumpTasks() {
-        guard let database = services?.database else { return }
+        YggdrasilLog.ui.info("Coding menu: handleDumpTasks entered")
+        guard let database = services?.database else {
+            YggdrasilLog.ui.warning("DumpTasks: no services available")
+            return
+        }
         do {
             let tasks = try database.queue.read { db in try YggdrasilTask.fetchAll(db) }
             YggdrasilLog.ui.info("Dumping \(tasks.count, privacy: .public) tasks:")
@@ -121,56 +137,14 @@ struct DebugMenu: Commands {
         }
     }
 
-    // MARK: - Prompts (NSAlert-based, blocking on the main thread)
-
-    static func promptForOwnerAndName() -> (owner: String, name: String)? {
-        let alert = NSAlert()
-        alert.messageText = "Add Tracked Repo"
-        alert.informativeText = "Enter the GitHub repo as owner/name (e.g. bsv-blockchain/teranode)."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Add")
-        alert.addButton(withTitle: "Cancel")
-
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        field.placeholderString = "owner/name"
-        alert.accessoryView = field
-
-        alert.window.initialFirstResponder = field
-
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        let raw = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parts = raw.split(separator: "/", maxSplits: 1).map(String.init)
-        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
-            alert.messageText = "Invalid format"
-            return nil
-        }
-        return (parts[0], parts[1])
-    }
-
-    static func promptForRepoChoice(_ repos: [Repo]) -> Repo? {
-        let alert = NSAlert()
-        alert.messageText = "Remove Tracked Repo"
-        alert.informativeText = "Pick a repo to remove. All tasks for it will also be deleted."
-        alert.alertStyle = .warning
-
-        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 320, height: 26))
-        for repo in repos {
-            popup.addItem(withTitle: repo.fullName)
-        }
-        alert.accessoryView = popup
-        alert.addButton(withTitle: "Remove")
-        alert.addButton(withTitle: "Cancel")
-
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        let idx = popup.indexOfSelectedItem
-        guard idx >= 0, idx < repos.count else { return nil }
-        return repos[idx]
-    }
-
     // MARK: - Agent handlers
 
     private func handleAddAgent() {
-        guard let store = services?.agentStore else { return }
+        YggdrasilLog.ui.info("Coding menu: handleAddAgent entered")
+        guard let store = services?.agentStore else {
+            YggdrasilLog.ui.warning("AddAgent: no services available")
+            return
+        }
         guard let details = DebugMenu.promptForAgentDetails() else { return }
         do {
             _ = try store.add(name: details.name, command: details.command, args: details.args)
@@ -182,7 +156,11 @@ struct DebugMenu: Commands {
     }
 
     private func handleRemoveAgent() {
-        guard let store = services?.agentStore else { return }
+        YggdrasilLog.ui.info("Coding menu: handleRemoveAgent entered")
+        guard let store = services?.agentStore else {
+            YggdrasilLog.ui.warning("RemoveAgent: no services available")
+            return
+        }
         do {
             let agents = try store.list()
             guard !agents.isEmpty else {
@@ -198,7 +176,11 @@ struct DebugMenu: Commands {
     }
 
     private func handleSetDefaultAgent() {
-        guard let store = services?.agentStore else { return }
+        YggdrasilLog.ui.info("Coding menu: handleSetDefaultAgent entered")
+        guard let store = services?.agentStore else {
+            YggdrasilLog.ui.warning("SetDefaultAgent: no services available")
+            return
+        }
         do {
             let agents = try store.list()
             guard !agents.isEmpty else {
@@ -214,6 +196,7 @@ struct DebugMenu: Commands {
     }
 
     private func handleNewSession() {
+        YggdrasilLog.ui.info("Coding menu: handleNewSession entered")
         guard let services else { return }
         do {
             let agents = try services.agentStore.list()
@@ -247,103 +230,4 @@ struct DebugMenu: Commands {
         }
     }
 
-    // MARK: - Agent prompts
-
-    struct AgentDetails {
-        let name: String
-        let command: String
-        let args: [String]
-    }
-
-    static func promptForAgentDetails() -> AgentDetails? {
-        let alert = NSAlert()
-        alert.messageText = "Add Coding Agent"
-        alert.informativeText = "Name, command, and optional space-separated args."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Add")
-        alert.addButton(withTitle: "Cancel")
-
-        let stack = NSStackView(frame: NSRect(x: 0, y: 0, width: 360, height: 90))
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 6
-        let nameField = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
-        nameField.placeholderString = "Name (e.g. Codex)"
-        let commandField = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
-        commandField.placeholderString = "Command (e.g. codex)"
-        let argsField = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
-        argsField.placeholderString = "Args (space-separated, optional)"
-        stack.addArrangedSubview(nameField)
-        stack.addArrangedSubview(commandField)
-        stack.addArrangedSubview(argsField)
-        alert.accessoryView = stack
-        alert.window.initialFirstResponder = nameField
-
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let command = commandField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let argsRaw = argsField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, !command.isEmpty else { return nil }
-        let args = argsRaw.isEmpty ? [] : argsRaw.split(separator: " ").map(String.init)
-        return AgentDetails(name: name, command: command, args: args)
-    }
-
-    static func promptForAgentChoice(_ agents: [CodingAgent], title: String) -> CodingAgent? {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.alertStyle = .informational
-        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 320, height: 26))
-        for agent in agents {
-            popup.addItem(withTitle: "\(agent.name) (\(agent.command))")
-        }
-        alert.accessoryView = popup
-        alert.addButton(withTitle: "OK")
-        alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        let idx = popup.indexOfSelectedItem
-        guard idx >= 0, idx < agents.count else { return nil }
-        return agents[idx]
-    }
-
-    static func promptForNewSession(agents: [CodingAgent]) -> (cwd: String, agent: CodingAgent)? {
-        let alert = NSAlert()
-        alert.messageText = "New Session"
-        alert.informativeText = "Worktree (absolute path) and agent profile."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Start")
-        alert.addButton(withTitle: "Cancel")
-
-        let stack = NSStackView(frame: NSRect(x: 0, y: 0, width: 360, height: 62))
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 6
-        let cwdField = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
-        cwdField.placeholderString = "Worktree path"
-        cwdField.stringValue = NSHomeDirectory()
-        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 360, height: 26))
-        let defaultIndex = agents.firstIndex(where: \.isDefault) ?? 0
-        for agent in agents {
-            popup.addItem(withTitle: "\(agent.name) (\(agent.command))")
-        }
-        popup.selectItem(at: defaultIndex)
-        stack.addArrangedSubview(cwdField)
-        stack.addArrangedSubview(popup)
-        alert.accessoryView = stack
-        alert.window.initialFirstResponder = cwdField
-
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        let cwd = cwdField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let idx = popup.indexOfSelectedItem
-        guard !cwd.isEmpty, idx >= 0, idx < agents.count else { return nil }
-        return (cwd, agents[idx])
-    }
-
-    static func alert(title: String, message: String) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
 }

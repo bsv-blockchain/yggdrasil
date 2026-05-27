@@ -8,7 +8,30 @@ enum Migrations {
         migrator.registerMigration("v1", migrate: v1)
         migrator.registerMigration("v2", migrate: v2)
         migrator.registerMigration("v3", migrate: v3)
+        migrator.registerMigration("v4", migrate: v4)
         return migrator
+    }
+
+    // MARK: - v4 — Authored/assigned PR markers
+    //
+    // The Open Assigned picker now shows issues-assigned-to-me plus PRs
+    // I-authored. The Review picker shows PRs review-requested-from-me or
+    // PRs assigned-to-me (without being authored by me). Two new membership
+    // tables, same shape as the existing pr_review_request: a row's mere
+    // presence is the signal.
+    private static func v4(_ db: Database) throws {
+        try db.create(table: "pr_authored") { table in
+            table.column("task_id", .integer)
+                .primaryKey()
+                .references("task", onDelete: .cascade)
+            table.column("recorded_at", .datetime).notNull()
+        }
+        try db.create(table: "pr_assigned") { table in
+            table.column("task_id", .integer)
+                .primaryKey()
+                .references("task", onDelete: .cascade)
+            table.column("recorded_at", .datetime).notNull()
+        }
     }
 
     // MARK: - v3 — PR review-requested marker

@@ -36,24 +36,26 @@ actor TaskSyncService {
         let assigned = try await rest.assignedIssues()
         let relevantAssigned = assigned.filter { trackedKey["\($0.repoOwner)/\($0.repoName)"] != nil }
 
-        // Review-requested PRs are a separate axis from assignment. Pulled
-        // from the search endpoint and merged into the same task table —
-        // duplicates between the two lists are deduped by (repo, type, number).
+        // Three orthogonal axes feed the task table. Each list is filtered to
+        // tracked repos, merged via composite key for the upsert, and then
+        // used independently to rebuild its dedicated membership table.
         let reviewRequested = (try? await rest.reviewRequestedPRs()) ?? []
         let relevantReview = reviewRequested.filter { trackedKey["\($0.repoOwner)/\($0.repoName)"] != nil }
 
-        // Union for the upsert / stale-prune pass; both lists feed the same
-        // task rows. pr_review_request membership is rebuilt from
-        // `relevantReview` alone after the upserts land.
+        let authored = (try? await rest.authoredPRs()) ?? []
+        let relevantAuthored = authored.filter { trackedKey["\($0.repoOwner)/\($0.repoName)"] != nil }
+
+        // Union for the upsert / stale-prune pass; same-keyed raws collapse.
         var merged: [RawTask] = relevantAssigned
-        let assignedKeys = Set(relevantAssigned.map { Self.compositeKey(owner: $0.repoOwner, name: $0.repoName, number: $0.number) })
-        for raw in relevantReview where !assignedKeys.contains(
-            Self.compositeKey(owner: raw.repoOwner, name: raw.repoName, number: raw.number)
-        ) {
-            merged.append(raw)
+        var seen = Set(relevantAssigned.map { Self.compositeKey(owner: $0.repoOwner, name: $0.repoName, number: $0.number) })
+        for raw in relevantReview + relevantAuthored {
+            let key = Self.compositeKey(owner: raw.repoOwner, name: raw.repoName, number: raw.number)
+            if seen.insert(key).inserted {
+                merged.append(raw)
+            }
         }
         YggdrasilLog.sync.info(
-            "REST returned \(assigned.count, privacy: .public) assigned tasks, \(relevantAssigned.count, privacy: .public) within tracked repos; \(reviewRequested.count, privacy: .public) review-requested, \(relevantReview.count, privacy: .public) within tracked repos"
+            "REST: \(assigned.count, privacy: .public) assigned (\(relevantAssigned.count, privacy: .public) tracked); \(reviewRequested.count, privacy: .public) review-requested (\(relevantReview.count, privacy: .public) tracked); \(authored.count, privacy: .public) authored (\(relevantAuthored.count, privacy: .public) tracked)"
         )
 
         var prDetails: [String: PRDetail] = [:]
@@ -72,6 +74,12 @@ actor TaskSyncService {
             try TaskSyncWrites.deleteStaleTasks(db: db, repos: trackedRepos, fetched: merged)
             try TaskSyncWrites.applyReviewRequests(
                 db: db, raws: relevantReview, repos: trackedKey, now: now
+            )
+            try TaskSyncWrites.applyAuthoredPRs(
+                db: db, raws: relevantAuthored, repos: trackedKey, now: now
+            )
+            try TaskSyncWrites.applyAssignedPRs(
+                db: db, raws: relevantAssigned, repos: trackedKey, now: now
             )
         }
         YggdrasilLog.sync.info("Full sync complete")
@@ -180,6 +188,51 @@ enum TaskSyncWrites {
             )
             guard let taskID else { continue }
             try PRReviewRequest(taskID: taskID, requestedAt: now).insert(db)
+        }
+    }
+
+    /// Rebuild `pr_authored` from the set of PRs returned by
+    /// `is:pr author:@me`. Same authoritative-replace pattern as
+    /// `applyReviewRequests` — the search endpoint always returns the
+    /// complete current set, so it's simpler to wipe + reinsert than diff.
+    static func applyAuthoredPRs(
+        db: Database,
+        raws: [RawTask],
+        repos: [String: Repo],
+        now: Date
+    ) throws {
+        try db.execute(sql: "DELETE FROM pr_authored")
+        for raw in raws where raw.type == .pullRequest {
+            guard let repo = repos["\(raw.repoOwner)/\(raw.repoName)"], let repoID = repo.id else { continue }
+            let taskID: Int64? = try Int64.fetchOne(
+                db,
+                sql: "SELECT id FROM task WHERE repo_id = ? AND type = ? AND number = ?",
+                arguments: [repoID, raw.type.rawValue, raw.number]
+            )
+            guard let taskID else { continue }
+            try PRAuthored(taskID: taskID, recordedAt: now).insert(db)
+        }
+    }
+
+    /// Rebuild `pr_assigned` from the PR subset of `/issues?filter=assigned`.
+    /// Distinguishes "PR I'm an assignee on" from generic task-assignee
+    /// membership (which holds arbitrary logins, not just me).
+    static func applyAssignedPRs(
+        db: Database,
+        raws: [RawTask],
+        repos: [String: Repo],
+        now: Date
+    ) throws {
+        try db.execute(sql: "DELETE FROM pr_assigned")
+        for raw in raws where raw.type == .pullRequest {
+            guard let repo = repos["\(raw.repoOwner)/\(raw.repoName)"], let repoID = repo.id else { continue }
+            let taskID: Int64? = try Int64.fetchOne(
+                db,
+                sql: "SELECT id FROM task WHERE repo_id = ? AND type = ? AND number = ?",
+                arguments: [repoID, raw.type.rawValue, raw.number]
+            )
+            guard let taskID else { continue }
+            try PRAssigned(taskID: taskID, recordedAt: now).insert(db)
         }
     }
 
