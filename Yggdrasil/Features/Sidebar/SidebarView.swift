@@ -302,43 +302,15 @@ struct SidebarView: View {
     }
 }
 
-/// Yggdrasil mark — interwoven threads. Mirrors `icons.jsx` "yggdrasil" path on a 16×16
-/// grid, rendered inside a blue→deep-blue gradient rounded tile.
+/// Yggdrasil mark — the product logo (a tree silhouette). Backed by the
+/// `YggdrasilMark` imageset in Assets.xcassets, generated from `Assets/logo.jpg`.
 struct YggdrasilMark: View {
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(
-                    LinearGradient(
-                        colors: [YggdrasilTheme.accent, YggdrasilTheme.accentDeep],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
-                )
-
-            Canvas { context, size in
-                let scale = size.width / 16
-                context.scaleBy(x: scale, y: scale)
-                var upper = Path()
-                upper.move(to: CGPoint(x: 3, y: 5))
-                upper.addCurve(to: CGPoint(x: 13, y: 5),
-                              control1: CGPoint(x: 7, y: 9),
-                              control2: CGPoint(x: 9, y: 9))
-                var lower = Path()
-                lower.move(to: CGPoint(x: 3, y: 11))
-                lower.addCurve(to: CGPoint(x: 13, y: 11),
-                              control1: CGPoint(x: 7, y: 7),
-                              control2: CGPoint(x: 9, y: 7))
-                let stroke = StrokeStyle(lineWidth: 1.4, lineCap: .round)
-                context.stroke(upper, with: .color(.white), style: stroke)
-                context.stroke(lower, with: .color(.white), style: stroke)
-                let dot = Path(ellipseIn: CGRect(x: 6.8, y: 6.8, width: 2.4, height: 2.4))
-                context.fill(dot, with: .color(.white))
-            }
-        }
+        Image("YggdrasilMark")
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .accessibilityLabel("Yggdrasil")
     }
 }

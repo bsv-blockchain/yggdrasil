@@ -1,0 +1,181 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.2.0) — used in the tag/title if no tag is pushed"
+        required: false
+        default: ""
+  push:
+    tags:
+      - 'v*.*.*'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-sign-notarize:
+    name: Build / sign / notarize Yggdrasil.app
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+
+    env:
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show Xcode + Swift versions
+        run: |
+          xcodebuild -version
+          swift --version
+          sw_vers
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          elif [[ -n "${{ github.event.inputs.version }}" ]]; then
+            V="${{ github.event.inputs.version }}"
+          else
+            V="0.0.0-$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $V"
+
+      - name: Install Homebrew deps
+        run: |
+          brew update
+          brew install xcodegen libgit2 create-dmg
+
+      - name: Xcode first-launch + Metal toolchain
+        run: |
+          sudo xcodebuild -runFirstLaunch
+          sudo xcodebuild -downloadComponent MetalToolchain
+
+      - name: Generate Xcode project
+        run: make project
+
+      - name: Import Apple Developer ID certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_DEVELOPER_ID_CERT }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASS }}
+          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm -f certificate.p12
+          security find-identity -v -p codesigning build.keychain
+
+      - name: Resolve signing identity
+        id: identity
+        run: |
+          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -1)
+          if [[ -z "$CERT_INFO" ]]; then
+            echo "no Developer ID Application identity found in build.keychain" >&2
+            exit 1
+          fi
+          CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
+          echo "identity=$CERT_ID" >> "$GITHUB_OUTPUT"
+          echo "Using identity: $CERT_ID"
+
+      - name: Build (Release)
+        run: |
+          xcodebuild \
+            -project Yggdrasil.xcodeproj \
+            -scheme Yggdrasil \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath build/derived \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="${{ steps.identity.outputs.identity }}" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            build
+
+      - name: Locate built app
+        id: app
+        run: |
+          APP=$(find build/derived -name "Yggdrasil.app" -path "*/Build/Products/Release/*" -type d | head -1)
+          if [[ -z "$APP" ]]; then
+            echo "Yggdrasil.app not found under build/derived" >&2
+            exit 1
+          fi
+          echo "path=$APP" >> "$GITHUB_OUTPUT"
+          echo "$APP"
+
+      - name: Bundle libgit2 into the app
+        run: Scripts/bundle-libgit2.sh "${{ steps.app.outputs.path }}"
+
+      - name: Sign + notarize + staple
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ steps.identity.outputs.identity }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASS }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: Scripts/sign-and-notarize.sh "${{ steps.app.outputs.path }}" Yggdrasil/Yggdrasil.entitlements
+
+      - name: Build DMG
+        run: |
+          mkdir -p dist
+          DMG_PATH="dist/Yggdrasil-${{ steps.ver.outputs.version }}.dmg"
+          Scripts/make-dmg.sh "${{ steps.app.outputs.path }}" "$DMG_PATH"
+
+      - name: Sign DMG
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ steps.identity.outputs.identity }}
+        run: |
+          codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" \
+            "dist/Yggdrasil-${{ steps.ver.outputs.version }}.dmg"
+
+      - name: Notarize DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASS }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool submit \
+            "dist/Yggdrasil-${{ steps.ver.outputs.version }}.dmg" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --wait
+          xcrun stapler staple "dist/Yggdrasil-${{ steps.ver.outputs.version }}.dmg"
+
+      - name: SHA256
+        run: |
+          cd dist
+          shasum -a 256 *.dmg | tee SHA256SUMS
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: yggdrasil-macos-${{ steps.ver.outputs.version }}
+          path: |
+            dist/*.dmg
+            dist/SHA256SUMS
+
+      - name: Create / update GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --draft --title "Yggdrasil $TAG" --notes "Release $TAG"
+          gh release upload "$TAG" dist/*.dmg dist/SHA256SUMS --clobber
+
+      - name: Clean up keychain
+        if: always()
+        run: |
+          security delete-keychain build.keychain || true
