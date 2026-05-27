@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Loom Diff</title>
+  <link rel="stylesheet" href="diff2html.min.css">
+  <link rel="stylesheet" href="highlight-github.min.css">
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                   Helvetica, Arial, sans-serif;
+      font-size: 12px;
+    }
+    body {
+      background: var(--loom-bg, #ffffff);
+      color: var(--loom-fg, #1c1c1e);
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #1e1e1e; color: #e6e6e6; }
+      .d2h-file-header { background: #2a2a2a; }
+      .d2h-code-line, .d2h-info { background: #1e1e1e; }
+    }
+    #toolbar {
+      position: sticky; top: 0; z-index: 10;
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(127,127,127,0.3);
+      background: inherit;
+      display: flex; gap: 8px; align-items: center;
+    }
+    #toolbar input {
+      flex: 1; padding: 4px 8px;
+      border: 1px solid rgba(127,127,127,0.4);
+      background: transparent; color: inherit;
+      border-radius: 4px; font-size: 12px;
+    }
+    #toolbar button {
+      padding: 4px 10px; font-size: 12px;
+      border: 1px solid rgba(127,127,127,0.4);
+      background: transparent; color: inherit;
+      border-radius: 4px; cursor: pointer;
+    }
+    #toolbar button.active { background: rgba(0,122,255,0.2); }
+    #diff-target { padding: 12px; }
+    #empty-state { padding: 48px; text-align: center; color: rgba(127,127,127,0.8); }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <button id="btn-side" class="active">Side-by-side</button>
+    <button id="btn-line">Unified</button>
+    <input id="filter" placeholder="Filter files…" autocomplete="off">
+  </div>
+  <div id="empty-state">No diff yet. Compute and inject one via window.loom.render.</div>
+  <div id="diff-target"></div>
+
+  <script src="highlight.min.js"></script>
+  <script src="diff2html-ui.min.js"></script>
+  <script>
+    // The `Diff2HtmlUI` global comes from diff2html-ui.min.js. `hljs` from
+    // highlight.min.js. We don't render anything until Loom calls
+    // window.loom.render(diffText, opts).
+    (function () {
+      const targetEl   = document.getElementById('diff-target');
+      const emptyEl    = document.getElementById('empty-state');
+      const filterEl   = document.getElementById('filter');
+      const btnSide    = document.getElementById('btn-side');
+      const btnLine    = document.getElementById('btn-line');
+
+      let lastDiffText = '';
+      let outputFormat = 'side-by-side';
+
+      function setActive(btn) {
+        btnSide.classList.toggle('active', btn === btnSide);
+        btnLine.classList.toggle('active', btn === btnLine);
+      }
+
+      function rerender() {
+        if (!lastDiffText) {
+          emptyEl.style.display = '';
+          targetEl.innerHTML = '';
+          return;
+        }
+        emptyEl.style.display = 'none';
+        const ui = new Diff2HtmlUI(targetEl, lastDiffText, {
+          drawFileList: true,
+          fileListToggle: true,
+          fileListStartVisible: true,
+          fileContentToggle: true,
+          matching: 'lines',
+          outputFormat: outputFormat,
+          highlight: true,
+          renderNothingWhenEmpty: false,
+          synchronisedScroll: true,
+        });
+        ui.draw();
+        ui.highlightCode();
+        applyFilter();
+      }
+
+      function applyFilter() {
+        const q = filterEl.value.trim().toLowerCase();
+        const files = targetEl.querySelectorAll('.d2h-file-wrapper');
+        files.forEach(function (file) {
+          const name = (file.getAttribute('data-lang') || '') + ' ' +
+                       (file.querySelector('.d2h-file-name')?.textContent || '');
+          file.style.display = (q === '' || name.toLowerCase().includes(q)) ? '' : 'none';
+        });
+      }
+
+      btnSide.addEventListener('click', function () {
+        outputFormat = 'side-by-side';
+        setActive(btnSide);
+        rerender();
+      });
+      btnLine.addEventListener('click', function () {
+        outputFormat = 'line-by-line';
+        setActive(btnLine);
+        rerender();
+      });
+      filterEl.addEventListener('input', applyFilter);
+
+      window.loom = window.loom || {};
+      window.loom.render = function (diffText) {
+        lastDiffText = (diffText || '').toString();
+        rerender();
+      };
+      window.loom.clear = function () {
+        lastDiffText = '';
+        rerender();
+      };
+    })();
+  </script>
+</body>
+</html>

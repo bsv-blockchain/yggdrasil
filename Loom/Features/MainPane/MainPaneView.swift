@@ -106,7 +106,7 @@ struct MainPaneView: View {
         case .github:
             GitHubSubPane(services: services, tab: selectedTab)
         case .diff:
-            diffPlaceholder
+            DiffSubPane(services: services, tab: selectedTab)
         }
     }
 

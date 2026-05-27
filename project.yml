@@ -42,6 +42,8 @@ targets:
       - path: Loom/Resources/Assets.xcassets
         optional: true
       - path: Loom/Resources/diff2html
+        type: folder
+        buildPhase: resources
         optional: true
     info:
       path: Loom/Info.plist

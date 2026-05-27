@@ -23,6 +23,7 @@ final class AppServices {
     let webViewPool: WebViewPool
     let tabStatus = TabStatusModel()
     let statusPoller: StatusPoller
+    let diffEngine = DiffEngine()
 
     init() throws {
         let database = try LoomDatabase.openDefault()
