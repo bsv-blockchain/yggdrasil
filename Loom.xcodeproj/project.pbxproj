@@ -76,6 +76,7 @@
 		C55E084A208CDD00EBC97315 /* GitHubWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AF4712ED1EABDA7782EB775 /* GitHubWebView.swift */; };
 		CE9C96D0223628E382FE9C8D /* Backoff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A41270D5FD2913859F5156 /* Backoff.swift */; };
 		D26959C3FF2BB50181FD5C33 /* RESTClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A13DF4D55317A689600A192 /* RESTClient.swift */; };
+		D342A3941CB6B13F0FCD4F01 /* LRUTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ED8F14008DAA6160BD29232 /* LRUTracker.swift */; };
 		D4EC25510D3F574AA0E54374 /* LoomTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6890109E5E3076A96D71C69F /* LoomTask.swift */; };
 		DC977A348B16AF50472BE63B /* ETagStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19BF1D79E0DBAA564B3A039 /* ETagStoreTests.swift */; };
 		E5ECEBB9B7ABC39712DE0B96 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF42D22CA2F5E4B7FB58F74 /* AppServices.swift */; };
@@ -92,6 +93,7 @@
 		FB007E0D6F7C94AA62BDA3FE /* GitHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879315D3D2B7186766F53DDE /* GitHubStatus.swift */; };
 		FC039C1B5C8B97C01763CFE7 /* HTTPClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECDFC95289A7B6830F8DFE3 /* HTTPClientTests.swift */; };
 		FCC66C2E468F711C3C2ED032 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = 4FB935EE1FF6EE3F23F0BFA4 /* Fixtures */; };
+		FD088A9530155080F35A8E10 /* LRUTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66215648557283B181D71A6E /* LRUTrackerTests.swift */; };
 		FD2D620BEA41CA991D3D1245 /* SessionsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B4F368DFE718D8AECE0DDA2 /* SessionsModel.swift */; };
 		FD94E516A3389C9D498AE33F /* SessionStateStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEDE6F1D641D9C03B762767C /* SessionStateStoreTests.swift */; };
 /* End PBXBuildFile section */
@@ -134,6 +136,7 @@
 		50C2D7ECAEBA8DE77D0442DF /* OutputRingBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputRingBuffer.swift; sourceTree = "<group>"; };
 		6128D22DFDA7A39957AA3C9E /* SyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncScheduler.swift; sourceTree = "<group>"; };
 		65F1502EFFFBEF18867A2301 /* TabRowViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabRowViewModel.swift; sourceTree = "<group>"; };
+		66215648557283B181D71A6E /* LRUTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LRUTrackerTests.swift; sourceTree = "<group>"; };
 		680463771A1913695ADBD74D /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		68589EDD4EB0E76985003347 /* WorktreeManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeManagerTests.swift; sourceTree = "<group>"; };
 		6890109E5E3076A96D71C69F /* LoomTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoomTask.swift; sourceTree = "<group>"; };
@@ -152,6 +155,7 @@
 		87DD3CBCFF1F6ED6BD5E0DAD /* TaskAssignee.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskAssignee.swift; sourceTree = "<group>"; };
 		8B62A3B00A8A4F40F3F2A92A /* Loom.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Loom.entitlements; sourceTree = "<group>"; };
 		8EB1AC5F6ABF606215C34828 /* FileLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileLock.swift; sourceTree = "<group>"; };
+		8ED8F14008DAA6160BD29232 /* LRUTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LRUTracker.swift; sourceTree = "<group>"; };
 		910F7265E64BB1FF01A716DC /* HTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPClient.swift; sourceTree = "<group>"; };
 		91B5DDCD59C803D57C4D6A26 /* LoomDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoomDatabase.swift; sourceTree = "<group>"; };
 		9524195CF7819BD48E5F6FA2 /* LoomTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoomTab.swift; sourceTree = "<group>"; };
@@ -248,6 +252,7 @@
 		2BEE0384042F77A244841D4A /* MainPane */ = {
 			isa = PBXGroup;
 			children = (
+				66215648557283B181D71A6E /* LRUTrackerTests.swift */,
 			);
 			path = MainPane;
 			sourceTree = "<group>";
@@ -437,6 +442,7 @@
 				DEA0A790984287F40EC1A4A3 /* AgentTerminalSurface.swift */,
 				4976BC45A9B0BAB2A7C76486 /* GitHubSubPane.swift */,
 				6AF4712ED1EABDA7782EB775 /* GitHubWebView.swift */,
+				8ED8F14008DAA6160BD29232 /* LRUTracker.swift */,
 				C3118796A5B6453B9CBBF54E /* MainPaneView.swift */,
 				7B4F368DFE718D8AECE0DDA2 /* SessionsModel.swift */,
 			);
@@ -651,6 +657,7 @@
 				1BD055D4E0D2F2E95CA33EE3 /* GraphQLClient.swift in Sources */,
 				EF67246D6169F891967950B1 /* HTTPClient.swift in Sources */,
 				209A6F4AACB0F18B3A32C952 /* KeychainStore.swift in Sources */,
+				D342A3941CB6B13F0FCD4F01 /* LRUTracker.swift in Sources */,
 				B23664D17B40E8A19A8A288C /* LoomApp.swift in Sources */,
 				B115BA55BF7BF53709973B8D /* LoomDatabase.swift in Sources */,
 				2089433B70604764F52AB203 /* LoomLogger.swift in Sources */,
@@ -701,6 +708,7 @@
 				F214AFF555015845B7F361F8 /* GitRunnerTests.swift in Sources */,
 				92B48F465A3302E8F8742C59 /* GraphQLClientTests.swift in Sources */,
 				FC039C1B5C8B97C01763CFE7 /* HTTPClientTests.swift in Sources */,
+				FD088A9530155080F35A8E10 /* LRUTrackerTests.swift in Sources */,
 				2C9C2D0D25A0FE2A761587F5 /* MigrationV2Tests.swift in Sources */,
 				BCFD1689C0B79E45F2E13DB5 /* MigrationsTests.swift in Sources */,
 				ED22D49A34BB2440A33F38F2 /* OutputRingBufferTests.swift in Sources */,
