@@ -8,10 +8,14 @@ import SwiftUI
 struct MenuBarStatusScene: Scene {
     @ObservedObject var appDelegate: AppDelegate
 
-    /// Pre-sized template NSImage for the menu bar item. Cached so we don't
-    /// reload the asset every body invocation.
+    /// Pre-sized template NSImage for the menu bar item. The
+    /// `YggdrasilMenuBarMark` imageset ships a simplified silhouette logo
+    /// authored specifically for the status-bar slot (see `Assets/logo.svg`);
+    /// rasterised at 18/36/54 px for 1x/2x/3x. Template-rendered so macOS
+    /// tints to match the menu bar's foreground colour. Cached statically
+    /// to avoid reloading on every body invocation.
     private static let menuBarIcon: NSImage = {
-        let image = NSImage(named: "YggdrasilMark") ?? NSImage()
+        let image = NSImage(named: "YggdrasilMenuBarMark") ?? NSImage()
         image.size = NSSize(width: 18, height: 18)
         image.isTemplate = true
         return image
