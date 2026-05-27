@@ -91,7 +91,7 @@
       "name": "Polish & packaging (FINAL)",
       "approved": false,
       "branch": "main",
-      "git_sha": "PENDING_FINALIZATION",
+      "git_sha": "901536b24d5c1adb24c2482105e44fa16b028924",
       "completed_at": "2026-05-27T13:00:00Z",
       "blockers": [
         "ACs #3 #4 #5 #6 are intrinsically manual / require Apple Developer ID",
@@ -101,7 +101,7 @@
   ],
   "started_at": "2026-05-26T19:00:00Z",
   "last_updated": "2026-05-27T13:00:00Z",
-  "last_git_sha": "PENDING_FINALIZATION",
+  "last_git_sha": "901536b24d5c1adb24c2482105e44fa16b028924",
   "blockers": [],
   "summary": {
     "acs_done": 59,
