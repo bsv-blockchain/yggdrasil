@@ -14,6 +14,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         YggdrasilLog.ui
             .info("Yggdrasil did finish launching (pid=\(ProcessInfo.processInfo.processIdentifier, privacy: .public))")
 
+        // SwiftUI's WindowGroup restores window frames from UserDefaults. Frames saved
+        // from previous sessions may reference monitors that no longer exist, leaving
+        // the window off-screen. Watch for windows becoming visible and recenter any
+        // whose frame doesn't intersect any currently-attached screen.
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { _ in Self.recenterOffscreenWindows() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { Self.recenterOffscreenWindows() }
+
         // Skip building the real service graph under tests — the test bundle has its own
         // mock wiring and we don't want the production DB / Keychain reached during
         // `xcodebuild test`.
@@ -61,5 +72,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     private static var isRunningTests: Bool {
         NSClassFromString("XCTest") != nil
             || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
+    /// Recenters visible windows onto the screen with the menu bar (the
+    /// "primary" screen — `NSScreen.screens.first`). SwiftUI restores frames
+    /// from UserDefaults and `NSScreen.main` follows the focused window, so a
+    /// window restored to an off-side display reports that display *as* main
+    /// and a naive "on main screen" check is a no-op. Use the array order
+    /// instead, which is stable across launches and matches the menu-bar
+    /// screen.
+    private static func recenterOffscreenWindows() {
+        let allScreens = NSScreen.screens
+        YggdrasilLog.ui.info(
+            "Display layout: \(allScreens.count, privacy: .public) screens; main=\(String(describing: NSScreen.main?.frame), privacy: .public)"
+        )
+        guard let primary = allScreens.first else { return }
+        let primaryFrame = primary.visibleFrame
+        for window in NSApp.windows where window.isVisible && window.canBecomeMain {
+            let center = NSPoint(x: window.frame.midX, y: window.frame.midY)
+            if !primaryFrame.contains(center) {
+                let newOrigin = NSPoint(
+                    x: primaryFrame.midX - window.frame.width / 2,
+                    y: primaryFrame.midY - window.frame.height / 2
+                )
+                window.setFrameOrigin(newOrigin)
+                YggdrasilLog.ui.info(
+                    "Recentered window '\(window.title, privacy: .public)' to primary screen origin=\(String(describing: newOrigin), privacy: .public)"
+                )
+            }
+        }
     }
 }
