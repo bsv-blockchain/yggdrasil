@@ -30,10 +30,18 @@ struct RootView: View {
         (NSApplication.shared.delegate as? AppDelegate)?.services
     }
 
+    @State private var showingOnboarding = false
+
     var body: some View {
         Group {
             if let services {
                 SidebarSessionsLayout(services: services)
+                    .sheet(isPresented: $showingOnboarding) {
+                        OnboardingSheet(services: services)
+                    }
+                    .task {
+                        showingOnboarding = OnboardingSheet.shouldShow(services: services)
+                    }
             } else {
                 placeholder
             }
