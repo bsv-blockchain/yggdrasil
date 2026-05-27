@@ -10,6 +10,7 @@ struct SidebarView: View {
     let services: AppServices
     let onSelect: (Int64) -> Void
     @State private var showingNewTabSheet = false
+    @State private var showingAssignedPicker = false
     @State private var rawSearchQuery: String = ""
     @State private var debouncedQuery: String = ""
     @State private var debounceTask: Task<Void, Never>?
@@ -68,6 +69,9 @@ struct SidebarView: View {
         .background(YggdrasilTheme.bgPane(scheme))
         .sheet(isPresented: $showingNewTabSheet) {
             NewTabSheet(services: services)
+        }
+        .sheet(isPresented: $showingAssignedPicker) {
+            AssignedTaskPicker(services: services)
         }
         .onChange(of: rawSearchQuery) { _, newValue in
             scheduleDebouncedQueryUpdate(to: newValue)
@@ -190,6 +194,22 @@ struct SidebarView: View {
                 .buttonStyle(.plain)
             }
             Spacer()
+            Button {
+                showingAssignedPicker = true
+            } label: {
+                Image(systemName: "tray.full")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(YggdrasilTheme.textDim(scheme))
+                    .frame(width: 24, height: 22)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
+                    )
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("O", modifiers: [.command])
+            .help("Open assigned issue or PR (⌘O)")
+            .accessibilityIdentifier("sidebar.openassigned")
             Button {
                 showingNewTabSheet = true
             } label: {
