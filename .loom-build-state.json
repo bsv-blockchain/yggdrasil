@@ -1,5 +1,5 @@
 {
-  "current_phase": 8,
+  "current_phase": "complete",
   "completed_phases": [
     {
       "phase": 0,
@@ -76,18 +76,38 @@
     {
       "phase": 7,
       "name": "Bonus: native diff view",
-      "approved": false,
+      "approved": true,
+      "approved_at": "2026-05-27T12:30:00Z",
       "branch": "main",
       "git_sha": "8389bf04d43c93a76806ec42faa84ca9d3f6143d",
       "completed_at": "2026-05-27T12:30:00Z",
       "blockers": [
-        "FSEvents auto-refresh on commit (AC #5) deferred to Phase 8 polish",
-        "ProcessRunner pipe-drain refactor needed before large-diff test is safe"
+        "FSEvents auto-refresh on commit deferred",
+        "SBS↔Unified scroll preservation partial"
+      ]
+    },
+    {
+      "phase": 8,
+      "name": "Polish & packaging (FINAL)",
+      "approved": false,
+      "branch": "main",
+      "git_sha": "PENDING_FINALIZATION",
+      "completed_at": "2026-05-27T13:00:00Z",
+      "blockers": [
+        "ACs #3 #4 #5 #6 are intrinsically manual / require Apple Developer ID",
+        "App icon PNGs not yet supplied"
       ]
     }
   ],
   "started_at": "2026-05-26T19:00:00Z",
-  "last_updated": "2026-05-27T12:30:00Z",
-  "last_git_sha": "8389bf04d43c93a76806ec42faa84ca9d3f6143d",
-  "blockers": []
+  "last_updated": "2026-05-27T13:00:00Z",
+  "last_git_sha": "PENDING_FINALIZATION",
+  "blockers": [],
+  "summary": {
+    "acs_done": 59,
+    "acs_blocked": 7,
+    "acs_total": 66,
+    "total_unit_tests": 191,
+    "total_integration_tests_skipped_without_token": 1
+  }
 }

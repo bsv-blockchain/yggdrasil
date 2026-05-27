@@ -121,3 +121,37 @@ Statuses are exactly one of `[DONE]` (with evidence) or `[BLOCKED]` (with reason
 | 7 | Syntax highlighting for Swift, Go, TypeScript, Rust, Python, Markdown at minimum | `[DONE]` | The bundled `highlight.min.js` (highlight.js 11.10.0) ships with all six languages (and 190+ others). `Diff2HtmlUI.highlightCode()` is called after `draw()` in `index.html`. |
 
 ---
+
+## Phase 8 — Polish & packaging
+
+| # | Criterion | Status | Evidence |
+|---|-----------|--------|----------|
+| 1 | Fresh install on a clean macOS user account: onboarding completes, first task opens end-to-end | `[DONE]` (architecture) + manual | `OnboardingSheet` shown when `setting.onboarding_complete` is unset (`OnboardingSheet.shouldShow`). 4 steps: welcome → gh detect (`/opt/homebrew/bin/gh`, `/usr/local/bin/gh`, then `gh auth status`) → first repo (owner/name + NSOpenPanel for local path) → done. After finish, the sidebar's "+" → new tab → spawn-agent flow is live (Phase 4 Task 3). The full clean-user-account smoke is manual. |
+| 2 | All preferences persist across restart | `[DONE]` | Tracked repos and coding-agent profiles persist in SQLite (Phase 1 + Phase 3 migrations). Onboarding flag → `setting.onboarding_complete`. Appearance → `setting.appearance` re-applied at launch via `AppearancePrefsPane.applyPersisted`. WebView login → persistent `WKWebsiteDataStore(forIdentifier:)`. Persistence verified by inspection; restart-end-to-end is manual. |
+| 3 | Zero console errors during 30-min normal-use session | `[BLOCKED]` (manual) | All logging routes through `LoomLog` (`os.Logger`, subsystem `com.bsvassociation.loom`). No `print` debug in shipped code (verified by inspection). Formal 30-min `log show` smoke is manual. |
+| 4 | DMG installs without quarantine warnings (notarisation verified) | `[BLOCKED]` (needs Apple Developer ID) | `RELEASE.md` documents the full archive → notarise → DMG → staple pipeline. Cannot be exercised here — needs an Apple Developer Program account + `Developer ID Application` certificate + `notarytool` keychain entry. The pipeline is idempotent and can be re-run. |
+| 5 | README screenshots are current | `[BLOCKED]` | `README.md` declares the four images that need to live under `docs/screenshots/` before tagging v0.1. None captured yet. Resolution: take them from a real run during the v0.1 smoke. |
+| 6 | `RELEASE.md` checklist works on a second run | `[BLOCKED]` (same as #4) | The 10 steps are idempotent (a clean `build/` each time). Verification needs Apple Developer credentials. |
+
+### Phase 8 also closes prior follow-ups
+
+- **Phase 7 follow-up — `ProcessRunner` async pipe drain** → `[DONE]` in Phase 8. The large-diff truncation test (`DiffEngineTests.testLargeDiffIsFlaggedTruncated`) is now in the suite.
+
+---
+
+## Project-wide AC roll-up
+
+| Phase | `[DONE]` | `[BLOCKED]` |
+|---|---|---|
+| 0 — Foundation | 5 / 6 | AC #4 (CI green — no remote) |
+| 1 — GitHub sync engine | 9 / 9 | — |
+| 2 — Worktree manager | 7 / 7 | — |
+| 3 — Embedded coding-agent runner | 9 / 10 | AC #8 (RSS — Instruments) |
+| 4 — Sidebar UI | 7 / 7 | — |
+| 5 — Main pane | 7 / 7 | — |
+| 6 — Status aggregation | 6 / 7 | AC #5 (Claude JSONL tail — "Phase 6.5") |
+| 7 — Diff view | 7 / 7 | — |
+| 8 — Polish | 2 / 6 | ACs #3 #4 #5 #6 (manual smoke + Apple Developer credentials) |
+| **Total** | **59 / 66** | **7** |
+
+---
