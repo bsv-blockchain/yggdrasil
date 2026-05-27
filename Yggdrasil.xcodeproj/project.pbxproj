@@ -34,6 +34,7 @@
 		2F40E67E7FC0A9E83D7D41C5 /* GitHubSubPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88AE2C7159A7E5623495819D /* GitHubSubPane.swift */; };
 		2FCBC32DD6A4EF32B64B77AF /* CodingAgentRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF1032E88424E7D79F33A26 /* CodingAgentRunner.swift */; };
 		3090E61CE00C1E3598B7BFFE /* AgentPrefsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = C41030D4CF1BD20748F879DB /* AgentPrefsPane.swift */; };
+		30D84E4D1E15BF72113BB60A /* YggdrasilTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D87FE2B8D82A2E53D859AC1 /* YggdrasilTerminalView.swift */; };
 		33FFAFAF2539944B072CD799 /* TabCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF28D57C8B062A9B31FA82E /* TabCommands.swift */; };
 		37511615DFFB74718A500ECD /* SidebarActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72249D71DE8A1587B435695 /* SidebarActions.swift */; };
 		38E480A5E15DF0B78E0688FC /* TaskSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CFB54A8612A50052ABCF48 /* TaskSyncService.swift */; };
@@ -215,6 +216,7 @@
 		88AE2C7159A7E5623495819D /* GitHubSubPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubSubPane.swift; sourceTree = "<group>"; };
 		88E4FB20AE73F43E9A4934EC /* CodingAgentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingAgentStore.swift; sourceTree = "<group>"; };
 		8A30B4717CB6A068A8F5793F /* GHCLIAuthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GHCLIAuthTests.swift; sourceTree = "<group>"; };
+		8D87FE2B8D82A2E53D859AC1 /* YggdrasilTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilTerminalView.swift; sourceTree = "<group>"; };
 		8E8F555D658DE195C8390B80 /* SyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncScheduler.swift; sourceTree = "<group>"; };
 		918445015D120B181B68D47B /* TaskAssignee.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskAssignee.swift; sourceTree = "<group>"; };
 		948A16A92FE75C74D900FC72 /* ReviewPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPickerTests.swift; sourceTree = "<group>"; };
@@ -323,6 +325,7 @@
 				B4763684B5AE9E80D155A44C /* SessionsModel.swift */,
 				C388E8EEB6766ACD41088087 /* WebViewPool.swift */,
 				D97BAAB8ABEAADA789A31964 /* WindowChrome.swift */,
+				8D87FE2B8D82A2E53D859AC1 /* YggdrasilTerminalView.swift */,
 			);
 			path = MainPane;
 			sourceTree = "<group>";
@@ -933,6 +936,7 @@
 				261A4E67952D92CEB25FDA6C /* YggdrasilLogger.swift in Sources */,
 				3BE8BBE62D588C39AE59103C /* YggdrasilTab.swift in Sources */,
 				262E5BC5016830444B02E304 /* YggdrasilTask.swift in Sources */,
+				30D84E4D1E15BF72113BB60A /* YggdrasilTerminalView.swift in Sources */,
 				92674D084D5F2D28EF68B712 /* YggdrasilTheme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

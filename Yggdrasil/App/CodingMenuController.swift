@@ -22,9 +22,35 @@ final class CodingMenuController: NSObject {
     /// Build the Coding menu and insert it into the main menu bar right after
     /// View (matching where SwiftUI's CommandMenu would normally place a
     /// custom top-level menu).
+    /// Identity tag we apply to the inserted NSMenuItem so we can find it
+    /// again on later re-install attempts. `view` is 2 and `window` is 100
+    /// by convention; pick something out of AppKit's tag space.
+    private static let codingMenuTag = 0x59_47_44_43 // "YGDC"
+
     func install() {
+        // Listen for repeated lifecycle events so SwiftUI rebuilding the
+        // main menu (which it does liberally — every scene mutation may
+        // wipe our insertion) doesn't permanently lose us. install() is
+        // idempotent thanks to the tag check.
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(reinstallIfMissing),
+            name: NSApplication.didBecomeActiveNotification, object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(reinstallIfMissing),
+            name: NSWindow.didBecomeKeyNotification, object: nil
+        )
+        reinstallIfMissing()
+    }
+
+    @objc private func reinstallIfMissing() {
         guard let mainMenu = NSApp.mainMenu else { return }
+        // Already present? Done.
+        if mainMenu.items.contains(where: { $0.tag == Self.codingMenuTag }) {
+            return
+        }
         let codingMenuItem = NSMenuItem(title: "Coding", action: nil, keyEquivalent: "")
+        codingMenuItem.tag = Self.codingMenuTag
         let coding = NSMenu(title: "Coding")
         codingMenuItem.submenu = coding
 

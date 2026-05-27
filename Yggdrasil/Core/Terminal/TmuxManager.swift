@@ -106,6 +106,11 @@ struct TmuxManager: Sendable {
         tmux -L \(qSocket) set-option -t \(qSession) status off >/dev/null 2>&1 || true
         tmux -L \(qSocket) set-option -t \(qSession) mouse on >/dev/null 2>&1 || true
         tmux -L \(qSocket) set-option -t \(qSession) history-limit 50000 >/dev/null 2>&1 || true
+        # OSC 52 hand-off: when the user selects text in tmux copy-mode, tmux
+        # emits an OSC 52 sequence that SwiftTerm's clipboardCopy delegate
+        # writes straight to NSPasteboard — no more "selection only lives in
+        # tmux's buffer" problem.
+        tmux -L \(qSocket) set-option -t \(qSession) set-clipboard on >/dev/null 2>&1 || true
         exec tmux -L \(qSocket) attach -t \(qSession)
         """
     }

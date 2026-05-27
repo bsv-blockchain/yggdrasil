@@ -46,6 +46,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             YggdrasilLog.ui.error("Failed to build AppServices: \(String(describing: error), privacy: .public)")
         }
 
+        // Forwards scroll-wheel events to the PTY when the embedded program
+        // (tmux, mostly) is asking for mouse events. Stays installed for
+        // the app's lifetime; a single-monitor cost is negligible.
+        TerminalScrollInterceptor.install()
+
         // Install the AppKit "Coding" menu after the main menu bar is built.
         // SwiftUI sets up the bar during its own scene init; defer one tick
         // so NSApp.mainMenu's View item exists by the time we insert after it.
