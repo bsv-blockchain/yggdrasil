@@ -8,6 +8,15 @@ import SwiftUI
 struct MenuBarStatusScene: Scene {
     @ObservedObject var appDelegate: AppDelegate
 
+    /// Pre-sized template NSImage for the menu bar item. Cached so we don't
+    /// reload the asset every body invocation.
+    private static let menuBarIcon: NSImage = {
+        let image = NSImage(named: "YggdrasilMark") ?? NSImage()
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = true
+        return image
+    }()
+
     var body: some Scene {
         MenuBarExtra {
             if let services = appDelegate.services {
@@ -22,16 +31,14 @@ struct MenuBarStatusScene: Scene {
                     .padding()
             }
         } label: {
-            // Template rendering: macOS recolours the icon to match the menu
-            // bar (light text on dark menu bar / dark text on light).
-            // Without an explicit frame the asset renders at its intrinsic
-            // 128px, which makes the menu bar icon enormous; constrain to
-            // ~18pt — the size NSStatusItem uses for native icons.
-            Image("YggdrasilMark")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 18, height: 18)
+            // MenuBarExtra ignores SwiftUI .frame() on its label and renders
+            // Image at the asset's intrinsic size — our YggdrasilMark is
+            // 128×128, so the menu bar item ends up huge. The workaround is
+            // to load NSImage explicitly, mark it as a template (so macOS
+            // tints it with the menu bar's foreground colour) and force its
+            // `size` to the standard 18pt status-item footprint. The Image
+            // view honours that size verbatim.
+            Image(nsImage: Self.menuBarIcon)
         }
         .menuBarExtraStyle(.window)
     }
