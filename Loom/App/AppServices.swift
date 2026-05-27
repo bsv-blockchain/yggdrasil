@@ -20,6 +20,7 @@ final class AppServices {
     let worktreeManager = WorktreeManager()
     let sessions = SessionsModel()
     let tabs: TabsModel
+    let webViewPool: WebViewPool
 
     init() throws {
         let database = try LoomDatabase.openDefault()
@@ -44,6 +45,7 @@ final class AppServices {
         let tabsModel = TabsModel(store: tabStore, database: database)
         tabsModel.reload()
         self.tabs = tabsModel
+        self.webViewPool = WebViewPool(settingsStore: SettingsStore(database: database))
 
         // Hold a local reference so the closure can capture without going through `self`.
         // Each scheduler tick retries the sync with exponential backoff on failure
