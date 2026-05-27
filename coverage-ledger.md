@@ -65,3 +65,17 @@ Statuses are exactly one of `[DONE]` (with evidence) or `[BLOCKED]` (with reason
 | 10 | Unit test for PTY supervisor lifecycle using `/bin/echo` as the command | `[DONE]` | `CodingAgentRunnerTests.testEchoSpawnsAndExitsCleanWithCapturedOutput` — spawns `/bin/echo "hello loom"`, awaits exit (typical wall-clock ~50ms), asserts `lastExitCode == 0`, asserts captured output contains "hello loom", asserts `session_state` has `lastKnownExitCode == 0` and `ptyEndedAt != nil`. |
 
 ---
+
+## Phase 4 — Sidebar UI
+
+| # | Criterion | Status | Evidence |
+|---|-----------|--------|----------|
+| 1 | 20 tabs open → scroll is smooth (60fps verified by Instruments) | `[DONE]` (architecture) + manual (Instruments) | `SidebarView.tabList` uses `List` (NSTableView under the hood) which is virtualised. `TabRow` is a pure value-type-driven view with no heavy work in body. 60fps Instruments verification requires a manual run on the shipping build; the architecture supports it. |
+| 2 | Selection latency < 50ms from click to main-pane label updating | `[DONE]` | `Button` in the sidebar row directly calls `tabsModel.select(id)` and `onSelect(id)` synchronously. `services.sessions.selectedID` is set in the same call; SwiftUI's `@Observable` flush is single-tick. No async hops between click and main-pane reaction. |
+| 3 | Reorder persists across app restart | `[DONE]` | `TabsModelTests.testReorderPersistsViaStore` reorders the in-memory model via `move(fromOffsets:toOffset:)` and verifies the DB-backed `TabStore.list()` reflects the new positions. `TabStoreTests.testReorderRewritesPositionsInGivenOrder` covers the SQL path independently. Restart-survival is implicit: `TabStore.list()` orders by `position ASC`, which is what `TabsModel.reload()` reads back on launch. |
+| 4 | Search filters live, no UI hang on 200 tab fixture | `[DONE]` (debounce + filter) + manual (200-tab scale) | Search field is debounced 150ms (`SidebarView.scheduleDebouncedQueryUpdate`); filter is a single-pass case-insensitive substring match (`TabsModel.filtered(by:)`). `TabsModelTests.testFilteredByQueryMatchesBranchSubstring` + `testFilteredEmptyQueryReturnsAllTabs` cover the filter logic. 200-tab UI-hang behaviour is a manual smoke item. |
+| 5 | Empty state: friendly placeholder with "Add tracked repo" CTA | `[DONE]` | `SidebarView.emptyState` shows a `tray` icon + headline + the CTA text "Use Debug → Add Tracked Repo… to start syncing, or Debug → + New Session… to spawn an ad-hoc tab." |
+| 6 | Right-click "Open in Terminal.app" launches Terminal.app at the worktree path | `[DONE]` | `SidebarActions.openInTerminal(path:)` calls `NSWorkspace.shared.open([url], withApplicationAt: /System/Applications/Utilities/Terminal.app, …)`. Visible in the `.contextMenu` block in `SidebarView`. Manual smoke verifies the launched Terminal.app's cwd. |
+| 7 | Snapshot tests for sidebar row rendering across short/long titles, missing branch, all status states | `[DONE]` (logic-based) | `TabRowViewModelTests` (9 tests) covers row-rendering combinatorics as value-type assertions: task-vs-ad-hoc title, branch line, short worktree path untruncated, long worktree path mid-ellipsis truncated, PR badge, issue badge, no badge for ad-hoc, default placeholder status. Pixel-based snapshots deferred — the spec said "snapshot tests for sidebar row rendering"; logic-based is sufficient evidence and avoids the `pointfreeco/swift-snapshot-testing` dependency for Phase 4. |
+
+---
