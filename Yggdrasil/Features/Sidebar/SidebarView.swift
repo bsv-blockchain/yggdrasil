@@ -13,6 +13,9 @@ struct SidebarView: View {
     @State private var showingNewTabSheet = false
     @State private var showingAssignedPicker = false
     @State private var showingIssueDetails = false
+    /// Tab ID of the row currently hovered during a drag, used to render
+    /// the insertion line so the user knows where the dropped tab will land.
+    @State private var dropTargetTabID: Int64?
     @State private var rawSearchQuery: String = ""
     @State private var debouncedQuery: String = ""
     @State private var debounceTask: Task<Void, Never>?
@@ -292,16 +295,53 @@ struct SidebarView: View {
         .contextMenu {
             contextMenu(for: tab)
         }
-        .padding(.vertical, 1)
+
+        let decorated = row
+            .overlay(alignment: .top) {
+                if dropTargetTabID == tab.id {
+                    Rectangle()
+                        .fill(YggdrasilTheme.accent)
+                        .frame(height: 2)
+                        .offset(y: -1)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.vertical, 1)
 
         if reorderEnabled, let id = tab.id {
-            row
-                .draggable(String(id))
+            decorated
+                .draggable(String(id)) {
+                    // Custom drag preview: same row content on an opaque
+                    // tinted background so it reads as a card under the
+                    // cursor instead of the default transparent silhouette.
+                    TabRow(
+                        model: tabsModel.model(for: tab, status: services.tabStatus),
+                        agent: tabsModel.agentIdentity(for: tab),
+                        isSelected: true
+                    )
+                    .frame(width: 280)
+                    .padding(6)
+                    .background(YggdrasilTheme.bgElev(scheme))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(YggdrasilTheme.borderStrong(scheme), lineWidth: 0.5)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 3)
+                }
                 .dropDestination(for: String.self) { items, _ in
-                    handleDrop(items: items, ontoTabID: id)
+                    let result = handleDrop(items: items, ontoTabID: id)
+                    dropTargetTabID = nil
+                    return result
+                } isTargeted: { targeted in
+                    if targeted {
+                        dropTargetTabID = id
+                    } else if dropTargetTabID == id {
+                        dropTargetTabID = nil
+                    }
                 }
         } else {
-            row
+            decorated
         }
     }
 
