@@ -43,79 +43,53 @@ enum AgentIdentity: String, CaseIterable {
 }
 
 /// One agent's brand mark, drawn as a SwiftUI `Path` over a 16×16 design grid.
-/// Ports the hand-drawn SVG paths in `icons.jsx`.
+/// Ports the hand-drawn SVG paths in `icons.jsx`. Claude uses the official
+/// Anthropic symbol (template-rendered PNG asset) instead of the hand-drawn
+/// asterisk fallback.
 struct AgentMark: View {
     let agent: AgentIdentity
     let size: CGFloat
 
+    @ViewBuilder
     var body: some View {
+        if let asset = Self.assetName(for: agent) {
+            Image(asset)
+                .resizable()
+                .renderingMode(.template)
+                .aspectRatio(contentMode: .fit)
+                .foregroundStyle(agent.color)
+                .frame(width: size, height: size)
+                .accessibilityLabel(agent.label)
+        } else {
+            canvasBody
+        }
+    }
+
+    /// Asset-catalog name for agents whose brand mark is shipped as an image
+    /// (rather than the hand-drawn Canvas paths). Returns nil for agents that
+    /// still rely on `canvasBody`.
+    private static func assetName(for agent: AgentIdentity) -> String? {
+        switch agent {
+        case .claude: "ClaudeMark"
+        case .codex: "CodexMark"
+        case .grok: "GrokMark"
+        case .gemini, .copilot: nil
+        }
+    }
+
+    private var canvasBody: some View {
         Canvas { context, canvasSize in
             // Scale the 16×16 design grid to `size`.
             let scale = canvasSize.width / 16
             let stroke = StrokeStyle(lineWidth: 1.4 * scale, lineCap: .round, lineJoin: .round)
-            let strokeThick = StrokeStyle(lineWidth: 1.5 * scale, lineCap: .round, lineJoin: .round)
             context.scaleBy(x: scale, y: scale)
             let color = GraphicsContext.Shading.color(agent.color)
 
             switch agent {
-            case .claude:
-                // Asterisk-like glyph (Anthropic mark, hand-drawn).
-                var path = Path()
-                path.move(to: CGPoint(x: 8, y: 1.2))
-                path.addCurve(
-                    to: CGPoint(x: 13.72, y: 6.9),
-                    control1: CGPoint(x: 8.18, y: 3),
-                    control2: CGPoint(x: 8.66, y: 4.4)
-                )
-                path.addCurve(
-                    to: CGPoint(x: 13.72, y: 7.1),
-                    control1: CGPoint(x: 13.78, y: 6.94),
-                    control2: CGPoint(x: 13.78, y: 7.06)
-                )
-                path.addCurve(
-                    to: CGPoint(x: 8, y: 14.82),
-                    control1: CGPoint(x: 11.92, y: 7.28),
-                    control2: CGPoint(x: 8.66, y: 11.62)
-                )
-                path.addLine(to: CGPoint(x: 7.8, y: 14.82))
-                path.addCurve(
-                    to: CGPoint(x: 2.08, y: 7.1),
-                    control1: CGPoint(x: 7.34, y: 11.62),
-                    control2: CGPoint(x: 3.88, y: 7.28)
-                )
-                path.addLine(to: CGPoint(x: 2.08, y: 6.9))
-                path.addCurve(
-                    to: CGPoint(x: 7.8, y: 1.2),
-                    control1: CGPoint(x: 3.88, y: 6.72),
-                    control2: CGPoint(x: 7.34, y: 3)
-                )
-                path.closeSubpath()
-                // Simpler fallback: filled four-pointed compass star (close enough to
-                // the design's asterisk silhouette for sidebar-icon size).
-                context.fill(simpleClaudePath(), with: color)
-            case .codex:
-                // Three orbit-like nested rotated squares (the design's stylised
-                // OpenAI mark — not the official wordmark).
-                let orbitInner = Path { path in
-                    path.move(to: CGPoint(x: 3.2, y: 8))
-                    path.addLine(to: CGPoint(x: 5.5, y: 5))
-                    path.addLine(to: CGPoint(x: 8, y: 8))
-                    path.addLine(to: CGPoint(x: 5.5, y: 11))
-                    path.closeSubpath()
-                }
-                let orbitMid = Path { path in
-                    path.move(to: CGPoint(x: 8, y: 5))
-                    path.addLine(to: CGPoint(x: 10.5, y: 8))
-                    path.addLine(to: CGPoint(x: 8, y: 11))
-                }
-                let orbitOuter = Path { path in
-                    path.move(to: CGPoint(x: 10.5, y: 5))
-                    path.addLine(to: CGPoint(x: 13, y: 8))
-                    path.addLine(to: CGPoint(x: 10.5, y: 11))
-                }
-                context.stroke(orbitInner, with: color, style: stroke)
-                context.stroke(orbitMid, with: color, style: stroke)
-                context.stroke(orbitOuter, with: color, style: stroke)
+            case .claude, .codex, .grok:
+                // Handled by the Image branch in `body` (asset-backed marks);
+                // never reached.
+                break
             case .gemini:
                 // Four-pointed sparkle (Gemini's official mark stylised).
                 context.fill(geminiSparkle(), with: color)
@@ -155,17 +129,6 @@ struct AgentMark: View {
                 }
                 context.stroke(antennaL, with: color, style: stroke)
                 context.stroke(antennaR, with: color, style: stroke)
-            case .grok:
-                // Three parallel slashes (xAI's X stylised).
-                let slashes = Path { path in
-                    path.move(to: CGPoint(x: 3, y: 13))
-                    path.addLine(to: CGPoint(x: 9, y: 4))
-                    path.move(to: CGPoint(x: 5.5, y: 13))
-                    path.addLine(to: CGPoint(x: 11.5, y: 4))
-                    path.move(to: CGPoint(x: 8, y: 13))
-                    path.addLine(to: CGPoint(x: 13, y: 6))
-                }
-                context.stroke(slashes, with: color, style: strokeThick)
             }
         }
         .frame(width: size, height: size)
@@ -173,34 +136,6 @@ struct AgentMark: View {
     }
 
     // MARK: - Path helpers
-
-    private func simpleClaudePath() -> Path {
-        // Four-pointed asterisk-like petal silhouette in design's 16×16 grid.
-        Path { path in
-            path.move(to: CGPoint(x: 8, y: 1.6))
-            path.addCurve(
-                to: CGPoint(x: 14.4, y: 8),
-                control1: CGPoint(x: 8.2, y: 5.0),
-                control2: CGPoint(x: 11.0, y: 7.8)
-            )
-            path.addCurve(
-                to: CGPoint(x: 8, y: 14.4),
-                control1: CGPoint(x: 11.0, y: 8.2),
-                control2: CGPoint(x: 8.2, y: 11.0)
-            )
-            path.addCurve(
-                to: CGPoint(x: 1.6, y: 8),
-                control1: CGPoint(x: 7.8, y: 11.0),
-                control2: CGPoint(x: 5.0, y: 8.2)
-            )
-            path.addCurve(
-                to: CGPoint(x: 8, y: 1.6),
-                control1: CGPoint(x: 5.0, y: 7.8),
-                control2: CGPoint(x: 7.8, y: 5.0)
-            )
-            path.closeSubpath()
-        }
-    }
 
     private func geminiSparkle() -> Path {
         Path { path in
