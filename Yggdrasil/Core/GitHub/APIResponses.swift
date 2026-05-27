@@ -14,6 +14,8 @@ struct RESTIssueDTO: Decodable {
     let updatedAt: Date
     let assignees: [User]
     let pullRequest: PullRequestRef?
+    let labels: [Label]?
+    let milestone: Milestone?
 
     struct User: Decodable {
         let login: String
@@ -29,11 +31,20 @@ struct RESTIssueDTO: Decodable {
         }
     }
 
+    struct Label: Decodable, Equatable {
+        let name: String
+        let color: String
+    }
+
+    struct Milestone: Decodable {
+        let title: String
+    }
+
     enum CodingKeys: String, CodingKey {
         case url
         case repositoryURL = "repository_url"
         case htmlURL = "html_url"
-        case number, title, user, state, body, assignees
+        case number, title, user, state, body, assignees, labels, milestone
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case pullRequest = "pull_request"
@@ -85,6 +96,16 @@ struct RawTask: Equatable {
     let createdAt: Date
     let updatedAt: Date
     let assignees: [String]
+    /// Labels attached to the issue/PR. Surfaced in the issue-details
+    /// picker as coloured chips.
+    let labels: [Label]
+    /// Milestone title (if any). Single string.
+    let milestoneTitle: String?
+
+    struct Label: Hashable, Codable {
+        let name: String
+        let color: String
+    }
 }
 
 extension RawTask {
@@ -115,6 +136,8 @@ extension RawTask {
         self.createdAt = issue.createdAt
         self.updatedAt = issue.updatedAt
         self.assignees = issue.assignees.map(\.login)
+        self.labels = (issue.labels ?? []).map { RawTask.Label(name: $0.name, color: $0.color) }
+        self.milestoneTitle = issue.milestone?.title
     }
 
     init(pullRequest pull: RESTPRDTO, owner: String, name: String) {
@@ -133,5 +156,9 @@ extension RawTask {
         self.createdAt = pull.createdAt
         self.updatedAt = pull.updatedAt
         self.assignees = pull.assignees.map(\.login)
+        // RESTPRDTO doesn't decode labels/milestone; the PR endpoint flow
+        // doesn't need them and the issue-details picker is issues-only.
+        self.labels = []
+        self.milestoneTitle = nil
     }
 }

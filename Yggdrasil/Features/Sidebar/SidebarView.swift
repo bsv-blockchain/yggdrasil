@@ -1,5 +1,6 @@
 import SwiftUI
 
+// swiftlint:disable type_body_length
 /// Sidebar — redesigned per `Yggdrasil.html`:
 /// - Header: blue gradient Yggdrasil mark + workspace name + "N tabs · M active"
 /// - Search field with ⌘K hint chip
@@ -11,6 +12,7 @@ struct SidebarView: View {
     let onSelect: (Int64) -> Void
     @State private var showingNewTabSheet = false
     @State private var showingAssignedPicker = false
+    @State private var showingIssueDetails = false
     @State private var rawSearchQuery: String = ""
     @State private var debouncedQuery: String = ""
     @State private var debounceTask: Task<Void, Never>?
@@ -72,6 +74,9 @@ struct SidebarView: View {
         }
         .sheet(isPresented: $showingAssignedPicker) {
             AssignedTaskPicker(services: services)
+        }
+        .sheet(isPresented: $showingIssueDetails) {
+            IssueDetailsPicker(services: services)
         }
         .onChange(of: rawSearchQuery) { _, newValue in
             scheduleDebouncedQueryUpdate(to: newValue)
@@ -194,6 +199,22 @@ struct SidebarView: View {
                 .buttonStyle(.plain)
             }
             Spacer()
+            Button {
+                showingIssueDetails = true
+            } label: {
+                Image(systemName: "tablecells")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(YggdrasilTheme.textDim(scheme))
+                    .frame(width: 24, height: 22)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
+                    )
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("I", modifiers: [.command, .shift])
+            .help("My issues — table view (⌘⇧I)")
+            .accessibilityIdentifier("sidebar.issuedetails")
             Button {
                 showingAssignedPicker = true
             } label: {
@@ -324,6 +345,7 @@ struct SidebarView: View {
         }
     }
 }
+// swiftlint:enable type_body_length
 
 /// Yggdrasil mark — the product logo (a tree silhouette). Backed by the
 /// `YggdrasilMark` imageset in Assets.xcassets, generated from `Assets/logo.jpg`.

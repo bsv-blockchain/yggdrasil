@@ -121,6 +121,14 @@ enum TaskSyncWrites {
             sql: "SELECT id FROM task WHERE repo_id = ? AND type = ? AND number = ?",
             arguments: [repoID, raw.type.rawValue, raw.number]
         )
+        // Re-encode labels as JSON for the labels_json column. Stable order
+        // (RawTask doesn't sort) so identical fetches don't churn the row.
+        let labelsJSON: String = {
+            let data = (try? JSONEncoder().encode(raw.labels.map { label in
+                YggdrasilTask.Label(name: label.name, color: label.color)
+            })) ?? Data("[]".utf8)
+            return String(data: data, encoding: .utf8) ?? "[]"
+        }()
         var task = YggdrasilTask(
             id: existingID,
             repoID: repoID,
@@ -135,7 +143,9 @@ enum TaskSyncWrites {
             createdAt: raw.createdAt,
             updatedAt: raw.updatedAt,
             lastSyncedAt: now,
-            etag: nil
+            etag: nil,
+            labelsJSON: labelsJSON,
+            milestoneTitle: raw.milestoneTitle
         )
         try task.save(db)
         let taskID = task.id!

@@ -9,7 +9,22 @@ enum Migrations {
         migrator.registerMigration("v2", migrate: v2)
         migrator.registerMigration("v3", migrate: v3)
         migrator.registerMigration("v4", migrate: v4)
+        migrator.registerMigration("v5", migrate: v5)
         return migrator
+    }
+
+    // MARK: - v5 — Label + milestone metadata on `task`
+    //
+    // Powers the issue-details picker (table view of issues assigned to me).
+    // Labels live as a JSON-encoded array of `{ name, color }` on the row so
+    // we don't need a separate join table for a feature that only renders
+    // them in one place. `milestone_title` is the single string GitHub
+    // returns for the milestone's title (nullable).
+    private static func v5(_ db: Database) throws {
+        try db.alter(table: "task") { table in
+            table.add(column: "labels_json", .text).notNull().defaults(to: "[]")
+            table.add(column: "milestone_title", .text)
+        }
     }
 
     // MARK: - v4 — Authored/assigned PR markers
