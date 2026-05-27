@@ -1,5 +1,5 @@
 {
-  "current_phase": 5,
+  "current_phase": 6,
   "completed_phases": [
     {
       "phase": 0,
@@ -9,9 +9,7 @@
       "branch": "main",
       "git_sha": "c7de0606c5434d5e7ecb781d7ac3b96ecdba2262",
       "completed_at": "2026-05-26T19:48:00Z",
-      "blockers": [
-        "AC#4 (CI green on GitHub) blocked until repo has an origin remote"
-      ]
+      "blockers": ["AC#4 blocked until repo has an origin remote"]
     },
     {
       "phase": 1,
@@ -21,9 +19,7 @@
       "branch": "main",
       "git_sha": "2065f3670f459e91192057643d11bf1020565da1",
       "completed_at": "2026-05-26T20:40:00Z",
-      "blockers": [
-        "Live integration test waiting for LOOM_TEST_GITHUB_TOKEN repo secret (no remote yet)"
-      ]
+      "blockers": ["Live integration test waiting for LOOM_TEST_GITHUB_TOKEN repo secret"]
     },
     {
       "phase": 2,
@@ -43,22 +39,30 @@
       "branch": "main",
       "git_sha": "29c74596eebaecbe97d139b518be4989af033537",
       "completed_at": "2026-05-27T01:00:00Z",
-      "blockers": [
-        "AC#8 (10-cycle RSS < 50MB) requires a manual Instruments pass"
-      ]
+      "blockers": ["AC#8 (10-cycle RSS) requires Instruments pass"]
     },
     {
       "phase": 4,
       "name": "Sidebar UI",
-      "approved": false,
+      "approved": true,
+      "approved_at": "2026-05-27T02:30:00Z",
       "branch": "main",
       "git_sha": "05b4927a95bbb19615e091dc9fbb141d19187a49",
       "completed_at": "2026-05-27T02:30:00Z",
       "blockers": []
+    },
+    {
+      "phase": 5,
+      "name": "Main pane: GitHub WebView + Terminal binding",
+      "approved": false,
+      "branch": "main",
+      "git_sha": "PENDING_FINALIZATION",
+      "completed_at": "2026-05-27T03:30:00Z",
+      "blockers": []
     }
   ],
   "started_at": "2026-05-26T19:00:00Z",
-  "last_updated": "2026-05-27T02:30:00Z",
-  "last_git_sha": "05b4927a95bbb19615e091dc9fbb141d19187a49",
+  "last_updated": "2026-05-27T03:30:00Z",
+  "last_git_sha": "PENDING_FINALIZATION",
   "blockers": []
 }
