@@ -192,11 +192,19 @@ struct NewTabSheet: View {
             let worktreeURL = try await services.worktreeManager.ensure(
                 repo: repo, branch: trimmedBranch, baseRef: nil
             )
+            // Match the branch against PR/issue patterns ("pr-643", "#643") so the
+            // GitHub pane has a task to render. Falls back to nil (= no task link)
+            // for free-form branch names like "feat/foo".
+            let resolvedTaskID = Self.resolveTaskID(
+                forBranch: trimmedBranch,
+                repoID: repoID,
+                database: services.database
+            )
             let newTab = try services.tabStore.insert(
                 branchName: trimmedBranch,
                 worktreePath: worktreeURL.path,
                 agentID: agent.id,
-                taskID: nil
+                taskID: resolvedTaskID
             )
             services.tabs.reload()
             if let tabID = newTab.id {
@@ -215,6 +223,34 @@ struct NewTabSheet: View {
         } catch {
             self.error = String(describing: error)
         }
+    }
+
+    /// Extracts a PR/issue number from a branch name like "pr-643" or "#643",
+    /// then looks up that task in the given repo. Returns nil for branches that
+    /// don't look like PR refs, or when no matching task row exists yet (the
+    /// sync may not have caught the PR in question).
+    static func resolveTaskID(
+        forBranch branch: String,
+        repoID: Int64,
+        database: YggdrasilDatabase
+    ) -> Int64? {
+        guard let number = parsePRNumber(branch) else { return nil }
+        return try? database.queue.read { db in
+            try YggdrasilTask
+                .filter(Column("repo_id") == repoID && Column("number") == number)
+                .fetchOne(db)?
+                .id
+        }
+    }
+
+    static func parsePRNumber(_ branch: String) -> Int? {
+        let trimmed = branch.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("#"), let number = Int(trimmed.dropFirst()) { return number }
+        let prefixes = ["pr-", "pr/", "issue-", "issue/"]
+        for prefix in prefixes where trimmed.lowercased().hasPrefix(prefix) {
+            if let number = Int(trimmed.dropFirst(prefix.count)) { return number }
+        }
+        return nil
     }
 }
 

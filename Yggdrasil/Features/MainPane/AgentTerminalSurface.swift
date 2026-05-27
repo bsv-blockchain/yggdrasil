@@ -102,12 +102,19 @@ struct AgentTerminalSurface: NSViewRepresentable {
             } catch {
                 YggdrasilLog.pty.error("Failed to write session_state.start: \(String(describing: error), privacy: .public)")
             }
-            // LocalProcessTerminalView.startProcess accepts currentDirectory: directly,
-            // so we don't need the `/bin/sh -c 'cd && exec ...'` wrap that the headless
-            // CodingAgentRunner uses (LocalProcess alone doesn't expose a cwd param).
+            // Spawn through the user's login shell (-l) so .zprofile/.bash_profile
+            // run and the agent inherits the same PATH the user has in Terminal.
+            // Apps launched from Finder start with a minimal PATH that doesn't
+            // include agent binaries like `claude` (typically in
+            // ~/.claude/local/bin or /opt/homebrew/bin); without the login shell
+            // wrap they exit with 127 immediately. -l is a login shell but `-c`
+            // keeps it non-interactive, satisfying spec §2.1.
+            let loginShell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+            let quotedCmd = CodingAgentRunner.shellQuote(command)
+            let quotedArgs = args.map(CodingAgentRunner.shellQuote).joined(separator: " ")
             view.startProcess(
-                executable: command,
-                args: args,
+                executable: loginShell,
+                args: ["-l", "-c", "exec \(quotedCmd) \(quotedArgs)"],
                 environment: nil,
                 execName: nil,
                 currentDirectory: cwd

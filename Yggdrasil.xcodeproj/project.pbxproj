@@ -112,6 +112,7 @@
 		D39E74E386F6872503063B36 /* GraphQLClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD4A10EEA52B6BCDF4F3DF41 /* GraphQLClientTests.swift */; };
 		D7546A140D0F2D32A5C6AF93 /* TabStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE2012604DB01A1CFD0B5AB /* TabStoreTests.swift */; };
 		D7751660D21DCCF26C33E7D0 /* OutputRingBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E0E0DC8AEEA33E8ACA1DCB0 /* OutputRingBufferTests.swift */; };
+		DEEF67781B6F9FAD73BB4529 /* NewTabSheetParseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC196666CA9FF3A004ACC36C /* NewTabSheetParseTests.swift */; };
 		DF057374F1A5A643C1E32E4D /* BackoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8E73AFC818DB9C164D07FF /* BackoffTests.swift */; };
 		E659A6DC30E7B00850E55208 /* GHCLIAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A30B4717CB6A068A8F5793F /* GHCLIAuthTests.swift */; };
 		E95FF9A36B1FBA30ECEA91A7 /* CodingAgentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88E4FB20AE73F43E9A4934EC /* CodingAgentStore.swift */; };
@@ -232,6 +233,7 @@
 		C72249D71DE8A1587B435695 /* SidebarActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarActions.swift; sourceTree = "<group>"; };
 		C786A66165F6A0748293063D /* DiffSubPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffSubPane.swift; sourceTree = "<group>"; };
 		CA6EE609F1B67BB1A30B48F9 /* TaskSyncServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskSyncServiceTests.swift; sourceTree = "<group>"; };
+		CC196666CA9FF3A004ACC36C /* NewTabSheetParseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewTabSheetParseTests.swift; sourceTree = "<group>"; };
 		CC4D78DD45A5F9D613077301 /* Migrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Migrations.swift; sourceTree = "<group>"; };
 		CE4A8D8497EF59E2E426DF74 /* YggdrasilApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilApp.swift; sourceTree = "<group>"; };
 		CEC7E6D5CE1BD6E270E9644E /* YggdrasilTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilTab.swift; sourceTree = "<group>"; };
@@ -567,6 +569,7 @@
 		DAE8135430807ACD1957A508 /* Sidebar */ = {
 			isa = PBXGroup;
 			children = (
+				CC196666CA9FF3A004ACC36C /* NewTabSheetParseTests.swift */,
 				A0B6047B65F17F43271FFAE3 /* TabRowViewModelTests.swift */,
 				252F995BF1A44D1A9207F6B8 /* TabsModelTests.swift */,
 				BEE2012604DB01A1CFD0B5AB /* TabStoreTests.swift */,
@@ -801,6 +804,7 @@
 				56C910140C6FD3C4C70FC237 /* LRUTrackerTests.swift in Sources */,
 				CE86ADE572BB3E89F23D11BF /* MigrationV2Tests.swift in Sources */,
 				7AB9655B92BB8DCB0727F8F0 /* MigrationsTests.swift in Sources */,
+				DEEF67781B6F9FAD73BB4529 /* NewTabSheetParseTests.swift in Sources */,
 				D7751660D21DCCF26C33E7D0 /* OutputRingBufferTests.swift in Sources */,
 				4F7A0286534CE1B8A021E704 /* RESTClientTests.swift in Sources */,
 				FE3EFDC412C327D16585A573 /* SessionStateStoreTests.swift in Sources */,
