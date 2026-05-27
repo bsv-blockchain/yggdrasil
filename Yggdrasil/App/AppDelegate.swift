@@ -1,10 +1,14 @@
 import AppKit
+import Combine
 import Darwin
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     /// Built lazily on first launch; nil before applicationDidFinishLaunching fires
-    /// or when running under XCTest.
-    private(set) var services: AppServices?
+    /// or when running under XCTest. Published so SwiftUI's RootView re-renders
+    /// once the service graph is wired (the build is async w.r.t. SwiftUI's
+    /// first body evaluation, so a non-observed property left the window on the
+    /// placeholder branch indefinitely).
+    @Published private(set) var services: AppServices?
 
     func applicationDidFinishLaunching(_: Notification) {
         YggdrasilLog.ui

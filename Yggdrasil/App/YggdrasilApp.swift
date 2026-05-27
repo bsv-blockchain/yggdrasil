@@ -7,7 +7,7 @@ struct YggdrasilApp: App {
 
     var body: some Scene {
         WindowGroup("Yggdrasil", id: "main") {
-            RootView()
+            RootView(appDelegate: appDelegate)
         }
         .windowToolbarStyle(.unified)
         .commands {
@@ -25,16 +25,13 @@ struct YggdrasilApp: App {
 /// hosts whichever session matches the selected sidebar tab (or an empty state
 /// when no session has been spawned for that tab yet).
 struct RootView: View {
-
-    private var services: AppServices? {
-        (NSApplication.shared.delegate as? AppDelegate)?.services
-    }
+    @ObservedObject var appDelegate: AppDelegate
 
     @State private var showingOnboarding = false
 
     var body: some View {
         Group {
-            if let services {
+            if let services = appDelegate.services {
                 SidebarSessionsLayout(services: services)
                     .sheet(isPresented: $showingOnboarding) {
                         OnboardingSheet(services: services)
