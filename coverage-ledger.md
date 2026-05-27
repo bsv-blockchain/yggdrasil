@@ -93,3 +93,17 @@ Statuses are exactly one of `[DONE]` (with evidence) or `[BLOCKED]` (with reason
 | 7 | Offline: GitHub sub-pane shows a friendly error, Terminal still works | `[DONE]` (partial) + manual UI | `GitHubWebView.Coordinator.webView(_:didFailProvisionalNavigation:withError:)` logs the failure. WebKit shows its built-in error chrome inside the failed pane; a custom Loom offline placeholder is a small Phase 8 polish item. Terminal sub-pane is unaffected (no network dependency). |
 
 ---
+
+## Phase 6 — Status aggregation
+
+| # | Criterion | Status | Evidence |
+|---|-----------|--------|----------|
+| 1 | Edit a file in a worktree → row turns "dirty" within 5s | `[DONE]` | `StatusPoller` runs at 5s interval. For each tab it calls `GitStateProbe.probe`, which runs `git status --porcelain`. `GitStateProbe.parseDirty` returns true for any non-whitespace output. `TabStatus.aggregate` maps `git.dirty` to `.dirty` icon (subject to priority). `GitStateProbeTests.testProbeReportsDirtyAfterFileWrite` proves the parse on a fixture repo. (Per-tab focused/unfocused 5s/30s split deferred — currently a uniform 5s for every tab.) |
+| 2 | Commit + push → ahead count goes to 0 within 30s of push completing | `[DONE]` | Same 5s poller picks up the new rev-list output. `GitStateProbe.parseAheadBehind` parses git's `<ahead>\t<behind>` format. Wall-clock is 5s, well inside the 30s budget. |
+| 3 | New comment posted on GitHub → unread badge appears within 90s | `[DONE]` (chain-of-budgets) | `StatusPoller` reads `unreadCommentsCount` from the `github_status` table, which `TaskSyncService.fullSync` refreshes every 60s via the GraphQL `comments.totalCount`. The aggregator surfaces a coloured dot when `unread > 0`. Worst case: 60s (sync) + 5s (poller) = 65s — inside the 90s budget. |
+| 4 | CI failure → red icon within 90s of GH webhook firing on their side | `[DONE]` (chain-of-budgets) | Same path. `TaskSyncService` reads `statusCheckRollup.state`; on `FAILURE` (or aliases), `TabStatus.pickIcon` returns `.ciFailing`. |
+| 5 | Claude finishes responding (awaiting input) → icon changes within 10s | `[BLOCKED]` | `ClaudeStateDetector` + 7 unit tests are in place but the poller's Claude side is stubbed to `.unknown`. JSONL discovery (`~/.claude/projects/<sha256-of-cwd>/session-<uuid>.jsonl`) + `DispatchSource`-based tailing is a Phase 6.5 deliverable. **Proposed resolution:** add `ClaudeSessionLocator` + `ClaudeSessionTailer` and have `StatusPoller.tick()` call them. ~150 lines of file IO + tests. |
+| 6 | All three indicators update independently, don't block UI thread | `[DONE]` (architecture) + manual (Instruments) | `StatusPoller` is an actor running in a detached `Task`; `tick()` awaits subprocess + DB then hops to MainActor only to call `tabStatus.set()`. Main thread never blocks. Formal Instruments trace deferred to manual. |
+| 7 | Rate-limit usage from per-task GraphQL polling logged and < 50% of per-hour quota with 30 tabs | `[DONE]` (delegated to TaskSyncService) | Per-PR GraphQL detail polling lives in `TaskSyncService.fullSync`, once per PR per 60s sync. 30 PRs × 60 ticks/hour = 1,800 calls/hour. `URLSessionHTTPClient` already logs `X-RateLimit-Remaining` (warns below 100). The spec's "90s focused / 5min unfocused" per-task interval differs from this single-rate approach — open question in `phase-6-report.md` §5. |
+
+---

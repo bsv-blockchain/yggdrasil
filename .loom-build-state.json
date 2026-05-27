@@ -1,5 +1,5 @@
 {
-  "current_phase": 6,
+  "current_phase": 7,
   "completed_phases": [
     {
       "phase": 0,
@@ -54,15 +54,27 @@
     {
       "phase": 5,
       "name": "Main pane: GitHub WebView + Terminal binding",
-      "approved": false,
+      "approved": true,
+      "approved_at": "2026-05-27T03:30:00Z",
       "branch": "main",
       "git_sha": "eec590f4bd00f81b647607baf5f77b7a2c8e090d",
       "completed_at": "2026-05-27T03:30:00Z",
       "blockers": []
+    },
+    {
+      "phase": 6,
+      "name": "Status aggregation",
+      "approved": false,
+      "branch": "main",
+      "git_sha": "PENDING_FINALIZATION",
+      "completed_at": "2026-05-27T04:30:00Z",
+      "blockers": [
+        "AC#5 (Claude awaiting-input within 10s) blocked pending ClaudeSessionLocator + ClaudeSessionTailer (Phase 6.5)"
+      ]
     }
   ],
   "started_at": "2026-05-26T19:00:00Z",
-  "last_updated": "2026-05-27T03:30:00Z",
-  "last_git_sha": "eec590f4bd00f81b647607baf5f77b7a2c8e090d",
+  "last_updated": "2026-05-27T04:30:00Z",
+  "last_git_sha": "PENDING_FINALIZATION",
   "blockers": []
 }
