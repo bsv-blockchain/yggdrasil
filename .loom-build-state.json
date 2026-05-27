@@ -52,13 +52,13 @@
       "name": "Sidebar UI",
       "approved": false,
       "branch": "main",
-      "git_sha": "PENDING_FINALIZATION",
+      "git_sha": "05b4927a95bbb19615e091dc9fbb141d19187a49",
       "completed_at": "2026-05-27T02:30:00Z",
       "blockers": []
     }
   ],
   "started_at": "2026-05-26T19:00:00Z",
   "last_updated": "2026-05-27T02:30:00Z",
-  "last_git_sha": "PENDING_FINALIZATION",
+  "last_git_sha": "05b4927a95bbb19615e091dc9fbb141d19187a49",
   "blockers": []
 }
