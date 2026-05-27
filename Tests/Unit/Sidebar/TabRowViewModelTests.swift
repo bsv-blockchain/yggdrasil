@@ -34,61 +34,61 @@ final class TabRowViewModelTests: XCTestCase {
     }
 
     func testRowWithTaskUsesTaskTitle() {
-        let vm = TabRowViewModel(tab: makeTab(taskID: 1), task: makeTask(title: "Hello"))
-        XCTAssertEqual(vm.titleLine, "Hello")
+        let model = TabRowViewModel(tab: makeTab(taskID: 1), task: makeTask(title: "Hello"))
+        XCTAssertEqual(model.titleLine, "Hello")
     }
 
     func testRowWithoutTaskFallsBackToBranchName() {
-        let vm = TabRowViewModel(tab: makeTab(taskID: nil, branch: "scratch"), task: nil)
-        XCTAssertEqual(vm.titleLine, "scratch")
+        let model = TabRowViewModel(tab: makeTab(taskID: nil, branch: "scratch"), task: nil)
+        XCTAssertEqual(model.titleLine, "scratch")
     }
 
     func testBranchLineAlwaysShowsTabBranch() {
-        let vm = TabRowViewModel(tab: makeTab(branch: "feat/foo"), task: makeTask())
-        XCTAssertEqual(vm.branchLine, "feat/foo")
+        let model = TabRowViewModel(tab: makeTab(branch: "feat/foo"), task: makeTask())
+        XCTAssertEqual(model.branchLine, "feat/foo")
     }
 
     func testShortWorktreePathIsNotTruncated() {
-        let vm = TabRowViewModel(tab: makeTab(worktree: "/short/path"), task: nil)
-        XCTAssertEqual(vm.worktreeLine, "/short/path")
+        let model = TabRowViewModel(tab: makeTab(worktree: "/short/path"), task: nil)
+        XCTAssertEqual(model.worktreeLine, "/short/path")
     }
 
     func testLongWorktreePathIsMidEllipsisTruncated() {
         let long = "/Users/sigi/code/work/projects/bsv-blockchain/teranode/.worktrees/feat-some-long-branch-name"
-        let vm = TabRowViewModel(tab: makeTab(worktree: long), task: nil, maxWorktreeChars: 40)
-        XCTAssertLessThanOrEqual(vm.worktreeLine.count, 40)
-        XCTAssertTrue(vm.worktreeLine.contains("…"))
+        let model = TabRowViewModel(tab: makeTab(worktree: long), task: nil, maxWorktreeChars: 40)
+        XCTAssertLessThanOrEqual(model.worktreeLine.count, 40)
+        XCTAssertTrue(model.worktreeLine.contains("…"))
         // Start and end of the original path survive truncation.
-        XCTAssertTrue(vm.worktreeLine.hasPrefix("/Users"))
-        XCTAssertTrue(vm.worktreeLine.hasSuffix("branch-name") || vm.worktreeLine.hasSuffix("h-name"))
+        XCTAssertTrue(model.worktreeLine.hasPrefix("/Users"))
+        XCTAssertTrue(model.worktreeLine.hasSuffix("branch-name") || model.worktreeLine.hasSuffix("h-name"))
     }
 
     func testTrailingBadgeForPRIsPRNumber() {
-        let vm = TabRowViewModel(tab: makeTab(taskID: 1), task: makeTask(type: .pullRequest, number: 655))
-        guard case let .prNumber(num) = vm.trailingBadge else {
-            return XCTFail("expected .prNumber, got \(vm.trailingBadge)")
+        let model = TabRowViewModel(tab: makeTab(taskID: 1), task: makeTask(type: .pullRequest, number: 655))
+        guard case let .prNumber(num) = model.trailingBadge else {
+            return XCTFail("expected .prNumber, got \(model.trailingBadge)")
         }
         XCTAssertEqual(num, 655)
     }
 
     func testTrailingBadgeForIssueIsIssueIcon() {
-        let vm = TabRowViewModel(tab: makeTab(taskID: 1), task: makeTask(type: .issue, number: 42))
-        guard case let .issueNumber(num) = vm.trailingBadge else {
-            return XCTFail("expected .issueNumber, got \(vm.trailingBadge)")
+        let model = TabRowViewModel(tab: makeTab(taskID: 1), task: makeTask(type: .issue, number: 42))
+        guard case let .issueNumber(num) = model.trailingBadge else {
+            return XCTFail("expected .issueNumber, got \(model.trailingBadge)")
         }
         XCTAssertEqual(num, 42)
     }
 
     func testTrailingBadgeForAdHocTabIsNone() {
-        let vm = TabRowViewModel(tab: makeTab(taskID: nil), task: nil)
-        if case .none = vm.trailingBadge { /* expected */ } else {
-            XCTFail("expected .none, got \(vm.trailingBadge)")
+        let model = TabRowViewModel(tab: makeTab(taskID: nil), task: nil)
+        if case .none = model.trailingBadge { /* expected */ } else {
+            XCTFail("expected .none, got \(model.trailingBadge)")
         }
     }
 
     func testStatusIconDefaultsToIdlePlaceholder() {
         // Phase 6 will populate real states. For now the row shows the placeholder.
-        let vm = TabRowViewModel(tab: makeTab(), task: nil)
-        XCTAssertEqual(vm.statusIcon, .idle)
+        let model = TabRowViewModel(tab: makeTab(), task: nil)
+        XCTAssertEqual(model.statusIcon, .idle)
     }
 }
