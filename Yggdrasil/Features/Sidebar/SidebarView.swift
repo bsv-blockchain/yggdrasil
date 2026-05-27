@@ -237,19 +237,22 @@ struct SidebarView: View {
     private var tabList: some View {
         List {
             ForEach(filteredTabs, id: \.id) { tab in
-                Button {
+                // Row is a plain View (no Button wrapper) so SwiftUI's List
+                // drag-to-reorder gesture isn't swallowed by a button's
+                // pointer handling. Selection runs through .onTapGesture
+                // instead.
+                TabRow(
+                    model: tabsModel.model(for: tab, status: services.tabStatus),
+                    agent: tabsModel.agentIdentity(for: tab),
+                    isSelected: tabsModel.selectedID == tab.id
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
                     if let id = tab.id {
                         tabsModel.select(id)
                         onSelect(id)
                     }
-                } label: {
-                    TabRow(
-                        model: tabsModel.model(for: tab, status: services.tabStatus),
-                        agent: tabsModel.agentIdentity(for: tab),
-                        isSelected: tabsModel.selectedID == tab.id
-                    )
                 }
-                .buttonStyle(.plain)
                 .listRowInsets(EdgeInsets(top: 1, leading: 4, bottom: 1, trailing: 4))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
