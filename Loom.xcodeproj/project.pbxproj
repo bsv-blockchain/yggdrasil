@@ -30,6 +30,7 @@
 		3D3298A3A4AC93471D24D673 /* BackoffRetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99A541B9E805ED457C4A2363 /* BackoffRetry.swift */; };
 		3D8F2D71BB48E1C1E73D202E /* FixtureGitRepo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79553E3181CF1D76FE703B0A /* FixtureGitRepo.swift */; };
 		420884BD3E0A5183547715A8 /* TabRowViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 363D3DEFCC14A439C55CD6FF /* TabRowViewModelTests.swift */; };
+		4B9CD3BF59547B4F912D06BD /* TabsModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4781AD889A481AB894553ED1 /* TabsModelTests.swift */; };
 		4ECD2C745F5DE7206449EBD8 /* Repo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D0F7C7949A5F3B33B48E7D /* Repo.swift */; };
 		4F5D324A69106444A56018D4 /* WorktreeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7EAA88AE870E9108768F29E /* WorktreeManager.swift */; };
 		516C5055D1918BBA58610A73 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6E6E64FD9D6B923A722BBACC /* Assets.xcassets */; };
@@ -120,6 +121,7 @@
 		3F92F8D93AF0BB70616AD3B9 /* NewTabSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewTabSheet.swift; sourceTree = "<group>"; };
 		409A26BB4B438DF0FC52D8B0 /* GitHubLiveSyncIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubLiveSyncIntegrationTests.swift; sourceTree = "<group>"; };
 		4516AEB75C15BFDA1D7DDB62 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		4781AD889A481AB894553ED1 /* TabsModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabsModelTests.swift; sourceTree = "<group>"; };
 		4BD191387277D1AD519F17C5 /* TaskSyncServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskSyncServiceTests.swift; sourceTree = "<group>"; };
 		4ECDFC95289A7B6830F8DFE3 /* HTTPClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPClientTests.swift; sourceTree = "<group>"; };
 		4FB935EE1FF6EE3F23F0BFA4 /* Fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Fixtures; path = Tests/Unit/Fixtures; sourceTree = SOURCE_ROOT; };
@@ -249,6 +251,7 @@
 			isa = PBXGroup;
 			children = (
 				363D3DEFCC14A439C55CD6FF /* TabRowViewModelTests.swift */,
+				4781AD889A481AB894553ED1 /* TabsModelTests.swift */,
 				058A5AA17A76820C6C78B772 /* TabStoreTests.swift */,
 			);
 			path = Sidebar;
@@ -680,6 +683,7 @@
 				2738BC7003C35D380D6FAB6D /* SyncSchedulerTests.swift in Sources */,
 				420884BD3E0A5183547715A8 /* TabRowViewModelTests.swift in Sources */,
 				ACDF9B336E1BEBD97838E7B7 /* TabStoreTests.swift in Sources */,
+				4B9CD3BF59547B4F912D06BD /* TabsModelTests.swift in Sources */,
 				C4343384EB79A90D051E6591 /* TaskSyncServiceTests.swift in Sources */,
 				AAC6B0964629178F586CCB8D /* WorktreeManagerTests.swift in Sources */,
 			);

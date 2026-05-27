@@ -63,6 +63,23 @@ final class TabsModel {
         let task = tab.id.flatMap { tasksByTabID[$0] }
         return TabRowViewModel(tab: tab, task: task)
     }
+
+    /// SwiftUI `List`'s `.onMove(perform:)` shape. Reorders the in-memory array
+    /// immediately for snappy UI and persists via `TabStore.reorder(ids:)`.
+    func move(fromOffsets: IndexSet, toOffset: Int) {
+        var reordered = tabs
+        reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        tabs = reordered
+
+        let ids = reordered.compactMap(\.id)
+        do {
+            try store.reorder(ids: ids)
+        } catch {
+            LoomLog.ui.error("TabsModel.move failed: \(String(describing: error), privacy: .public)")
+            // Roll back: reload from disk to recover the canonical order.
+            reload()
+        }
+    }
 }
 
 private extension Comparable {

@@ -48,26 +48,32 @@ struct SidebarView: View {
     }
 
     private var tabList: some View {
-        ScrollView {
-            LazyVStack(spacing: 2) {
-                ForEach(tabsModel.tabs, id: \.id) { tab in
-                    Button {
-                        if let id = tab.id {
-                            tabsModel.select(id)
-                            onSelect(id)
-                        }
-                    } label: {
-                        TabRow(
-                            model: tabsModel.model(for: tab),
-                            isSelected: tabsModel.selectedID == tab.id
-                        )
+        // List on macOS uses NSTableView, which gives us native drag-to-reorder
+        // via .onMove for free. Larger chrome than a LazyVStack but appropriate
+        // for the sidebar.
+        List {
+            ForEach(tabsModel.tabs, id: \.id) { tab in
+                Button {
+                    if let id = tab.id {
+                        tabsModel.select(id)
+                        onSelect(id)
                     }
-                    .buttonStyle(.plain)
+                } label: {
+                    TabRow(
+                        model: tabsModel.model(for: tab),
+                        isSelected: tabsModel.selectedID == tab.id
+                    )
                 }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 1, leading: 4, bottom: 1, trailing: 4))
+                .listRowSeparator(.hidden)
             }
-            .padding(.vertical, 4)
-            .padding(.horizontal, 4)
+            .onMove { from, toOffset in
+                tabsModel.move(fromOffsets: from, toOffset: toOffset)
+            }
         }
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
     }
 
     private var emptyState: some View {
