@@ -9,14 +9,23 @@ final class TabsModel {
     var tabs: [LoomTab] = []
     /// Cache: tabID → linked LoomTask (filled when a tab.taskID is non-nil).
     var tasksByTabID: [Int64: LoomTask] = [:]
+    /// Cache: tabID → resolved agent identity (Claude/Codex/Gemini/Copilot/Grok).
+    var agentByTabID: [Int64: AgentIdentity] = [:]
     var selectedID: Int64?
 
     private let store: TabStore
     private let database: LoomDatabase
+    private let agentStore: CodingAgentStore
 
-    init(store: TabStore, database: LoomDatabase) {
+    init(store: TabStore, database: LoomDatabase, agentStore: CodingAgentStore? = nil) {
         self.store = store
         self.database = database
+        self.agentStore = agentStore ?? CodingAgentStore(database: database)
+    }
+
+    func agentIdentity(for tab: LoomTab) -> AgentIdentity {
+        if let id = tab.id, let cached = agentByTabID[id] { return cached }
+        return .claude
     }
 
     /// Reload from the DB. Cheap enough to call after any mutation.
@@ -33,6 +42,18 @@ final class TabsModel {
                     }
                 }
                 return out
+            }
+            // Resolve per-tab agent identity from CodingAgent.command via the
+            // brand heuristic (claude/codex/gemini/copilot/grok).
+            agentByTabID = [:]
+            for tab in tabs {
+                guard let tabID = tab.id else { continue }
+                if let agentID = tab.codingAgentID,
+                   let agent = try agentStore.get(id: agentID) {
+                    agentByTabID[tabID] = AgentIdentity.detect(command: agent.command)
+                } else {
+                    agentByTabID[tabID] = .claude
+                }
             }
             // Drop selection if the row vanished.
             if let selected = selectedID, !tabs.contains(where: { $0.id == selected }) {

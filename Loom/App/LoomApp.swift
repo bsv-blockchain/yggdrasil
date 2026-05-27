@@ -61,19 +61,27 @@ struct RootView: View {
     }
 }
 
-/// HSplit between the sidebar and the main pane. Selection in the sidebar
-/// drives which session is hosted on the right.
+/// Window chrome + HSplit between the sidebar and the main pane. Selection in
+/// the sidebar drives which session is hosted on the right. Layout matches
+/// `Loom.html` — chrome strip on top, sidebar (resizable) + main pane below.
 struct SidebarSessionsLayout: View {
     let services: AppServices
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        HStack(spacing: 0) {
-            SidebarView(services: services) { _ in
-                services.sessions.selectedID = services.tabs.selectedID
+        VStack(spacing: 0) {
+            WindowChromeBar(services: services)
+            HStack(spacing: 0) {
+                SidebarView(services: services) { _ in
+                    services.sessions.selectedID = services.tabs.selectedID
+                }
+                Rectangle()
+                    .fill(LoomTheme.divider(scheme))
+                    .frame(width: 0.5)
+                mainPane
             }
-            Divider()
-            mainPane
         }
+        .background(LoomTheme.bg(scheme))
     }
 
     @ViewBuilder
