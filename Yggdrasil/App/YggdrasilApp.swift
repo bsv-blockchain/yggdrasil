@@ -68,14 +68,13 @@ struct SidebarSessionsLayout: View {
     var body: some View {
         VStack(spacing: 0) {
             WindowChromeBar(services: services)
-            HStack(spacing: 0) {
+            HSplitView {
                 SidebarView(services: services) { _ in
                     services.sessions.selectedID = services.tabs.selectedID
                 }
-                Rectangle()
-                    .fill(YggdrasilTheme.divider(scheme))
-                    .frame(width: 0.5)
+                .frame(minWidth: 240, idealWidth: 320, maxWidth: 600)
                 mainPane
+                    .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .background(YggdrasilTheme.bg(scheme))

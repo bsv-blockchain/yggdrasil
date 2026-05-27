@@ -45,6 +45,14 @@ struct AgentTerminalSurface: NSViewRepresentable {
         )
     }
 
+    /// Standard cell font for all agent terminals. Set at construction time
+    /// (not via the `font` setter after the fact) so SwiftTerm computes its
+    /// cell metrics off the correct font from the start — setting `font`
+    /// after creation has been observed to leave the cell grid mis-sized,
+    /// which is what makes claude render as if the pane were larger than
+    /// it actually is.
+    static let cellFont: NSFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+
     func makeNSView(context: Context) -> LocalProcessTerminalView {
         let view = LocalProcessTerminalView(frame: .zero)
         AgentTerminalSurface.applyTheme(to: view)
@@ -55,13 +63,16 @@ struct AgentTerminalSurface: NSViewRepresentable {
 
     /// Apply a Terminal.app / Warp-style theme so the embedded PTY matches what
     /// the user is used to in their normal shell:
-    /// - SF Mono 13pt (NSFont.monospacedSystemFont) — same as macOS Terminal.app
-    ///   and modern Warp/iTerm defaults.
+    /// - SF Mono 13pt — same as macOS Terminal.app and modern Warp defaults.
+    ///   Set BEFORE colours so SwiftTerm computes cell metrics from the
+    ///   final font; setting font later still calls `resetFont()` but the
+    ///   cell-grid → frame ratio can be temporarily off if the process is
+    ///   already running.
     /// - Dark background, off-white foreground, balanced ANSI 16 palette
     ///   modeled on GitHub's dark theme so syntax-coloured output (claude
     ///   transcripts, git log, etc.) renders close to Warp.
     static func applyTheme(to view: LocalProcessTerminalView) {
-        view.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        view.font = Self.cellFont
         view.nativeBackgroundColor = NSColor(red: 13.0 / 255, green: 14.0 / 255, blue: 17.0 / 255, alpha: 1)
         view.nativeForegroundColor = NSColor(red: 232.0 / 255, green: 234.0 / 255, blue: 239.0 / 255, alpha: 1)
         view.caretColor = NSColor(red: 70.0 / 255, green: 112.0 / 255, blue: 255.0 / 255, alpha: 1)
