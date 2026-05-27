@@ -66,7 +66,7 @@
       "name": "Status aggregation",
       "approved": false,
       "branch": "main",
-      "git_sha": "PENDING_FINALIZATION",
+      "git_sha": "fda7a5f89301ee0d87c437918142da2caf5f1b8e",
       "completed_at": "2026-05-27T04:30:00Z",
       "blockers": [
         "AC#5 (Claude awaiting-input within 10s) blocked pending ClaudeSessionLocator + ClaudeSessionTailer (Phase 6.5)"
@@ -75,6 +75,6 @@
   ],
   "started_at": "2026-05-26T19:00:00Z",
   "last_updated": "2026-05-27T04:30:00Z",
-  "last_git_sha": "PENDING_FINALIZATION",
+  "last_git_sha": "fda7a5f89301ee0d87c437918142da2caf5f1b8e",
   "blockers": []
 }
