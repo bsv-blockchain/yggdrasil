@@ -83,13 +83,24 @@ struct SidebarSessionsLayout: View {
 
     @ViewBuilder
     private var mainPane: some View {
-        if let selectedID = services.tabs.selectedID,
-           let selectedTab = services.tabs.tabs.first(where: { $0.id == selectedID }) {
-            MainPaneView(services: services, selectedTab: selectedTab)
-        } else if services.tabs.tabs.isEmpty {
+        if services.tabs.tabs.isEmpty {
             emptyMainPane
         } else {
-            selectedTabHasNoSession
+            // Stack one MainPaneView per tab and toggle visibility via opacity.
+            // This keeps every tab's agent PTY, GitHub WebView, and diff view
+            // mounted across selection, so switching tabs is instant — nothing
+            // is torn down + respawned. Costs more RAM (one terminal +
+            // WebKit per tab) but per user direction that's the trade.
+            ZStack {
+                ForEach(services.tabs.tabs, id: \.id) { tab in
+                    MainPaneView(services: services, selectedTab: tab)
+                        .opacity(tab.id == services.tabs.selectedID ? 1 : 0)
+                        .allowsHitTesting(tab.id == services.tabs.selectedID)
+                }
+                if services.tabs.selectedID == nil {
+                    selectedTabHasNoSession
+                }
+            }
         }
     }
 

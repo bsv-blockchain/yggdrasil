@@ -1,15 +1,15 @@
 import Foundation
 @preconcurrency import WebKit
 
-/// Per-app pool of `WKWebView` instances keyed by tab id. Enforces the spec's
-/// "max 8 live; LRU eviction" — when a 9th tab acquires, the least-recently-
-/// used WebView is taken offline and its `interactionState` is captured so the
-/// next acquire for that tab restores scroll position / form state.
+/// Per-app pool of `WKWebView` instances keyed by tab id. Originally enforced
+/// "max 8 live; LRU eviction"; the cap is gone now per the instant-switching
+/// requirement — every tab keeps its WebView alive forever so navigation
+/// state, scroll position, and page contents are zero-latency on selection.
+/// `release(tabID:)` is still honoured for actually-closed tabs.
 ///
 /// All access is `@MainActor` because WKWebView itself is main-thread only.
 @MainActor
 final class WebViewPool {
-    static let defaultCapacity = 8
     /// Stable identifier for the persistent data store so login survives launches.
     /// Persisted into the `setting` table on first use.
     static let dataStoreSettingKey = "github_webview_uuid"
@@ -17,11 +17,8 @@ final class WebViewPool {
     private let dataStoreUUID: UUID
     private let dataStore: WKWebsiteDataStore
     private var live: [Int64: WKWebView] = [:]
-    private var savedInteractionStates: [Int64: Any] = [:]
-    private var tracker: LRUTracker<Int64>
 
-    init(settingsStore: SettingsStore?, capacity: Int = WebViewPool.defaultCapacity) {
-        self.tracker = LRUTracker<Int64>(capacity: capacity)
+    init(settingsStore: SettingsStore?) {
         let resolved = WebViewPool.resolveDataStoreUUID(settingsStore: settingsStore)
         self.dataStoreUUID = resolved
         // macOS 14+ persistent data store keyed by UUID — survives across launches
@@ -30,51 +27,25 @@ final class WebViewPool {
         self.dataStore = WKWebsiteDataStore(forIdentifier: resolved)
     }
 
-    /// Acquire (or create) the WKWebView for `tabID`. Touches the LRU tracker.
-    /// If a 9th tab acquires, the oldest WebView is evicted: its
-    /// `interactionState` is captured into `savedInteractionStates` so a future
-    /// re-acquire for that tab restores scroll/form state.
+    /// Acquire (or create) the WKWebView for `tabID`. Once created the view
+    /// is retained for the app's lifetime; only `release(tabID:)` removes it.
     func acquireWebView(forTabID tabID: Int64) -> WKWebView {
         if let existing = live[tabID] {
-            tracker.touch(tabID)
             return existing
         }
-
         let config = WKWebViewConfiguration()
         config.websiteDataStore = dataStore
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.customUserAgent = "Yggdrasil/0.1 (macOS) WebKit"
         live[tabID] = webView
-
-        // Restore prior interactionState if we had evicted this tab earlier.
-        if let saved = savedInteractionStates[tabID] {
-            webView.interactionState = saved
-            savedInteractionStates[tabID] = nil
-        }
-
-        if let evicted = tracker.touch(tabID) {
-            evict(tabID: evicted)
-        }
         return webView
     }
 
-    /// Drop the WebView for `tabID` (e.g. tab removed). Also clears any saved
-    /// interaction state.
+    /// Drop the WebView for `tabID` (e.g. tab actually removed by the user).
     func release(tabID: Int64) {
         if let view = live.removeValue(forKey: tabID) {
             view.stopLoading()
         }
-        savedInteractionStates[tabID] = nil
-        tracker.remove(tabID)
-    }
-
-    // MARK: - Internals
-
-    private func evict(tabID: Int64) {
-        guard let view = live.removeValue(forKey: tabID) else { return }
-        savedInteractionStates[tabID] = view.interactionState
-        view.stopLoading()
-        YggdrasilLog.ui.info("WebView pool evicted tabID=\(tabID, privacy: .public)")
     }
 
     /// Read or mint the stable UUID for the persistent WKWebsiteDataStore.
