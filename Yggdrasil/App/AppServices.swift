@@ -30,8 +30,11 @@ final class AppServices {
         let database = try YggdrasilDatabase.openDefault()
         self.database = database
 
-        let keychain = KeychainAccessStore()
-        let authService = AuthService(gh: GHCLIAuth(), keychain: keychain)
+        // Token sourced from `gh auth token` on first request + in-memory
+        // cached. The Keychain detour is gone — ad-hoc-signed local builds
+        // change signature on every rebuild, which made the OS prompt for
+        // the user's password on every relaunch.
+        let authService = AuthService(gh: GHCLIAuth())
         self.authService = authService
 
         let etags = ETagStore(database: database)

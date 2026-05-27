@@ -76,12 +76,12 @@ private func makeStubbedSession() -> URLSession {
 }
 
 private func makeAuthService(token: String = "ghp_TEST") -> AuthService {
-    let keychain = InMemoryKeychainStore()
-    try? keychain.write(token, forKey: AuthService.tokenKey)
-    return AuthService(
-        gh: GHCLIAuth(runner: StubSubprocessRunner(responses: []), ghExecutable: "/bin/gh"),
-        keychain: keychain
-    )
+    // AuthService no longer keychain-caches; pre-seed the gh CLI stub so the
+    // first `currentToken()` resolves to the expected value.
+    let runner = StubSubprocessRunner(responses: [
+        SubprocessResult(stdout: "\(token)\n", stderr: "", exitCode: 0)
+    ])
+    return AuthService(gh: GHCLIAuth(runner: runner, ghExecutable: "/bin/gh"))
 }
 
 final class HTTPClientTests: XCTestCase {
@@ -173,17 +173,17 @@ final class HTTPClientTests: XCTestCase {
             .response(status: 401, body: Data("unauthorized".utf8), headers: [:]),
             .response(status: 200, body: Data("ok".utf8), headers: [:])
         ]
-        // Auth service starts with a stale token; AND a stub gh that can re-mint one.
-        let keychain = InMemoryKeychainStore()
-        try keychain.write("ghp_STALE", forKey: AuthService.tokenKey)
+        // Auth service starts by minting a stale token from gh, then on
+        // invalidate re-shells and gets the fresh one. Two canned responses
+        // drive the two `gh auth token` invocations.
         let auth = AuthService(
             gh: GHCLIAuth(
                 runner: StubSubprocessRunner(responses: [
+                    SubprocessResult(stdout: "ghp_STALE\n", stderr: "", exitCode: 0),
                     SubprocessResult(stdout: "ghp_FRESH\n", stderr: "", exitCode: 0)
                 ]),
                 ghExecutable: "/bin/gh"
-            ),
-            keychain: keychain
+            )
         )
         let client = URLSessionHTTPClient(
             session: makeStubbedSession(),
@@ -205,16 +205,17 @@ final class HTTPClientTests: XCTestCase {
             .response(status: 401, body: Data(), headers: [:]),
             .response(status: 401, body: Data(), headers: [:])
         ]
-        let keychain = InMemoryKeychainStore()
-        try? keychain.write("t", forKey: AuthService.tokenKey)
+        // Two gh invocations: the initial fetch + a refresh after the
+        // first 401's `invalidate()` call. Both 401s still fail at the HTTP
+        // layer regardless of what token is in play.
         let auth = AuthService(
             gh: GHCLIAuth(
                 runner: StubSubprocessRunner(responses: [
+                    SubprocessResult(stdout: "t\n", stderr: "", exitCode: 0),
                     SubprocessResult(stdout: "t2\n", stderr: "", exitCode: 0)
                 ]),
                 ghExecutable: "/bin/gh"
-            ),
-            keychain: keychain
+            )
         )
         let client = URLSessionHTTPClient(
             session: makeStubbedSession(),

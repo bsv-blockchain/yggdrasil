@@ -12,11 +12,16 @@ final class GitHubLiveSyncIntegrationTests: XCTestCase {
         }
 
         let db = try YggdrasilDatabase.inMemory()
-        let keychain = InMemoryKeychainStore()
-        try keychain.write(token, forKey: AuthService.tokenKey)
+        // AuthService now sources the token from `gh auth token` via the
+        // injected runner — pre-seed it with the env token so the live
+        // GitHub call uses the right credential.
         let auth = AuthService(
-            gh: GHCLIAuth(runner: StubSubprocessRunner(responses: []), ghExecutable: "/bin/gh"),
-            keychain: keychain
+            gh: GHCLIAuth(
+                runner: StubSubprocessRunner(responses: [
+                    SubprocessResult(stdout: "\(token)\n", stderr: "", exitCode: 0)
+                ]),
+                ghExecutable: "/bin/gh"
+            )
         )
         let http = URLSessionHTTPClient(
             session: .shared, auth: auth, etags: ETagStore(database: db)
