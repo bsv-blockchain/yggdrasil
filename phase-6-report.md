@@ -2,7 +2,7 @@
 
 Date: 2026-05-27
 Branch: `main`
-Spec reference: `loom-spec.md` §Phase 6 (lines 401–446)
+Spec reference: `yggdrasil-spec.md` §Phase 6 (lines 401–446)
 
 ---
 
@@ -15,7 +15,7 @@ badge dot. Three signals are aggregated under a strict priority order:
 errored > awaiting_input > CI failing > dirty > unread > running > idle
 ```
 
-### `Loom/Core/Status/`
+### `Yggdrasil/Core/Status/`
 - **`ClaudeStateDetector`** — pure function: given the latest JSONL
   record's type, stop_reason, and timestamp + "now", returns
   `ClaudeState` (unknown / running / awaitingInput / idle / errored).

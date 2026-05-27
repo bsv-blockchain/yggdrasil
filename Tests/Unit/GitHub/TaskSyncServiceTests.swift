@@ -1,10 +1,10 @@
 import Foundation
 import GRDB
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 /// Helper: insert a tracked Repo row and return its id.
-private func insertRepo(_ db: LoomDatabase, owner: String, name: String) throws -> Int64 {
+private func insertRepo(_ db: YggdrasilDatabase, owner: String, name: String) throws -> Int64 {
     try db.queue.write { dbW in
         var repo = Repo(
             id: nil,
@@ -102,7 +102,7 @@ private func httpResult(_ data: Data) -> HTTPResult {
 
 final class TaskSyncServiceTests: XCTestCase {
     func testFullSyncInsertsTasksForTrackedReposOnly() async throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let repoID = try insertRepo(db, owner: "bsv-blockchain", name: "teranode")
         // Note: bsv-blockchain/untracked is NOT inserted as a tracked repo.
 
@@ -119,7 +119,7 @@ final class TaskSyncServiceTests: XCTestCase {
 
         try await sync.fullSync()
 
-        let tasks = try await db.queue.read { db in try LoomTask.fetchAll(db) }
+        let tasks = try await db.queue.read { db in try YggdrasilTask.fetchAll(db) }
         XCTAssertEqual(tasks.count, 1)
         XCTAssertEqual(tasks[0].repoID, repoID)
         XCTAssertEqual(tasks[0].number, 1)
@@ -127,7 +127,7 @@ final class TaskSyncServiceTests: XCTestCase {
     }
 
     func testFullSyncIsIdempotent() async throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         _ = try insertRepo(db, owner: "o", name: "r")
 
         let json = issuesArray([
@@ -143,7 +143,7 @@ final class TaskSyncServiceTests: XCTestCase {
         try await sync.fullSync()
         try await sync.fullSync()
 
-        let tasks = try await db.queue.read { db in try LoomTask.fetchAll(db) }
+        let tasks = try await db.queue.read { db in try YggdrasilTask.fetchAll(db) }
         let assignees = try await db.queue.read { db in try TaskAssignee.fetchAll(db) }
         XCTAssertEqual(tasks.count, 1)
         XCTAssertEqual(assignees.count, 1)
@@ -151,7 +151,7 @@ final class TaskSyncServiceTests: XCTestCase {
     }
 
     func testServerWinsForTaskTitle() async throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         _ = try insertRepo(db, owner: "o", name: "r")
         let json = issuesArray([
             issueJSON(repoOwner: "o", repoName: "r", number: 1, title: "v1")
@@ -176,13 +176,13 @@ final class TaskSyncServiceTests: XCTestCase {
         )
         try await sync2.fullSync()
 
-        let tasks = try await db.queue.read { db in try LoomTask.fetchAll(db) }
+        let tasks = try await db.queue.read { db in try YggdrasilTask.fetchAll(db) }
         XCTAssertEqual(tasks.count, 1)
         XCTAssertEqual(tasks[0].title, "v2")
     }
 
     func testRemovesTasksNoLongerInResponse() async throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         _ = try insertRepo(db, owner: "o", name: "r")
 
         let firstJSON = issuesArray([
@@ -193,7 +193,7 @@ final class TaskSyncServiceTests: XCTestCase {
         try await TaskSyncService(
             database: db, rest: RESTClient(http: http1), graphql: GraphQLClient(http: http1)
         ).fullSync()
-        let countAfterFirst = try await db.queue.read { try LoomTask.fetchCount($0) }
+        let countAfterFirst = try await db.queue.read { try YggdrasilTask.fetchCount($0) }
         XCTAssertEqual(countAfterFirst, 2)
 
         let secondJSON = issuesArray([
@@ -211,18 +211,18 @@ final class TaskSyncServiceTests: XCTestCase {
     }
 
     func testEmptyResultsAreNotAnError() async throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         _ = try insertRepo(db, owner: "o", name: "r")
         let http = CannedHTTPClient(responses: [httpResult("[]")])
         try await TaskSyncService(
             database: db, rest: RESTClient(http: http), graphql: GraphQLClient(http: http)
         ).fullSync()
-        let emptyCount = try await db.queue.read { try LoomTask.fetchCount($0) }
+        let emptyCount = try await db.queue.read { try YggdrasilTask.fetchCount($0) }
         XCTAssertEqual(emptyCount, 0)
     }
 
     func testNoTrackedReposIsNoOp() async throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let http = CannedHTTPClient(responses: [])
         try await TaskSyncService(
             database: db, rest: RESTClient(http: http), graphql: GraphQLClient(http: http)
@@ -232,7 +232,7 @@ final class TaskSyncServiceTests: XCTestCase {
     }
 
     func testPRTasksGetGitHubStatusFromGraphQL() async throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         _ = try insertRepo(db, owner: "o", name: "r")
         // REST returns one PR-shaped issue; sync should follow up with one GraphQL detail.
         let issuesJSON = issuesArray([
@@ -254,7 +254,7 @@ final class TaskSyncServiceTests: XCTestCase {
     }
 
     func testNetworkErrorLeavesPreviousStateIntact() async throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         _ = try insertRepo(db, owner: "o", name: "r")
 
         let firstJSON = issuesArray([
@@ -265,7 +265,7 @@ final class TaskSyncServiceTests: XCTestCase {
             rest: RESTClient(http: CannedHTTPClient(responses: [httpResult(firstJSON)])),
             graphql: GraphQLClient(http: CannedHTTPClient(responses: []))
         ).fullSync()
-        let countBefore = try await db.queue.read { try LoomTask.fetchCount($0) }
+        let countBefore = try await db.queue.read { try YggdrasilTask.fetchCount($0) }
         XCTAssertEqual(countBefore, 1)
 
         // Now the network is dead — sync throws, DB unchanged.
@@ -278,7 +278,7 @@ final class TaskSyncServiceTests: XCTestCase {
         } catch {
             // expected
         }
-        let countAfter = try await db.queue.read { try LoomTask.fetchCount($0) }
+        let countAfter = try await db.queue.read { try YggdrasilTask.fetchCount($0) }
         XCTAssertEqual(countAfter, 1)
     }
 }

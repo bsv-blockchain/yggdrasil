@@ -1,6 +1,6 @@
-# Loom — Release Checklist
+# Yggdrasil — Release Checklist
 
-End-to-end "I want a notarised, signed `.dmg` of Loom" steps. Designed to be
+End-to-end "I want a notarised, signed `.dmg` of Yggdrasil" steps. Designed to be
 re-runnable; everything that's automated lives in the `Makefile`.
 
 ## Prerequisites
@@ -15,12 +15,12 @@ re-runnable; everything that's automated lives in the `Makefile`.
 ## One-time project changes
 
 The Phase 0 + 8 builds use ad-hoc signing for local dev. Before the first real
-release, edit `project.yml` so the `Loom` target's build settings carry your
+release, edit `project.yml` so the `Yggdrasil` target's build settings carry your
 team / signing identity:
 
 ```yaml
 targets:
-  Loom:
+  Yggdrasil:
     settings:
       base:
         CODE_SIGN_STYLE: Manual
@@ -29,7 +29,7 @@ targets:
         ENABLE_HARDENED_RUNTIME: "YES"
 ```
 
-Re-run `make project` so the regenerated `Loom.xcodeproj` picks these up.
+Re-run `make project` so the regenerated `Yggdrasil.xcodeproj` picks these up.
 
 ## Cut-a-release steps
 
@@ -40,15 +40,15 @@ Re-run `make project` so the regenerated `Loom.xcodeproj` picks these up.
 5. Archive:
    ```bash
    xcodebuild archive \
-     -project Loom.xcodeproj \
-     -scheme Loom \
+     -project Yggdrasil.xcodeproj \
+     -scheme Yggdrasil \
      -configuration Release \
-     -archivePath build/Loom.xcarchive
+     -archivePath build/Yggdrasil.xcarchive
    ```
 6. Export an `.app`:
    ```bash
    xcodebuild -exportArchive \
-     -archivePath build/Loom.xcarchive \
+     -archivePath build/Yggdrasil.xcarchive \
      -exportPath build/export \
      -exportOptionsPlist ExportOptions.plist
    ```
@@ -56,23 +56,23 @@ Re-run `make project` so the regenerated `Loom.xcodeproj` picks these up.
 7. Bundle as a DMG:
    ```bash
    create-dmg \
-     --volname "Loom" \
+     --volname "Yggdrasil" \
      --window-size 600 400 \
-     --icon "Loom.app" 175 200 \
+     --icon "Yggdrasil.app" 175 200 \
      --app-drop-link 425 200 \
-     build/Loom-$(git describe --tags).dmg \
+     build/Yggdrasil-$(git describe --tags).dmg \
      build/export/
    ```
 8. Submit for notarisation:
    ```bash
    xcrun notarytool submit \
-     build/Loom-$(git describe --tags).dmg \
+     build/Yggdrasil-$(git describe --tags).dmg \
      --keychain-profile AC_PASSWORD \
      --wait
    ```
 9. Staple the ticket:
    ```bash
-   xcrun stapler staple build/Loom-$(git describe --tags).dmg
+   xcrun stapler staple build/Yggdrasil-$(git describe --tags).dmg
    ```
 10. Smoke-test the stapled DMG on a different macOS user account: download,
     open, drag into Applications, launch. No quarantine warning. Onboarding
@@ -89,7 +89,7 @@ When wiring Sparkle, also add the `EdDSA` signing step before stapling.
 
 ## Post-release
 
-- Bump the version in `loom-spec.md`'s "Status" line (or whatever the project
+- Bump the version in `yggdrasil-spec.md`'s "Status" line (or whatever the project
   tracker becomes).
 - Update `docs/screenshots/*.png` if the UI changed.
 - Drop the DMG into the GitHub release page (manual until a CI release

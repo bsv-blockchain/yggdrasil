@@ -1,11 +1,11 @@
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 final class ETagStoreTests: XCTestCase {
-    private var db: LoomDatabase!
+    private var db: YggdrasilDatabase!
 
     override func setUpWithError() throws {
-        db = try LoomDatabase.inMemory()
+        db = try YggdrasilDatabase.inMemory()
     }
 
     override func tearDown() {

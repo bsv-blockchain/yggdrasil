@@ -2,7 +2,7 @@
 
 Date: 2026-05-27
 Branch: `main`
-Spec reference: `loom-spec.md` §Phase 7 (lines 450–475)
+Spec reference: `yggdrasil-spec.md` §Phase 7 (lines 450–475)
 
 ---
 
@@ -12,7 +12,7 @@ The Diff segment of the main pane is now live: select a tab, click
 "Diff", and the worktree's branch-vs-base diff renders in a bundled
 WebKit-hosted diff2html view.
 
-### `Loom/Core/Diff/`
+### `Yggdrasil/Core/Diff/`
 - **`DiffEngine`** — async wrapper over
   `git diff --no-color --find-renames <baseRef>...HEAD`. Returns
   `UnifiedDiff { text, files, isTruncated }`. Three-dot form so the
@@ -20,22 +20,22 @@ WebKit-hosted diff2html view.
   Maps git's "unknown revision / ambiguous argument / bad revision"
   stderr to `DiffEngineError.unknownBaseRef`.
 
-### `Loom/Resources/diff2html/`
+### `Yggdrasil/Resources/diff2html/`
 Bundled assets (folder reference in `project.yml`):
 - `diff2html.min.css` (17 KB)
 - `diff2html-ui.min.js` (1 MB) — `Diff2HtmlUI` + `jsdiff`
 - `highlight.min.js` (12 KB) — syntax highlighting (192+ languages)
 - `highlight-github.min.css`
 - `index.html` — boots `Diff2HtmlUI`, exposes
-  `window.loom.render(diffText)`. Toolbar: Side-by-side / Unified
+  `window.yggdrasil.render(diffText)`. Toolbar: Side-by-side / Unified
   toggle + file-name filter. Prefers-color-scheme dark theme.
 
-### `Loom/Features/MainPane/DiffSubPane.swift`
+### `Yggdrasil/Features/MainPane/DiffSubPane.swift`
 NSViewRepresentable wrapping a `WKWebView`. On mount, loads
 `Resources/diff2html/index.html` via `loadFileURL`. On
 `didFinishNavigation`, computes the diff via `DiffEngine`, escapes the
 text for JavaScript template literals (backtick + dollar), and calls
-`window.loom.render(diffText)`. baseRef resolution:
+`window.yggdrasil.render(diffText)`. baseRef resolution:
 `origin/<repo.default_branch>` when the tab is linked to a task, else
 falls back to `origin/main`.
 

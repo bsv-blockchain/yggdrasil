@@ -1,4 +1,4 @@
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 /// URLProtocol stub: per-host queues of canned responses. Set responses BEFORE the
@@ -85,11 +85,11 @@ private func makeAuthService(token: String = "ghp_TEST") -> AuthService {
 }
 
 final class HTTPClientTests: XCTestCase {
-    private var db: LoomDatabase!
+    private var db: YggdrasilDatabase!
 
     override func setUpWithError() throws {
         StubURLProtocol.reset()
-        db = try LoomDatabase.inMemory()
+        db = try YggdrasilDatabase.inMemory()
     }
 
     override func tearDown() {
@@ -122,7 +122,7 @@ final class HTTPClientTests: XCTestCase {
         _ = try await client.get(url: url, accept: "application/vnd.github+json")
         let req = try XCTUnwrap(StubURLProtocol.recorded.first)
         XCTAssertEqual(req.headers["Accept"], "application/vnd.github+json")
-        XCTAssertTrue((req.headers["User-Agent"] ?? "").hasPrefix("Loom/"))
+        XCTAssertTrue((req.headers["User-Agent"] ?? "").hasPrefix("Yggdrasil/"))
     }
 
     func testStoresAndResendsEtag() async throws {
@@ -219,7 +219,7 @@ final class HTTPClientTests: XCTestCase {
         let client = URLSessionHTTPClient(
             session: makeStubbedSession(),
             auth: auth,
-            etags: ETagStore(database: db ?? (try? LoomDatabase.inMemory())!)
+            etags: ETagStore(database: db ?? (try? YggdrasilDatabase.inMemory())!)
         )
         do {
             _ = try await client.get(url: url, accept: "application/json")
@@ -239,7 +239,7 @@ final class HTTPClientTests: XCTestCase {
         let client = URLSessionHTTPClient(
             session: makeStubbedSession(),
             auth: makeAuthService(),
-            etags: ETagStore(database: db ?? (try? LoomDatabase.inMemory())!)
+            etags: ETagStore(database: db ?? (try? YggdrasilDatabase.inMemory())!)
         )
         do {
             _ = try await client.get(url: url, accept: "application/json")

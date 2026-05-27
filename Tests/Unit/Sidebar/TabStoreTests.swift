@@ -1,12 +1,12 @@
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 final class TabStoreTests: XCTestCase {
-    private var db: LoomDatabase!
+    private var db: YggdrasilDatabase!
     private var store: TabStore!
 
     override func setUpWithError() throws {
-        db = try LoomDatabase.inMemory()
+        db = try YggdrasilDatabase.inMemory()
         store = TabStore(database: db)
     }
 

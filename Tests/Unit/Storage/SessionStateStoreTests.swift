@@ -1,11 +1,11 @@
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 final class SessionStateStoreTests: XCTestCase {
-    private var db: LoomDatabase!
+    private var db: YggdrasilDatabase!
 
     override func setUpWithError() throws {
-        db = try LoomDatabase.inMemory()
+        db = try YggdrasilDatabase.inMemory()
     }
 
     override func tearDown() {
@@ -15,7 +15,7 @@ final class SessionStateStoreTests: XCTestCase {
 
     private func makeTab() throws -> Int64 {
         try db.queue.write { db in
-            var tab = LoomTab(
+            var tab = YggdrasilTab(
                 id: nil, taskID: nil, codingAgentID: nil, position: 0,
                 branchName: "scratch", worktreePath: "/tmp/scratch",
                 lastMainView: .agent, createdAt: Date(), lastActiveAt: Date()

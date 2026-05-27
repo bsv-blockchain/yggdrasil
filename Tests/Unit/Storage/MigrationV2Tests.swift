@@ -1,10 +1,10 @@
 import GRDB
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 final class MigrationV2Tests: XCTestCase {
     func testV2AddsCodingAgentTabAndSessionStateTables() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let tables = try db.queue.read { db in
             try String.fetchAll(
                 db,
@@ -17,7 +17,7 @@ final class MigrationV2Tests: XCTestCase {
     }
 
     func testV2SeedsClaudeAsDefaultAgentOnFreshDatabase() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let agents = try db.queue.read { db in try CodingAgent.fetchAll(db) }
         XCTAssertEqual(agents.count, 1, "v2 must seed exactly one default agent")
         let claude = agents[0]
@@ -28,7 +28,7 @@ final class MigrationV2Tests: XCTestCase {
     }
 
     func testCodingAgentNameIsUnique() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         XCTAssertThrowsError(try db.queue.write { db in
             var dup = CodingAgent(
                 id: nil, name: "Claude", command: "other",
@@ -40,23 +40,23 @@ final class MigrationV2Tests: XCTestCase {
     }
 
     func testTabHasNullableTaskIDAndCodingAgentID() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         // Insert a tab with both FKs nil (ad-hoc tab not tied to a task or agent yet).
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         try db.queue.write { db in
-            var tab = LoomTab(
+            var tab = YggdrasilTab(
                 id: nil, taskID: nil, codingAgentID: nil, position: 0,
                 branchName: "scratch", worktreePath: "/tmp/scratch",
                 lastMainView: .agent, createdAt: now, lastActiveAt: now
             )
             try tab.insert(db)
         }
-        let count = try db.queue.read { db in try LoomTab.fetchCount(db) }
+        let count = try db.queue.read { db in try YggdrasilTab.fetchCount(db) }
         XCTAssertEqual(count, 1)
     }
 
     func testDeletingCodingAgentNullsTabReference() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         try db.queue.write { db in
             var agent = CodingAgent(
@@ -67,7 +67,7 @@ final class MigrationV2Tests: XCTestCase {
             try agent.insert(db)
             let agentID = agent.id!
 
-            var tab = LoomTab(
+            var tab = YggdrasilTab(
                 id: nil, taskID: nil, codingAgentID: agentID, position: 0,
                 branchName: "scratch", worktreePath: "/tmp/scratch",
                 lastMainView: .agent, createdAt: now, lastActiveAt: now
@@ -76,17 +76,17 @@ final class MigrationV2Tests: XCTestCase {
 
             try agent.delete(db)
         }
-        // LoomTab should still exist, with coding_agent_id set to NULL.
-        let tab = try db.queue.read { db in try LoomTab.fetchOne(db) }
+        // YggdrasilTab should still exist, with coding_agent_id set to NULL.
+        let tab = try db.queue.read { db in try YggdrasilTab.fetchOne(db) }
         XCTAssertNotNil(tab)
         XCTAssertNil(tab?.codingAgentID, "deleting an agent must null the tab reference, not cascade")
     }
 
     func testSessionStateCascadeOnTabDelete() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         try db.queue.write { db in
-            var tab = LoomTab(
+            var tab = YggdrasilTab(
                 id: nil, taskID: nil, codingAgentID: nil, position: 0,
                 branchName: "scratch", worktreePath: "/tmp/scratch",
                 lastMainView: .agent, createdAt: now, lastActiveAt: now

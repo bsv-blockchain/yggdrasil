@@ -1,4 +1,4 @@
-name: Loom
+name: Yggdrasil
 options:
   bundleIdPrefix: com.bsvassociation
   deploymentTarget:
@@ -30,27 +30,27 @@ packages:
     url: https://github.com/kishikawakatsumi/KeychainAccess
     from: "4.2.2"
 targets:
-  Loom:
+  Yggdrasil:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
     sources:
-      - path: Loom
+      - path: Yggdrasil
         excludes:
           - "**/.gitkeep"
     resources:
-      - path: Loom/Resources/Assets.xcassets
+      - path: Yggdrasil/Resources/Assets.xcassets
         optional: true
-      - path: Loom/Resources/diff2html
+      - path: Yggdrasil/Resources/diff2html
         type: folder
         buildPhase: resources
         optional: true
     info:
-      path: Loom/Info.plist
+      path: Yggdrasil/Info.plist
       properties:
-        CFBundleName: Loom
-        CFBundleDisplayName: Loom
-        CFBundleIdentifier: com.bsvassociation.loom
+        CFBundleName: Yggdrasil
+        CFBundleDisplayName: Yggdrasil
+        CFBundleIdentifier: com.bsvassociation.yggdrasil
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "1"
         LSMinimumSystemVersion: "14.0"
@@ -59,7 +59,7 @@ targets:
         NSMainStoryboardFile: ""
         LSApplicationCategoryType: public.app-category.developer-tools
     entitlements:
-      path: Loom/Loom.entitlements
+      path: Yggdrasil/Yggdrasil.entitlements
       properties:
         com.apple.security.app-sandbox: false
         com.apple.security.network.client: true
@@ -67,7 +67,7 @@ targets:
         com.apple.security.files.user-selected.read-write: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.bsvassociation.loom
+        PRODUCT_BUNDLE_IDENTIFIER: com.bsvassociation.yggdrasil
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
         DEVELOPMENT_TEAM: ""
@@ -84,7 +84,7 @@ targets:
       - package: KeychainAccess
         product: KeychainAccess
 
-  LoomTests:
+  YggdrasilTests:
     type: bundle.unit-test
     platform: macOS
     deploymentTarget: "14.0"
@@ -97,23 +97,23 @@ targets:
         buildPhase: resources
       - path: Tests/Integration
     dependencies:
-      - target: Loom
+      - target: Yggdrasil
     settings:
       base:
         GENERATE_INFOPLIST_FILE: "YES"
-        PRODUCT_BUNDLE_IDENTIFIER: com.bsvassociation.loom.unit-tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.bsvassociation.yggdrasil.unit-tests
         BUNDLE_LOADER: "$(TEST_HOST)"
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Loom.app/Contents/MacOS/Loom"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Yggdrasil.app/Contents/MacOS/Yggdrasil"
 
 schemes:
-  Loom:
+  Yggdrasil:
     build:
       targets:
-        Loom: all
-        LoomTests: [test]
+        Yggdrasil: all
+        YggdrasilTests: [test]
     test:
       targets:
-        - LoomTests
+        - YggdrasilTests
       gatherCoverageData: true
     run:
       config: Debug

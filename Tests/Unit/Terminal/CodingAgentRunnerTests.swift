@@ -1,18 +1,18 @@
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 final class CodingAgentRunnerTests: XCTestCase {
 
-    private var db: LoomDatabase!
+    private var db: YggdrasilDatabase!
     private var sessionStore: SessionStateStore!
     private var tabID: Int64!
 
     override func setUpWithError() throws {
-        db = try LoomDatabase.inMemory()
+        db = try YggdrasilDatabase.inMemory()
         sessionStore = SessionStateStore(database: db)
         // Create a tab row to associate sessions with.
         tabID = try db.queue.write { db in
-            var tab = LoomTab(
+            var tab = YggdrasilTab(
                 id: nil, taskID: nil, codingAgentID: nil, position: 0,
                 branchName: "scratch", worktreePath: NSTemporaryDirectory(),
                 lastMainView: .agent, createdAt: Date(), lastActiveAt: Date()
@@ -40,7 +40,7 @@ final class CodingAgentRunnerTests: XCTestCase {
             tabID: tabID,
             cwd: NSTemporaryDirectory(),
             command: "/bin/echo",
-            args: ["hello", "loom"],
+            args: ["hello", "yggdrasil"],
             sessionStore: sessionStore
         )
 
@@ -53,13 +53,13 @@ final class CodingAgentRunnerTests: XCTestCase {
         // Session state row reflects the lifecycle.
         let state = try XCTUnwrap(try sessionStore.get(tabID: tabID))
         XCTAssertEqual(state.agentCommand, "/bin/echo")
-        XCTAssertEqual(state.agentArgs, ["hello", "loom"])
+        XCTAssertEqual(state.agentArgs, ["hello", "yggdrasil"])
         XCTAssertEqual(state.lastKnownExitCode, 0)
         XCTAssertNotNil(state.ptyEndedAt)
 
         // Output ring saw the echo'd line.
         let captured = String(data: runner.capturedOutput(), encoding: .utf8) ?? ""
-        XCTAssertTrue(captured.contains("hello loom"),
+        XCTAssertTrue(captured.contains("hello yggdrasil"),
                       "ring should contain echo output; got: \(captured.debugDescription)")
     }
 

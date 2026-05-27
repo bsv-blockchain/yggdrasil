@@ -2,7 +2,7 @@
 
 Date: 2026-05-26
 Branch: `main` (per workflow exception, see `decisions.md`)
-Spec reference: `loom-spec.md` §Phase 2 (lines 284–312)
+Spec reference: `yggdrasil-spec.md` §Phase 2 (lines 284–312)
 
 ---
 
@@ -13,7 +13,7 @@ calls. Pure git mechanics; no GitHub coupling beyond accepting the existing
 `Repo` model. ~280 lines of production Swift behind 13 unit tests covering
 the spec's 7 acceptance criteria.
 
-### `Loom/Core/Git/`
+### `Yggdrasil/Core/Git/`
 - **`BranchSlug.swift`** — pure-function branch-name → filesystem-safe slug.
   Slashes and whitespace become `-`; pure punctuation (`#:;,?@!$…`) is
   dropped; other unknown chars default to `-`; runs of `-` collapse;
@@ -122,7 +122,7 @@ tests assert the command sequence.
 ## 5. How to verify (manual smoke)
 
 The unit tests against a real fixture repo cover everything. To smoke against
-a real Loom-tracked repo:
+a real Yggdrasil-tracked repo:
 
 ```bash
 # In an interactive Swift session (or extend the debug menu later):

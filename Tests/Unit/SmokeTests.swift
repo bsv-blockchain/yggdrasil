@@ -1,10 +1,10 @@
 import AppKit
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 final class SmokeTests: XCTestCase {
-    func testAppVendsAWindowTitledLoom() {
-        // The test bundle is hosted by Loom.app, so NSApplication.shared *is*
+    func testAppVendsAWindowTitledYggdrasil() {
+        // The test bundle is hosted by Yggdrasil.app, so NSApplication.shared *is*
         // the running app. Wait briefly for SwiftUI to materialise its window.
         let app = NSApplication.shared
         let deadline = Date().addingTimeInterval(5)
@@ -15,15 +15,15 @@ final class SmokeTests: XCTestCase {
 
         let titles = app.windows.map(\.title)
         XCTAssertTrue(
-            titles.contains(where: { $0.contains("Loom") }),
-            "At least one window must have a title containing 'Loom'; got: \(titles)"
+            titles.contains(where: { $0.contains("Yggdrasil") }),
+            "At least one window must have a title containing 'Yggdrasil'; got: \(titles)"
         )
     }
 
     func testLoggerSubsystemHasExpectedCategories() {
-        XCTAssertEqual(LoomLog.subsystem, "com.bsvassociation.loom")
+        XCTAssertEqual(YggdrasilLog.subsystem, "com.bsvassociation.yggdrasil")
         XCTAssertEqual(
-            LoomLog.allCategories.sorted(),
+            YggdrasilLog.allCategories.sorted(),
             ["auth", "db", "git", "pty", "sync", "ui"]
         )
     }
@@ -50,6 +50,6 @@ final class SmokeTests: XCTestCase {
         let appBundleID = Bundle.main.bundleIdentifier
         // Under XCTest the host bundle is the app under test.
         XCTAssertNotNil(appBundleID)
-        XCTAssertEqual(appBundleID, LoomLog.subsystem)
+        XCTAssertEqual(appBundleID, YggdrasilLog.subsystem)
     }
 }

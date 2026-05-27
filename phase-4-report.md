@@ -2,7 +2,7 @@
 
 Date: 2026-05-27
 Branch: `main`
-Spec reference: `loom-spec.md` §Phase 4 (lines 342–371)
+Spec reference: `yggdrasil-spec.md` §Phase 4 (lines 342–371)
 
 ---
 
@@ -13,12 +13,12 @@ All seven Phase 4 acceptance criteria are addressed; all but the
 "60 fps with 20 tabs" and "200-tab live filter" leans on a manual
 Instruments pass against the shipping build (see §3 below).
 
-### `Loom/Core/Storage`
+### `Yggdrasil/Core/Storage`
 - **`TabStore`** — typed CRUD over the `tab` table. `list` ordered by
   `position ASC`, `insert` auto-positions at end, `delete`,
   `reorder(ids:)` (atomic + id-set-validated), `touchLastActiveAt`.
 
-### `Loom/Features/Sidebar`
+### `Yggdrasil/Features/Sidebar`
 - **`TabRowViewModel`** — pure value type. `titleLine` (task title for
   GitHub-linked tabs, branch name for ad-hoc), `branchLine`,
   `worktreeLine` (mid-ellipsis to 50 chars by default), `statusIcon`
@@ -28,7 +28,7 @@ Instruments pass against the shipping build (see §3 below).
   line VStack (title / branch in monospace / worktree path), trailing
   capsule badge. Accent-tinted selection background.
 - **`TabsModel`** (@Observable) — the sidebar's view model. Holds
-  `[Tab]`, a `tabID → LoomTask` cache, `selectedID`. `reload()`
+  `[Tab]`, a `tabID → YggdrasilTask` cache, `selectedID`. `reload()`
   refreshes from disk and reconciles selection. `select(id:)` also
   touches `lastActiveAt`. `moveSelection(by:)` powers ⌥↑/↓.
   `move(fromOffsets:toOffset:)` is the SwiftUI `onMove` shape — updates
@@ -46,8 +46,8 @@ Instruments pass against the shipping build (see §3 below).
   side-effects. Kept outside SwiftUI so they're isolated.
 - **`TabCommands`** — Tab menu with ⌥↑ Previous, ⌥↓ Next, ⌘W Close Tab.
 
-### `Loom/App`
-- **`LoomApp`** mounts `TabCommands` alongside `DebugMenu`.
+### `Yggdrasil/App`
+- **`YggdrasilApp`** mounts `TabCommands` alongside `DebugMenu`.
 - **`SidebarSessionsLayout`** (new HStack root): `SidebarView` left,
   main pane right. Main pane mirrors Phase 3's ZStack of
   `AgentTerminalSurface`, with `selectedTabHasNoSession` state when a
@@ -100,7 +100,7 @@ The 60-fps-at-20-tabs criterion and the "no UI hang at 200 tabs" criterion are d
 The new sidebar is the only Phase 4 surface that needs a real window. Build (`make build`), launch the app, then:
 
 1. Empty sidebar shows the "No tabs yet" placeholder with the CTA text.
-2. **Debug → Add Tracked Repo…** add a repo (you'll need to manually set its `local_main_path` in `loom.sqlite` for now — Phase 8 adds proper UI). For a quick smoke without a real repo, **Debug → + New Session…** still works for ad-hoc tabs.
+2. **Debug → Add Tracked Repo…** add a repo (you'll need to manually set its `local_main_path` in `yggdrasil.sqlite` for now — Phase 8 adds proper UI). For a quick smoke without a real repo, **Debug → + New Session…** still works for ad-hoc tabs.
 3. Click the sidebar "+" button (or ⌘T). NewTabSheet opens. Pick a repo, type a branch name (e.g. `scratch/foo`), pick an agent, click "Open Tab". The worktree gets created at `<parent>/.worktrees/scratch-foo`, the tab appears in the sidebar, the agent spawns. _AC #2 — selection latency should be visibly instantaneous._
 4. Open ~20 sessions. Scroll the sidebar; should feel smooth. Open Instruments → Time Profiler / Animation if you want a formal 60-fps measurement. _AC #1._
 5. Type into the search field. Filtering kicks in after ~150 ms. With many tabs the UI should remain responsive while typing. _AC #4._
@@ -113,7 +113,7 @@ The new sidebar is the only Phase 4 surface that needs a real window. Build (`ma
 ## 5. Open questions
 
 1. **Pixel snapshots** — happy with the logic-based assertions, or add `swift-snapshot-testing` and produce real PNG snapshots for the row variants?
-2. **Repo `local_main_path` UX** — currently the user has to edit `loom.sqlite` directly to set it. Worth adding a quick fix-up in the debug menu now (one extra prompt on "Add Tracked Repo…"), or wait for Phase 8 Preferences?
+2. **Repo `local_main_path` UX** — currently the user has to edit `yggdrasil.sqlite` directly to set it. Worth adding a quick fix-up in the debug menu now (one extra prompt on "Add Tracked Repo…"), or wait for Phase 8 Preferences?
 3. **Performance Instruments traces** — want me to record reproducible 20-tab and 200-tab traces as part of this phase's evidence, or defer to Phase 8 polish?
 
 ---

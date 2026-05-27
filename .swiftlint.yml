@@ -1,16 +1,16 @@
-# SwiftLint configuration for Loom.
+# SwiftLint configuration for Yggdrasil.
 
 included:
-  - Loom
+  - Yggdrasil
   - Tests
 
 excluded:
-  - Loom.xcodeproj
+  - Yggdrasil.xcodeproj
   - Vendor
   - DerivedData
   - build
   - .build
-  - Loom/Resources
+  - Yggdrasil/Resources
 
 opt_in_rules:
   - empty_count

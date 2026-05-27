@@ -1,10 +1,10 @@
 # Phase 1 — GitHub Sync Engine — Implementation Plan
 
-**Goal.** On launch, Loom reads the user's GitHub token from `gh`, pulls all open assigned issues + PRs across a hard-coded list of tracked repos, persists them to SQLite via GRDB, and refreshes every 60s. No UI beyond a debug menu. Per spec §Phase 1 (lines 254–281).
+**Goal.** On launch, Yggdrasil reads the user's GitHub token from `gh`, pulls all open assigned issues + PRs across a hard-coded list of tracked repos, persists them to SQLite via GRDB, and refreshes every 60s. No UI beyond a debug menu. Per spec §Phase 1 (lines 254–281).
 
 **Architecture.** Five layers, each isolated by protocol where it crosses a boundary:
 
-1. **Storage** — GRDB stack at `~/Library/Application Support/Loom/loom.sqlite`, migrations, Codable+Record models for the 5 tables in spec §3.2.
+1. **Storage** — GRDB stack at `~/Library/Application Support/Yggdrasil/yggdrasil.sqlite`, migrations, Codable+Record models for the 5 tables in spec §3.2.
 2. **Auth** — `gh auth token` subprocess → Keychain → in-memory `AuthService` actor with 401-invalidation hook.
 3. **HTTP** — `URLSession` wrapper with `Authorization: bearer` injection, ETag round-trip via `setting` table, rate-limit-header logging, exponential backoff (1s → 5min cap), 401→re-auth retry.
 4. **API clients** — REST client for `/issues?filter=assigned&state=open` and `/repos/{owner}/{repo}/pulls?state=open`; GraphQL client for the per-PR detail (`mergeable`, `mergeStateStatus`, `reviewDecision`, `statusCheckRollup`).
@@ -16,16 +16,16 @@
 - Unit tests use **in-memory GRDB** (`DatabaseQueue()` with no path) and **`URLProtocol` stubs** for HTTP.
 - A small `Subprocess` protocol fronts `Process` so `GHCLIAuth` can be unit-tested without a real `gh` binary.
 - `KeychainAccess` uses a per-test unique service name to avoid pollution.
-- One integration test in `Tests/Integration/` hits the real GitHub API guarded by `LOOM_TEST_GITHUB_TOKEN` env var — skipped when unset.
+- One integration test in `Tests/Integration/` hits the real GitHub API guarded by `YGGDRASIL_TEST_GITHUB_TOKEN` env var — skipped when unset.
 
 ---
 
 ## File map
 
 ```
-Loom/Core/
+Yggdrasil/Core/
   Storage/
-    LoomDatabase.swift            -- GRDB stack + open() / inMemory()
+    YggdrasilDatabase.swift            -- GRDB stack + open() / inMemory()
     Migrations.swift              -- v1 schema (5 tables)
     SettingsStore.swift           -- typed get/set over `setting` table
     ETagStore.swift               -- typed get/set over `setting` keyed by URL
@@ -51,7 +51,7 @@ Loom/Core/
     GraphQLClient.swift           -- prDetails(owner:repo:number:)
     TaskSyncService.swift         -- actor; full + incremental sync
     SyncScheduler.swift           -- 60s loop with cancellation
-Loom/App/
+Yggdrasil/App/
   AppDelegate.swift               -- wires SyncScheduler at launch
   DebugMenu.swift                 -- "Force Sync Now", "Dump Tasks to Log"
 Tests/Unit/
@@ -71,7 +71,7 @@ Tests/Unit/
     pulls-list.json
     pr-detail.graphql.json
 Tests/Integration/
-  GitHubLiveSyncIntegrationTests.swift   -- skipped if LOOM_TEST_GITHUB_TOKEN unset
+  GitHubLiveSyncIntegrationTests.swift   -- skipped if YGGDRASIL_TEST_GITHUB_TOKEN unset
 ```
 
 ---
@@ -83,17 +83,17 @@ Tests/Integration/
    - Task 7.2 also gains a **"Remove Tracked Repo…"** item showing the current list.
    This shift is logged in `decisions.md` at implementation time.
 2. **Polling interval locked at 60s** per spec §2.1.
-3. **CI gets the `LOOM_TEST_GITHUB_TOKEN` secret reference now.** The integration test is `XCTSkip`-guarded so it stays green when the secret isn't set. Wiring goes into `.github/workflows/ci.yml` as part of Task 7.
+3. **CI gets the `YGGDRASIL_TEST_GITHUB_TOKEN` secret reference now.** The integration test is `XCTSkip`-guarded so it stays green when the secret isn't set. Wiring goes into `.github/workflows/ci.yml` as part of Task 7.
 
 ---
 
 ## Task 1 — Storage foundation (GRDB)
 
 **Files:**
-- Create `Loom/Core/Storage/LoomDatabase.swift`
-- Create `Loom/Core/Storage/Migrations.swift`
-- Create `Loom/Core/Storage/SettingsStore.swift`
-- Create `Loom/Core/Models/Setting.swift`, `Repo.swift`, `Task.swift`, `TaskAssignee.swift`, `GitHubStatus.swift`
+- Create `Yggdrasil/Core/Storage/YggdrasilDatabase.swift`
+- Create `Yggdrasil/Core/Storage/Migrations.swift`
+- Create `Yggdrasil/Core/Storage/SettingsStore.swift`
+- Create `Yggdrasil/Core/Models/Setting.swift`, `Repo.swift`, `Task.swift`, `TaskAssignee.swift`, `GitHubStatus.swift`
 - Create `Tests/Unit/Storage/MigrationsTests.swift`, `Tests/Unit/Storage/SettingsStoreTests.swift`
 
 ### Task 1.1 — Setting model + SettingsStore over in-memory GRDB
@@ -103,13 +103,13 @@ Tests/Integration/
 ```swift
 import GRDB
 import XCTest
-@testable import Loom
+@testable import Yggdrasil
 
 final class SettingsStoreTests: XCTestCase {
-    private var db: LoomDatabase!
+    private var db: YggdrasilDatabase!
 
     override func setUpWithError() throws {
-        db = try LoomDatabase.inMemory()
+        db = try YggdrasilDatabase.inMemory()
     }
 
     func testWriteAndReadBack() throws {
@@ -135,7 +135,7 @@ final class SettingsStoreTests: XCTestCase {
 **Step 2.** Implementation:
 
 ```swift
-// Loom/Core/Models/Setting.swift
+// Yggdrasil/Core/Models/Setting.swift
 import GRDB
 
 struct Setting: Codable, FetchableRecord, PersistableRecord {
@@ -144,38 +144,38 @@ struct Setting: Codable, FetchableRecord, PersistableRecord {
     var value: String
 }
 
-// Loom/Core/Storage/LoomDatabase.swift
+// Yggdrasil/Core/Storage/YggdrasilDatabase.swift
 import Foundation
 import GRDB
 
-final class LoomDatabase {
+final class YggdrasilDatabase {
     let queue: DatabaseQueue
     private init(queue: DatabaseQueue) { self.queue = queue }
 
-    static func inMemory() throws -> LoomDatabase {
+    static func inMemory() throws -> YggdrasilDatabase {
         let q = try DatabaseQueue()
         try Migrations.register().migrate(q)
-        return LoomDatabase(queue: q)
+        return YggdrasilDatabase(queue: q)
     }
 
-    static func openDefault(fileManager: FileManager = .default) throws -> LoomDatabase {
+    static func openDefault(fileManager: FileManager = .default) throws -> YggdrasilDatabase {
         let appSupport = try fileManager.url(
             for: .applicationSupportDirectory, in: .userDomainMask,
             appropriateFor: nil, create: true
-        ).appendingPathComponent("Loom", isDirectory: true)
+        ).appendingPathComponent("Yggdrasil", isDirectory: true)
         try fileManager.createDirectory(at: appSupport, withIntermediateDirectories: true)
-        let url = appSupport.appendingPathComponent("loom.sqlite")
+        let url = appSupport.appendingPathComponent("yggdrasil.sqlite")
         let q = try DatabaseQueue(path: url.path)
         try Migrations.register().migrate(q)
-        return LoomDatabase(queue: q)
+        return YggdrasilDatabase(queue: q)
     }
 }
 
-// Loom/Core/Storage/SettingsStore.swift
+// Yggdrasil/Core/Storage/SettingsStore.swift
 import GRDB
 
 struct SettingsStore {
-    let database: LoomDatabase
+    let database: YggdrasilDatabase
 
     func get(forKey key: String) throws -> String? {
         try database.queue.read { db in
@@ -201,11 +201,11 @@ struct SettingsStore {
 ```swift
 import GRDB
 import XCTest
-@testable import Loom
+@testable import Yggdrasil
 
 final class MigrationsTests: XCTestCase {
     func testV1CreatesExpectedTables() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let tables = try db.queue.read { db in
             try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
         }
@@ -217,7 +217,7 @@ final class MigrationsTests: XCTestCase {
     }
 
     func testRepoRoundTrip() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let repo = Repo(
             id: 1, owner: "bsv-blockchain", name: "teranode",
             defaultBranch: "main", localMainPath: "/Users/sigi/code/teranode",
@@ -306,10 +306,10 @@ Plus full model structs (Repo, Task, TaskAssignee, GitHubStatus) — Codable + G
 ## Task 2 — Auth bridge
 
 **Files:**
-- Create `Loom/Core/Auth/Subprocess.swift` (protocol + `ProcessRunner` default impl)
-- Create `Loom/Core/Auth/GHCLIAuth.swift`
-- Create `Loom/Core/Auth/KeychainStore.swift`
-- Create `Loom/Core/Auth/AuthService.swift`
+- Create `Yggdrasil/Core/Auth/Subprocess.swift` (protocol + `ProcessRunner` default impl)
+- Create `Yggdrasil/Core/Auth/GHCLIAuth.swift`
+- Create `Yggdrasil/Core/Auth/KeychainStore.swift`
+- Create `Yggdrasil/Core/Auth/AuthService.swift`
 - Create `Tests/Unit/Auth/GHCLIAuthTests.swift`, `Tests/Unit/Auth/AuthServiceTests.swift`
 
 ### Task 2.1 — Subprocess abstraction + GHCLIAuth
@@ -339,7 +339,7 @@ final class GHCLIAuthTests: XCTestCase {
 **Step 2.** Implementation:
 
 ```swift
-// Loom/Core/Auth/Subprocess.swift
+// Yggdrasil/Core/Auth/Subprocess.swift
 protocol SubprocessRunner: Sendable {
     func run(executable: String, arguments: [String]) async throws -> (stdout: String, stderr: String, exitCode: Int32)
 }
@@ -362,7 +362,7 @@ struct ProcessRunner: SubprocessRunner {
     }
 }
 
-// Loom/Core/Auth/GHCLIAuth.swift
+// Yggdrasil/Core/Auth/GHCLIAuth.swift
 enum GHCLIAuthError: Error { case notAuthenticated, ghNotFound, unexpected(String) }
 
 struct GHCLIAuth {
@@ -396,7 +396,7 @@ struct GHCLIAuth {
 **Step 2.** Implementation:
 
 ```swift
-// Loom/Core/Auth/KeychainStore.swift
+// Yggdrasil/Core/Auth/KeychainStore.swift
 import KeychainAccess
 protocol KeychainStore: Sendable {
     func read(_ key: String) -> String?
@@ -405,13 +405,13 @@ protocol KeychainStore: Sendable {
 }
 struct KeychainAccessStore: KeychainStore {
     let keychain: Keychain
-    init(service: String = "com.bsvassociation.loom") { keychain = Keychain(service: service) }
+    init(service: String = "com.bsvassociation.yggdrasil") { keychain = Keychain(service: service) }
     func read(_ k: String) -> String? { try? keychain.get(k) }
     func write(_ v: String, forKey k: String) throws { try keychain.set(v, key: k) }
     func delete(_ k: String) throws { try keychain.remove(k) }
 }
 
-// Loom/Core/Auth/AuthService.swift
+// Yggdrasil/Core/Auth/AuthService.swift
 actor AuthService {
     static let tokenKey = "github_token"
     private let gh: GHCLIAuth
@@ -446,7 +446,7 @@ actor AuthService {
 ## Task 3 — HTTP client
 
 **Files:**
-- Create `Loom/Core/GitHub/HTTPClient.swift`, `GitHubError.swift`, `RateLimitObserver.swift`, `Backoff.swift`, `ETagStore.swift`
+- Create `Yggdrasil/Core/GitHub/HTTPClient.swift`, `GitHubError.swift`, `RateLimitObserver.swift`, `Backoff.swift`, `ETagStore.swift`
 - Create `Tests/Unit/GitHub/HTTPClientTests.swift`, `BackoffTests.swift`
 
 ### Task 3.1 — Backoff schedule (pure function, easiest)
@@ -489,7 +489,7 @@ enum Backoff {
 - `testInjectsBearerToken` — verifies request has `Authorization: Bearer <token>`.
 - `testEtagSentOnSecondRequest` — first response includes `Etag`, second request includes `If-None-Match`.
 - `test304NotModifiedReturnsCachedSentinel` — second response is 304, client surfaces a `.notModified` outcome.
-- `testLogsRateLimitHeaders` — `X-RateLimit-Remaining` parsed, emitted on `LoomLog.sync`.
+- `testLogsRateLimitHeaders` — `X-RateLimit-Remaining` parsed, emitted on `YggdrasilLog.sync`.
 - `test401TriggersAuthInvalidateAndOneRetry` — stub returns 401 then 200; AuthService's `invalidate()` is called exactly once between them.
 - `testNetworkErrorBubbles` — `URLProtocol` throws; client surfaces a typed error.
 
@@ -533,7 +533,7 @@ ETagStore wraps `setting` table with keys `etag:<canonical-url>`.
 ## Task 4 — REST client for assigned issues + open PRs
 
 **Files:**
-- Create `Loom/Core/GitHub/Endpoints.swift`, `APIResponses.swift`, `RESTClient.swift`
+- Create `Yggdrasil/Core/GitHub/Endpoints.swift`, `APIResponses.swift`, `RESTClient.swift`
 - Create `Tests/Unit/Fixtures/issues-assigned.json`, `pulls-list.json`
 - Create `Tests/Unit/GitHub/RESTClientTests.swift`
 
@@ -571,7 +571,7 @@ final class RESTClientTests: XCTestCase {
 ## Task 5 — GraphQL client for PR detail
 
 **Files:**
-- Create `Loom/Core/GitHub/GraphQLClient.swift`
+- Create `Yggdrasil/Core/GitHub/GraphQLClient.swift`
 - Extend `APIResponses.swift` with GraphQL DTOs
 - Create `Tests/Unit/Fixtures/pr-detail.graphql.json`
 - Create `Tests/Unit/GitHub/GraphQLClientTests.swift`
@@ -606,7 +606,7 @@ POST to `https://api.github.com/graphql`. Decode → `GitHubStatus`.
 ## Task 6 — TaskSyncService (the engine)
 
 **Files:**
-- Create `Loom/Core/GitHub/TaskSyncService.swift`
+- Create `Yggdrasil/Core/GitHub/TaskSyncService.swift`
 - Create `Tests/Unit/GitHub/TaskSyncServiceTests.swift`
 
 **Step 1.** Tests:
@@ -634,10 +634,10 @@ POST to `https://api.github.com/graphql`. Decode → `GitHubStatus`.
 ## Task 7 — SyncScheduler + debug menu + acceptance smoke
 
 **Files:**
-- Create `Loom/Core/GitHub/SyncScheduler.swift`
-- Modify `Loom/App/AppDelegate.swift` to start the scheduler at launch
-- Create `Loom/App/DebugMenu.swift`
-- Modify `Loom/App/LoomApp.swift` to install the debug commands
+- Create `Yggdrasil/Core/GitHub/SyncScheduler.swift`
+- Modify `Yggdrasil/App/AppDelegate.swift` to start the scheduler at launch
+- Create `Yggdrasil/App/DebugMenu.swift`
+- Modify `Yggdrasil/App/YggdrasilApp.swift` to install the debug commands
 - Create `Tests/Unit/GitHub/SyncSchedulerTests.swift`
 - Create `Tests/Integration/GitHubLiveSyncIntegrationTests.swift`
 
@@ -677,9 +677,9 @@ final class SyncSchedulerTests: XCTestCase {
 ```swift
 final class GitHubLiveSyncIntegrationTests: XCTestCase {
     func testFullSyncPopulatesDBWithin5SecondsAgainstRealGitHub() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["LOOM_TEST_GITHUB_TOKEN"] != nil,
-                          "Set LOOM_TEST_GITHUB_TOKEN to run this test")
-        let db = try LoomDatabase.inMemory()
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["YGGDRASIL_TEST_GITHUB_TOKEN"] != nil,
+                          "Set YGGDRASIL_TEST_GITHUB_TOKEN to run this test")
+        let db = try YggdrasilDatabase.inMemory()
         // (build the real stack with the env-var token instead of gh CLI)
         let start = Date()
         try await syncService.fullSync()
@@ -692,7 +692,7 @@ final class GitHubLiveSyncIntegrationTests: XCTestCase {
 
 **Step 2.** AppDelegate.applicationDidFinishLaunching constructs the real stack, calls `await scheduler.start()`. SwiftUI commands modifier installs DebugMenu.
 
-**Step 3.** Manual smoke (record in `phase-1-report.md`): launch app on a fresh DB; observe `loom.sqlite` populated; observe `[sync]` log lines every 60s.
+**Step 3.** Manual smoke (record in `phase-1-report.md`): launch app on a fresh DB; observe `yggdrasil.sqlite` populated; observe `[sync]` log lines every 60s.
 
 **Step 4 + 5.** Tests green; commit `feat(sync): scheduler + debug menu + app wiring`.
 

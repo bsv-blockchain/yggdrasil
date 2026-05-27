@@ -1,4 +1,4 @@
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 /// Capture the durations passed to the injected sleep closure so tests can verify

@@ -1,10 +1,10 @@
 import GRDB
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 final class MigrationsTests: XCTestCase {
     func testV1CreatesAllRequiredTables() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let tables = try db.queue.read { db in
             try String.fetchAll(
                 db,
@@ -21,7 +21,7 @@ final class MigrationsTests: XCTestCase {
     }
 
     func testRepoUniqueConstraintOnOwnerName() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         try db.queue.write { db in
             var first = Repo(
                 id: nil,
@@ -47,7 +47,7 @@ final class MigrationsTests: XCTestCase {
     }
 
     func testTaskRoundTripWithAssignees() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let now = Date(timeIntervalSince1970: 1_700_000_000)
 
         try db.queue.write { db in
@@ -58,7 +58,7 @@ final class MigrationsTests: XCTestCase {
             try repo.insert(db)
             let repoID = repo.id!
 
-            var task = LoomTask(
+            var task = YggdrasilTask(
                 id: nil, repoID: repoID, type: .pullRequest, number: 655,
                 title: "Add diff engine", body: "PR body…",
                 state: .open, authorLogin: "sigi",
@@ -84,7 +84,7 @@ final class MigrationsTests: XCTestCase {
     }
 
     func testTaskUniqueOnRepoTypeNumber() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         try db.queue.write { db in
             var repo = Repo(
@@ -94,7 +94,7 @@ final class MigrationsTests: XCTestCase {
             try repo.insert(db)
             let repoID = repo.id!
 
-            var task = LoomTask(
+            var task = YggdrasilTask(
                 id: nil, repoID: repoID, type: .issue, number: 1,
                 title: "t", body: nil, state: .open, authorLogin: "a",
                 githubURL: "u", apiURL: "u",
@@ -104,7 +104,7 @@ final class MigrationsTests: XCTestCase {
             try task.insert(db)
         }
         XCTAssertThrowsError(try db.queue.write { db in
-            var dup = LoomTask(
+            var dup = YggdrasilTask(
                 id: nil, repoID: 1, type: .issue, number: 1,
                 title: "t2", body: nil, state: .open, authorLogin: "a",
                 githubURL: "u", apiURL: "u",
@@ -116,7 +116,7 @@ final class MigrationsTests: XCTestCase {
     }
 
     func testDeletingRepoCascadesToTasksAndAssignees() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         try db.queue.write { db in
             var repo = Repo(
@@ -126,7 +126,7 @@ final class MigrationsTests: XCTestCase {
             try repo.insert(db)
             let repoID = repo.id!
 
-            var task = LoomTask(
+            var task = YggdrasilTask(
                 id: nil, repoID: repoID, type: .issue, number: 1,
                 title: "t", body: nil, state: .open, authorLogin: "a",
                 githubURL: "u", apiURL: "u",
@@ -138,14 +138,14 @@ final class MigrationsTests: XCTestCase {
 
             try repo.delete(db)
         }
-        let taskCount = try db.queue.read { db in try LoomTask.fetchCount(db) }
+        let taskCount = try db.queue.read { db in try YggdrasilTask.fetchCount(db) }
         let assigneeCount = try db.queue.read { db in try TaskAssignee.fetchCount(db) }
         XCTAssertEqual(taskCount, 0)
         XCTAssertEqual(assigneeCount, 0)
     }
 
     func testGitHubStatusRoundTrip() throws {
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let status = try db.queue.write { db -> GitHubStatus in
             var repo = Repo(
@@ -154,7 +154,7 @@ final class MigrationsTests: XCTestCase {
             )
             try repo.insert(db)
 
-            var task = LoomTask(
+            var task = YggdrasilTask(
                 id: nil, repoID: repo.id!, type: .pullRequest, number: 1,
                 title: "t", body: nil, state: .open, authorLogin: "a",
                 githubURL: "u", apiURL: "u",

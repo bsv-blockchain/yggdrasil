@@ -2,7 +2,7 @@
 
 Date: 2026-05-27
 Branch: `main`
-Spec reference: `loom-spec.md` §Phase 3 (post-update commit `45d5b6a`)
+Spec reference: `yggdrasil-spec.md` §Phase 3 (post-update commit `45d5b6a`)
 
 ---
 
@@ -10,21 +10,21 @@ Spec reference: `loom-spec.md` §Phase 3 (post-update commit `45d5b6a`)
 
 The full Phase 3 stack:
 
-### Storage (`Loom/Core/Storage`, `Loom/Core/Models`)
+### Storage (`Yggdrasil/Core/Storage`, `Yggdrasil/Core/Models`)
 - **Migration v2** appends three tables: `coding_agent`, `tab`, `session_state`.
 - Seeds the default Claude profile on v2 apply: `{ name: "Claude", command: "claude", args: ["--dangerously-skip-permissions"], is_default: 1, position: 0 }`.
 - `CodingAgent`, `Tab`, `SessionState` GRDB models with `args`/`agentArgs` stored as JSON-string columns (custom Codable impls so callers see `[String]`).
 - `CodingAgentStore` — list (ordered by position) / get / getDefault / add / remove / setDefault (atomic clear-all-then-set) / update (in-place rename / command / args, bumps `updated_at`).
 - `SessionStateStore` — get / start (upsert: resets pty_started_at, clears exit code) / end (records exit code + pty_ended_at).
 
-### Terminal core (`Loom/Core/Terminal`)
+### Terminal core (`Yggdrasil/Core/Terminal`)
 - **`OutputRingBuffer`** — fixed-capacity byte ring. `makeAgentOutputRing()` returns the spec's 4KB default.
 - **`CodingAgentRunner`** — headless lifecycle owner. Wraps `SwiftTerm.LocalProcess`. Spawns via `/bin/sh -c 'cd "<cwd>" && exec <cmd> <args>'` (non-interactive shell purely to provide cwd, since bare `LocalProcess` doesn't accept it). Records `session_state.start` on spawn and `session_state.end` on processTerminated. `terminate(graceful:)` sends SIGTERM (with a SIGKILL fallback after `killAfter`) or SIGKILL outright. Async `waitUntilExited(timeout:)` for tests.
 
-### UI (`Loom/Features/MainPane`, `Loom/App`)
+### UI (`Yggdrasil/Features/MainPane`, `Yggdrasil/App`)
 - **`AgentTerminalSurface`** — `NSViewRepresentable` over `SwiftTerm.LocalProcessTerminalView`. Spawns via the view's native `startProcess(executable:, args:, currentDirectory:)` — cleaner than the headless runner's shell wrap because the view's startProcess accepts cwd directly. Coordinator implements `LocalProcessTerminalViewDelegate`: writes `session_state` transitions, captures 4KB of output, registers/unregisters its PID with `SessionsModel`, and sends SIGTERM + delayed-SIGKILL on dismantle.
 - **`SessionsModel`** (@Observable) — `[OpenSession]` (tab id, display name, cwd, command, args) + `selectedID` + a `tabID → pid_t` registry of live agents for the ⌘Q sweep.
-- **`SessionsView`** in `LoomApp.swift` — a horizontal tabs strip across the top and a `ZStack` body that hosts EVERY open session's `AgentTerminalSurface` simultaneously (opacity-toggled per selection) so PTYs survive tab-switching. Empty state when no sessions exist.
+- **`SessionsView`** in `YggdrasilApp.swift` — a horizontal tabs strip across the top and a `ZStack` body that hosts EVERY open session's `AgentTerminalSurface` simultaneously (opacity-toggled per selection) so PTYs survive tab-switching. Empty state when no sessions exist.
 - **`DebugMenu`** grew four new items: **Add Agent…** (name+command+args prompt), **Remove Agent…**, **Set Default Agent…**, and **+ New Session…** (⇧⌘N — prompts for worktree path + agent profile, inserts a Tab row, appends an `OpenSession`).
 
 ### App wiring
@@ -73,14 +73,14 @@ Spec AC #7 says the previous session's exit code + agent command must be visible
 
 ## 4. How to verify (manual smoke)
 
-1. `make build` then launch the resulting `Loom.app` (`open ~/Library/Developer/Xcode/DerivedData/Loom-*/Build/Products/Debug/Loom.app`).
-2. Loom window opens with the empty-state placeholder ("No sessions yet").
-3. Open Console.app filtered to subsystem `com.bsvassociation.loom` to see the live logs.
+1. `make build` then launch the resulting `Yggdrasil.app` (`open ~/Library/Developer/Xcode/DerivedData/Yggdrasil-*/Build/Products/Debug/Yggdrasil.app`).
+2. Yggdrasil window opens with the empty-state placeholder ("No sessions yet").
+3. Open Console.app filtered to subsystem `com.bsvassociation.yggdrasil` to see the live logs.
 4. **Debug → + New Session…** Enter a worktree path (any directory you have) and pick "Claude" from the dropdown. Click Start. The terminal surface appears and runs `claude --dangerously-skip-permissions` in that cwd. The Claude prompt should be visible within ~2s. _AC #3._
 5. Open four more sessions in four different worktree paths. Tab strip shows all five; clicking switches. _ACs #4, #9 (try ⌘C/⌘V/scrollback in any tab)._ Each tab's first agent output should reflect its own cwd. _AC #5._
 6. **Debug → Add Agent…** Enter Codex / `codex` / (args optional). Then **Debug → Set Default Agent…** Pick Codex. Open a new session — the default selection in the prompt should now be Codex. _AC #2._
-7. Quit Loom (⌘Q). Within 5s, `ps -ef | grep claude` (or whichever agent) should show no leftover agent processes. _AC #6._
-8. Relaunch Loom. `sqlite3 ~/Library/Application\ Support/Loom/loom.sqlite "SELECT tab_id, agent_command, last_known_exit_code FROM session_state;"` should show exit codes for the previous run. _AC #7._
+7. Quit Yggdrasil (⌘Q). Within 5s, `ps -ef | grep claude` (or whichever agent) should show no leftover agent processes. _AC #6._
+8. Relaunch Yggdrasil. `sqlite3 ~/Library/Application\ Support/Yggdrasil/yggdrasil.sqlite "SELECT tab_id, agent_command, last_known_exit_code FROM session_state;"` should show exit codes for the previous run. _AC #7._
 
 ---
 

@@ -1,5 +1,5 @@
 import Foundation
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 final class DiffEngineTests: XCTestCase {

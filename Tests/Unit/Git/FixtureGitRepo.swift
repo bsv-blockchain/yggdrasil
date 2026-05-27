@@ -1,5 +1,5 @@
 import Foundation
-@testable import Loom
+@testable import Yggdrasil
 
 /// Sets up a real on-disk git repo for tests that need to exercise the worktree
 /// machinery against an actual `git` process.
@@ -17,7 +17,7 @@ struct FixtureGitRepo {
     let repo: Repo
 
     static func create(named name: String = "fixture") async throws -> FixtureGitRepo {
-        let parent = try makeTempDir(prefix: "loom-fixture-\(name)-")
+        let parent = try makeTempDir(prefix: "yggdrasil-fixture-\(name)-")
         let repoURL = parent.appendingPathComponent(name)
         try FileManager.default.createDirectory(at: repoURL, withIntermediateDirectories: true)
 
@@ -25,8 +25,8 @@ struct FixtureGitRepo {
         // git init -b main
         _ = try await runner.runOrThrow(args: ["init", "-b", "main"], cwd: repoURL)
         // identity (required for commit)
-        _ = try await runner.runOrThrow(args: ["config", "user.email", "fixture@loom.test"], cwd: repoURL)
-        _ = try await runner.runOrThrow(args: ["config", "user.name", "Loom Fixture"], cwd: repoURL)
+        _ = try await runner.runOrThrow(args: ["config", "user.email", "fixture@yggdrasil.test"], cwd: repoURL)
+        _ = try await runner.runOrThrow(args: ["config", "user.name", "Yggdrasil Fixture"], cwd: repoURL)
         // empty initial commit
         _ = try await runner.runOrThrow(
             args: ["commit", "--allow-empty", "-m", "init"], cwd: repoURL

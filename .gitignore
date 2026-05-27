@@ -19,11 +19,11 @@ xcuserdata/
 .build/
 Packages/
 # Note: do NOT ignore Package.resolved — for an Xcode app we commit the resolved
-# manifest at Loom.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+# manifest at Yggdrasil.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 # so CI builds against pinned versions.
 
-# Loom runtime data
-~/Library/Application Support/Loom/
+# Yggdrasil runtime data
+~/Library/Application Support/Yggdrasil/
 
 # Logs
 *.log

@@ -1,4 +1,4 @@
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 /// Counts how many times the scheduler's action has fired and lets tests await a target count.

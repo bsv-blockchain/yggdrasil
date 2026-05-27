@@ -2,7 +2,7 @@
 
 Date: 2026-05-27
 Branch: `main`
-Spec reference: `loom-spec.md` §Phase 5 (lines 376–397)
+Spec reference: `yggdrasil-spec.md` §Phase 5 (lines 376–397)
 
 ---
 
@@ -12,7 +12,7 @@ The right-hand pane of the main window. Each tab gets a three-way
 segmented control (Terminal · GitHub · Diff[disabled]) and the
 infrastructure to host them.
 
-### `Loom/Features/MainPane`
+### `Yggdrasil/Features/MainPane`
 - **`MainPaneView`** — the segment-switching shell. Persists the per-tab
   choice into `tab.last_main_view` via `TabStore.setLastMainView`.
   Applies the spec's default-view rule on first open (GitHub for
@@ -41,7 +41,7 @@ infrastructure to host them.
   live `SettingsStore`).
 - **`TabStore.setLastMainView(id:view:)`** — single-row UPDATE that also
   touches `last_active_at`.
-- **`LoomApp.SidebarSessionsLayout`** main pane now picks the selected
+- **`YggdrasilApp.SidebarSessionsLayout`** main pane now picks the selected
   tab off `TabsModel`, renders `MainPaneView` for it, or falls back to
   the existing empty/no-session states.
 - **`MainPaneView.ensureSessionForSelectedTab()`** — auto-spawns the
@@ -50,9 +50,9 @@ infrastructure to host them.
   `OpenSession`; `AgentTerminalSurface` mounts and spawns the agent.
 
 ### Rename
-- `struct Tab` → `struct LoomTab` everywhere it was used as a type.
+- `struct Tab` → `struct YggdrasilTab` everywhere it was used as a type.
   macOS 15+ SwiftUI introduces `SwiftUI.Tab` (new TabView DSL) which
-  shadowed our model. Same pattern as the Phase 1 `LoomTask` rename.
+  shadowed our model. Same pattern as the Phase 1 `YggdrasilTask` rename.
   Database table name stays `tab`.
 
 ---
@@ -85,14 +85,14 @@ stored in the `setting` table; the on-disk bytes live under
 `~/Library/WebKit/<bundle>/WebsiteData/<uuid>/`. Adding a test that
 sets a cookie, tears down the pool, re-instantiates, and reads back
 is plausible but takes a long time per run (WKWebView spin-up) and
-ultimately tests WebKit's contract, not Loom's. If you'd rather have
+ultimately tests WebKit's contract, not Yggdrasil's. If you'd rather have
 it, happy to add in a follow-up.
 
 ### 3.2 Offline placeholder is partial
 Spec AC #7 calls for a "friendly error" in the GitHub sub-pane on
 offline. Currently `WKWebView` shows its built-in error chrome inside
-the failed pane and we log the failure to `LoomLog.ui.warning`. A
-custom Loom-themed placeholder over the failed page is a small polish
+the failed pane and we log the failure to `YggdrasilLog.ui.warning`. A
+custom Yggdrasil-themed placeholder over the failed page is a small polish
 item — open question §5.
 
 ### 3.3 Terminal default for tabs that have used the terminal
@@ -140,7 +140,7 @@ inspect). Visual + end-to-end manual smoke.
 1. **Cookie-jar automated test** — add it as a slow integration test or
    trust WebKit's documented contract?
 2. **Custom offline placeholder** — replace WebKit's built-in chrome
-   with a Loom-themed "Couldn't reach GitHub" panel? Defer to Phase 8?
+   with a Yggdrasil-themed "Couldn't reach GitHub" panel? Defer to Phase 8?
 3. **Instruments traces for AC #6** — record formal 20-tab thrash leak
    traces, or defer to Phase 8 polish?
 

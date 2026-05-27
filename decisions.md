@@ -26,11 +26,11 @@ Design decisions made during the build that weren't in the spec, with rationale 
 
 ---
 
-## 2026-05-26 — Use XcodeGen to manage `Loom.xcodeproj`
+## 2026-05-26 — Use XcodeGen to manage `Yggdrasil.xcodeproj`
 
 **Spec §2 says:** *"Build | Xcode project committed."* but doesn't specify how to author/maintain `project.pbxproj`.
 
-**Decision.** Author `project.yml` in repo root; `xcodegen generate` produces `Loom.xcodeproj`. Both the YAML and the generated project are committed; regeneration is idempotent.
+**Decision.** Author `project.yml` in repo root; `xcodegen generate` produces `Yggdrasil.xcodeproj`. Both the YAML and the generated project are committed; regeneration is idempotent.
 
 **Rationale.** Hand-editing pbxproj across SwiftPM dep changes is fragile. XcodeGen is a single binary (`brew install xcodegen`), produces reviewable YAML diffs, and is the de-facto standard for Swift-monorepos that want reproducible projects. Tuist was considered and rejected as overkill for one app target.
 
@@ -44,7 +44,7 @@ Design decisions made during the build that weren't in the spec, with rationale 
 
 **Decision.** `com.apple.security.app-sandbox = false`. The other Phase 0 entitlements: `network.client = true`, `files.user-selected.read-write = true`.
 
-**Rationale.** Loom must spawn arbitrary user-chosen executables (`gh`, `git`, `zsh`, `claude`) and access user-owned git checkouts at arbitrary paths under `~`. App Sandbox cannot model "any directory the user clones a repo into" without bookmark gymnastics on every path. Disabling sandbox is the correct posture for a developer power-tool; we sign with Developer ID and notarise in Phase 8 to retain Gatekeeper acceptance.
+**Rationale.** Yggdrasil must spawn arbitrary user-chosen executables (`gh`, `git`, `zsh`, `claude`) and access user-owned git checkouts at arbitrary paths under `~`. App Sandbox cannot model "any directory the user clones a repo into" without bookmark gymnastics on every path. Disabling sandbox is the correct posture for a developer power-tool; we sign with Developer ID and notarise in Phase 8 to retain Gatekeeper acceptance.
 
 **Trade-offs.** No Mac App Store distribution path (acceptable per spec §6: out of scope). Hardened runtime stays enabled so we keep the security floor.
 

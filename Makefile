@@ -1,4 +1,4 @@
-# Loom — top-level developer commands.
+# Yggdrasil — top-level developer commands.
 #
 # Tools required on the dev box (install once):
 #   brew install xcodegen swiftlint swiftformat libgit2
@@ -7,8 +7,8 @@
 #
 # CI installs the same via .github/workflows/ci.yml.
 
-PROJECT      := Loom.xcodeproj
-SCHEME       := Loom
+PROJECT      := Yggdrasil.xcodeproj
+SCHEME       := Yggdrasil
 DESTINATION  := platform=macOS
 
 .PHONY: all build test lint format project clean help install-tools
@@ -17,11 +17,11 @@ all: build
 
 help:
 	@echo "Targets:"
-	@echo "  build          - xcodebuild build the Loom scheme"
-	@echo "  test           - xcodebuild test the Loom scheme"
-	@echo "  lint           - swiftlint --strict over Loom/ and Tests/"
-	@echo "  format         - swiftformat in-place over Loom/ and Tests/"
-	@echo "  project        - regenerate Loom.xcodeproj from project.yml"
+	@echo "  build          - xcodebuild build the Yggdrasil scheme"
+	@echo "  test           - xcodebuild test the Yggdrasil scheme"
+	@echo "  lint           - swiftlint --strict over Yggdrasil/ and Tests/"
+	@echo "  format         - swiftformat in-place over Yggdrasil/ and Tests/"
+	@echo "  project        - regenerate Yggdrasil.xcodeproj from project.yml"
 	@echo "  install-tools  - brew-install required dev tooling"
 	@echo "  clean          - xcodebuild clean + remove build/"
 

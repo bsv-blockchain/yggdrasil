@@ -1,5 +1,5 @@
 import Foundation
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 /// Test-only `HTTPClient` impl that returns canned bodies / statuses.
@@ -34,7 +34,7 @@ final class CannedHTTPClient: HTTPClient, @unchecked Sendable {
 }
 
 /// Utility for loading bundled JSON fixtures. The Fixtures directory is bundled
-/// as a folder-reference resource (see project.yml LoomTests target).
+/// as a folder-reference resource (see project.yml YggdrasilTests target).
 enum Fixtures {
     static func data(_ name: String) throws -> Data {
         let bundle = Bundle(for: RESTClientTests.self)

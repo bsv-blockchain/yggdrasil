@@ -1,17 +1,17 @@
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
-/// Hits the real GitHub API. Guarded by LOOM_TEST_GITHUB_TOKEN — runs only when the
+/// Hits the real GitHub API. Guarded by YGGDRASIL_TEST_GITHUB_TOKEN — runs only when the
 /// env var is set. CI feeds it from a repo secret; local devs can `export` their own
 /// `gh auth token` value to exercise this path.
 final class GitHubLiveSyncIntegrationTests: XCTestCase {
     func testRealAssignedIssuesFetchReturnsArray() async throws {
-        guard let token = ProcessInfo.processInfo.environment["LOOM_TEST_GITHUB_TOKEN"],
+        guard let token = ProcessInfo.processInfo.environment["YGGDRASIL_TEST_GITHUB_TOKEN"],
               !token.isEmpty else {
-            throw XCTSkip("Set LOOM_TEST_GITHUB_TOKEN to run live GitHub integration tests")
+            throw XCTSkip("Set YGGDRASIL_TEST_GITHUB_TOKEN to run live GitHub integration tests")
         }
 
-        let db = try LoomDatabase.inMemory()
+        let db = try YggdrasilDatabase.inMemory()
         let keychain = InMemoryKeychainStore()
         try keychain.write(token, forKey: AuthService.tokenKey)
         let auth = AuthService(

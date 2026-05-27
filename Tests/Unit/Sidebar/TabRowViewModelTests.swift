@@ -1,5 +1,5 @@
 import Foundation
-@testable import Loom
+@testable import Yggdrasil
 import XCTest
 
 final class TabRowViewModelTests: XCTestCase {
@@ -11,8 +11,8 @@ final class TabRowViewModelTests: XCTestCase {
         taskID: Int64? = nil,
         branch: String = "feat/foo",
         worktree: String = "/Users/sigi/code/.worktrees/feat-foo"
-    ) -> LoomTab {
-        LoomTab(
+    ) -> YggdrasilTab {
+        YggdrasilTab(
             id: id, taskID: taskID, codingAgentID: nil, position: 0,
             branchName: branch, worktreePath: worktree,
             lastMainView: .agent, createdAt: now, lastActiveAt: now
@@ -20,11 +20,11 @@ final class TabRowViewModelTests: XCTestCase {
     }
 
     private func makeTask(
-        type: LoomTask.Kind = .pullRequest,
+        type: YggdrasilTask.Kind = .pullRequest,
         number: Int = 655,
         title: String = "Add diff engine"
-    ) -> LoomTask {
-        LoomTask(
+    ) -> YggdrasilTask {
+        YggdrasilTask(
             id: 1, repoID: 1, type: type, number: number, title: title,
             body: nil, state: .open, authorLogin: "sigi",
             githubURL: "https://github.com/o/r/pull/\(number)",
