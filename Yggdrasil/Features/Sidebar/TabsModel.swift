@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import Observation
 
 /// View-model for the sidebar. Source of truth for the persistent list of tabs.
@@ -35,9 +36,25 @@ final class TabsModel {
             // Refresh the task index for tabs that shadow a GitHub task.
             tasksByTabID = try database.queue.read { db -> [Int64: YggdrasilTask] in
                 var out: [Int64: YggdrasilTask] = [:]
+                let allRepos = try Repo.fetchAll(db)
                 for tab in self.tabs {
-                    guard let tabID = tab.id, let taskID = tab.taskID else { continue }
-                    if let task = try YggdrasilTask.fetchOne(db, key: taskID) {
+                    guard let tabID = tab.id else { continue }
+                    if let taskID = tab.taskID,
+                       let task = try YggdrasilTask.fetchOne(db, key: taskID) {
+                        out[tabID] = task
+                        continue
+                    }
+                    // Fallback: tab.taskID is nil (the user typed e.g. "pr-643"
+                    // before sync had imported the task). Match by branch-name
+                    // pattern + the repo whose localMainPath is an ancestor of
+                    // the worktree. Lets the GitHub pane light up later as sync
+                    // catches up, without needing the tab row touched.
+                    if let task = try Self.lookupTaskByBranch(
+                        branch: tab.branchName,
+                        worktreePath: tab.worktreePath,
+                        repos: allRepos,
+                        db: db
+                    ) {
                         out[tabID] = task
                     }
                 }
@@ -91,6 +108,31 @@ final class TabsModel {
         let task = tab.id.flatMap { tasksByTabID[$0] }
         let live = tab.id.flatMap { status.status(forTabID: $0) }
         return TabRowViewModel(tab: tab, task: task, liveStatus: live)
+    }
+
+    /// Lookup helper for the fallback path in `reload`. Returns the task whose
+    /// `(repo_id, number)` matches a PR/issue-style branch name like "pr-643",
+    /// scoped to the repo whose `localMainPath` is an ancestor of the
+    /// worktree. Returns nil if either the branch doesn't look like a PR ref or
+    /// no matching task has been synced yet.
+    static func lookupTaskByBranch(
+        branch: String,
+        worktreePath: String,
+        repos: [Repo],
+        db: GRDB.Database
+    ) throws -> YggdrasilTask? {
+        guard let number = NewTabSheet.parsePRNumber(branch) else { return nil }
+        // Match against the repo whose localMainPath is a directory prefix of
+        // the worktree path. Worktree convention is <repoPath>/.worktrees/<slug>.
+        let owningRepo = repos.first { repo in
+            guard let path = repo.localMainPath, !path.isEmpty else { return false }
+            let prefix = path.hasSuffix("/") ? path : path + "/"
+            return worktreePath.hasPrefix(prefix)
+        }
+        guard let owningRepo, let repoID = owningRepo.id else { return nil }
+        return try YggdrasilTask
+            .filter(Column("repo_id") == repoID && Column("number") == number)
+            .fetchOne(db)
     }
 
     /// Returns the tabs filtered by a case-insensitive substring match against the

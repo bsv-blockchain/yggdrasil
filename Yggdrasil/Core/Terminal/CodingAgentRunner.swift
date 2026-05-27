@@ -70,14 +70,13 @@ final class CodingAgentRunner: NSObject, @unchecked Sendable {
         let quotedCmd = CodingAgentRunner.shellQuote(command)
         let quotedArgs = args.map(CodingAgentRunner.shellQuote).joined(separator: " ")
         let cdAndExec = "cd \(quotedCwd) && exec \(quotedCmd) \(quotedArgs)"
-        // Spawn through the user's login shell (-l) so .zprofile/.bash_profile run
-        // and the agent inherits the same PATH the user has in Terminal. Apps
-        // launched from Finder/`open` start with a stripped /usr/bin:/bin PATH;
-        // without this, commands like `claude` (typically installed under
-        // ~/.claude/local/bin or /opt/homebrew/bin) fail with exit code 127.
-        // -l is a login shell but -c keeps it non-interactive, satisfying §2.1.
-        let loginShell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-        process.startProcess(executable: loginShell, args: ["-l", "-c", cdAndExec])
+        // Spawn through the user's login + interactive shell so .zprofile AND
+        // .zshrc both run. PATH edits and `eval $(brew shellenv)` typically
+        // live in .zshrc, which a login-only shell wouldn't read. The `-c`
+        // plus `exec` keeps the shell out of the agent's signal path while
+        // still picking up the user's PATH.
+        let userShell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        process.startProcess(executable: userShell, args: ["-l", "-i", "-c", cdAndExec])
         pid = process.shellPid
     }
 

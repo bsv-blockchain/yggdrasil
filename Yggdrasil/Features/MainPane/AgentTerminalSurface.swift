@@ -102,19 +102,19 @@ struct AgentTerminalSurface: NSViewRepresentable {
             } catch {
                 YggdrasilLog.pty.error("Failed to write session_state.start: \(String(describing: error), privacy: .public)")
             }
-            // Spawn through the user's login shell (-l) so .zprofile/.bash_profile
-            // run and the agent inherits the same PATH the user has in Terminal.
-            // Apps launched from Finder start with a minimal PATH that doesn't
-            // include agent binaries like `claude` (typically in
-            // ~/.claude/local/bin or /opt/homebrew/bin); without the login shell
-            // wrap they exit with 127 immediately. -l is a login shell but `-c`
-            // keeps it non-interactive, satisfying spec §2.1.
-            let loginShell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+            // Spawn through the user's login + interactive shell so .zprofile AND
+            // .zshrc both run, picking up PATH edits and `eval $(brew shellenv)`
+            // wherever the user keeps them. Apps launched from Finder otherwise
+            // see a stripped /usr/bin:/bin PATH and exit immediately with 127
+            // ("command not found: claude"). The `-c` plus `exec` keeps the
+            // shell out of the agent's signal path while still sourcing the
+            // user's rc files.
+            let userShell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
             let quotedCmd = CodingAgentRunner.shellQuote(command)
             let quotedArgs = args.map(CodingAgentRunner.shellQuote).joined(separator: " ")
             view.startProcess(
-                executable: loginShell,
-                args: ["-l", "-c", "exec \(quotedCmd) \(quotedArgs)"],
+                executable: userShell,
+                args: ["-l", "-i", "-c", "exec \(quotedCmd) \(quotedArgs)"],
                 environment: nil,
                 execName: nil,
                 currentDirectory: cwd
