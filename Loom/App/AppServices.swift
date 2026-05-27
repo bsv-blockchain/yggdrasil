@@ -17,6 +17,7 @@ final class AppServices {
     let agentStore: CodingAgentStore
     let sessionStore: SessionStateStore
     let tabStore: TabStore
+    let worktreeManager = WorktreeManager()
     let sessions = SessionsModel()
     let tabs: TabsModel
 

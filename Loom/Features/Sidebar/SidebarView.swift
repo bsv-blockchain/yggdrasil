@@ -3,11 +3,16 @@ import SwiftUI
 /// The sidebar. Renders the persistent tab list with selection driving the main
 /// pane. Empty state nudges the user toward "Add tracked repo".
 struct SidebarView: View {
-    let tabsModel: TabsModel
+    let services: AppServices
     let onSelect: (Int64) -> Void
+    @State private var showingNewTabSheet = false
+
+    private var tabsModel: TabsModel { services.tabs }
 
     var body: some View {
         VStack(spacing: 0) {
+            header
+            Divider()
             if tabsModel.tabs.isEmpty {
                 emptyState
             } else {
@@ -16,6 +21,30 @@ struct SidebarView: View {
         }
         .frame(minWidth: 260, idealWidth: 300, maxWidth: 360)
         .background(Color(NSColor.controlBackgroundColor))
+        .sheet(isPresented: $showingNewTabSheet) {
+            NewTabSheet(services: services)
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Text("Tabs")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            Spacer()
+            Button {
+                showingNewTabSheet = true
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("T", modifiers: [.command])
+            .help("New Tab (⌘T)")
+            .accessibilityIdentifier("sidebar.plus")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     private var tabList: some View {

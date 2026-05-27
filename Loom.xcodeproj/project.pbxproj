@@ -74,6 +74,7 @@
 		D4EC25510D3F574AA0E54374 /* LoomTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6890109E5E3076A96D71C69F /* LoomTask.swift */; };
 		DC977A348B16AF50472BE63B /* ETagStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19BF1D79E0DBAA564B3A039 /* ETagStoreTests.swift */; };
 		E5ECEBB9B7ABC39712DE0B96 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF42D22CA2F5E4B7FB58F74 /* AppServices.swift */; };
+		EB3F3E825D0F0F0601A6C074 /* NewTabSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F92F8D93AF0BB70616AD3B9 /* NewTabSheet.swift */; };
 		ED22D49A34BB2440A33F38F2 /* OutputRingBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 979884903E6B7AC7CD387EAF /* OutputRingBufferTests.swift */; };
 		EF67246D6169F891967950B1 /* HTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910F7265E64BB1FF01A716DC /* HTTPClient.swift */; };
 		F05753ED7B789D82CCE9B5C3 /* Endpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1D333E293A9B1CC752EA00 /* Endpoints.swift */; };
@@ -116,6 +117,7 @@
 		363D3DEFCC14A439C55CD6FF /* TabRowViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabRowViewModelTests.swift; sourceTree = "<group>"; };
 		364D0F8EEA347E9E53FA5531 /* BackoffRetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffRetryTests.swift; sourceTree = "<group>"; };
 		3F674F2D820F173F9971796D /* APIResponses.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponses.swift; sourceTree = "<group>"; };
+		3F92F8D93AF0BB70616AD3B9 /* NewTabSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewTabSheet.swift; sourceTree = "<group>"; };
 		409A26BB4B438DF0FC52D8B0 /* GitHubLiveSyncIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubLiveSyncIntegrationTests.swift; sourceTree = "<group>"; };
 		4516AEB75C15BFDA1D7DDB62 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		4BD191387277D1AD519F17C5 /* TaskSyncServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskSyncServiceTests.swift; sourceTree = "<group>"; };
@@ -234,6 +236,7 @@
 		2DAE33F0B58CE44064524F08 /* Sidebar */ = {
 			isa = PBXGroup;
 			children = (
+				3F92F8D93AF0BB70616AD3B9 /* NewTabSheet.swift */,
 				A75BEED72F66539358F2F980 /* SidebarView.swift */,
 				1288EF2C59AD393BA4D8AEE2 /* TabRow.swift */,
 				65F1502EFFFBEF18867A2301 /* TabRowViewModel.swift */,
@@ -625,6 +628,7 @@
 				2089433B70604764F52AB203 /* LoomLogger.swift in Sources */,
 				D4EC25510D3F574AA0E54374 /* LoomTask.swift in Sources */,
 				3980493894B456C98C4B922C /* Migrations.swift in Sources */,
+				EB3F3E825D0F0F0601A6C074 /* NewTabSheet.swift in Sources */,
 				AA1651CBA89E4B26258CE889 /* OutputRingBuffer.swift in Sources */,
 				D26959C3FF2BB50181FD5C33 /* RESTClient.swift in Sources */,
 				4ECD2C745F5DE7206449EBD8 /* Repo.swift in Sources */,

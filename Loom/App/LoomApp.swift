@@ -56,7 +56,7 @@ struct SidebarSessionsLayout: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            SidebarView(tabsModel: services.tabs) { _ in
+            SidebarView(services: services) { _ in
                 services.sessions.selectedID = services.tabs.selectedID
             }
             Divider()
