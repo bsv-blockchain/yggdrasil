@@ -47,10 +47,59 @@ struct AgentTerminalSurface: NSViewRepresentable {
 
     func makeNSView(context: Context) -> LocalProcessTerminalView {
         let view = LocalProcessTerminalView(frame: .zero)
+        AgentTerminalSurface.applyTheme(to: view)
         view.processDelegate = context.coordinator
         context.coordinator.attach(view: view)
         return view
     }
+
+    /// Apply a Terminal.app / Warp-style theme so the embedded PTY matches what
+    /// the user is used to in their normal shell:
+    /// - SF Mono 13pt (NSFont.monospacedSystemFont) — same as macOS Terminal.app
+    ///   and modern Warp/iTerm defaults.
+    /// - Dark background, off-white foreground, balanced ANSI 16 palette
+    ///   modeled on GitHub's dark theme so syntax-coloured output (claude
+    ///   transcripts, git log, etc.) renders close to Warp.
+    static func applyTheme(to view: LocalProcessTerminalView) {
+        view.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        view.nativeBackgroundColor = NSColor(red: 13.0 / 255, green: 14.0 / 255, blue: 17.0 / 255, alpha: 1)
+        view.nativeForegroundColor = NSColor(red: 232.0 / 255, green: 234.0 / 255, blue: 239.0 / 255, alpha: 1)
+        view.caretColor = NSColor(red: 70.0 / 255, green: 112.0 / 255, blue: 255.0 / 255, alpha: 1)
+        view.selectedTextBackgroundColor = NSColor(white: 1, alpha: 0.18)
+        view.useBrightColors = true
+        view.installColors(Self.ansiPalette)
+    }
+
+    /// ANSI 16-colour palette (8 normal + 8 bright). GitHub Dark-style — works
+    /// well with claude transcripts, git log/diff, and the syntax highlighting
+    /// most agent CLIs emit. SwiftTerm's `Color` wants 16-bit channels
+    /// (0...65535), so each 8-bit hex byte is multiplied by 0x101.
+    private static let ansiPalette: [SwiftTerm.Color] = {
+        let rgb: [UInt32] = [
+            0x0d0e11, // black
+            0xff7b72, // red
+            0x7ee787, // green
+            0xd29922, // yellow
+            0x58a6ff, // blue
+            0xbc8cff, // magenta
+            0x39c5cf, // cyan
+            0xb1bac4, // white
+            0x6e7681, // bright black
+            0xffa198, // bright red
+            0x56d364, // bright green
+            0xe3b341, // bright yellow
+            0x79c0ff, // bright blue
+            0xd2a8ff, // bright magenta
+            0x56d4dd, // bright cyan
+            0xf0f6fc  // bright white
+        ]
+        return rgb.map { hex in
+            let red = UInt16((hex >> 16) & 0xff) &* 0x101
+            let green = UInt16((hex >> 8) & 0xff) &* 0x101
+            let blue = UInt16(hex & 0xff) &* 0x101
+            return SwiftTerm.Color(red: red, green: green, blue: blue)
+        }
+    }()
 
     func updateNSView(_: LocalProcessTerminalView, context _: Context) {
         // Static for now — Phase 4+ will plumb resize/font changes here.
@@ -97,8 +146,15 @@ struct AgentTerminalSurface: NSViewRepresentable {
         private func startIfNeeded(in view: LocalProcessTerminalView) {
             guard !didStart else { return }
             didStart = true
+            // If Claude has prior conversation history for this worktree
+            // (transcripts under ~/.claude/projects/<encoded-cwd>/*.jsonl),
+            // append `--continue` so the agent picks up where it left off.
+            // Other agent commands fall through untouched.
+            let resolvedArgs = AgentTerminalSurface.applyResumeFlag(
+                command: command, args: args, cwd: cwd
+            )
             do {
-                _ = try sessionStore.start(tabID: tabID, cwd: cwd, command: command, args: args)
+                _ = try sessionStore.start(tabID: tabID, cwd: cwd, command: command, args: resolvedArgs)
             } catch {
                 YggdrasilLog.pty.error("Failed to write session_state.start: \(String(describing: error), privacy: .public)")
             }
@@ -111,7 +167,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
             // user's rc files.
             let userShell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
             let quotedCmd = CodingAgentRunner.shellQuote(command)
-            let quotedArgs = args.map(CodingAgentRunner.shellQuote).joined(separator: " ")
+            let quotedArgs = resolvedArgs.map(CodingAgentRunner.shellQuote).joined(separator: " ")
             view.startProcess(
                 executable: userShell,
                 args: ["-l", "-i", "-c", "exec \(quotedCmd) \(quotedArgs)"],
@@ -160,6 +216,45 @@ struct AgentTerminalSurface: NSViewRepresentable {
             sessions?.unregisterLivePID(for: tabID)
             YggdrasilLog.pty.info("Agent pid=\(self.pid, privacy: .public) exited code=\(resolved, privacy: .public)")
         }
+    }
+
+    /// Append the agent-specific resume flag to `args` when there's a prior
+    /// conversation for this cwd. Currently Claude-aware only: `claude
+    /// --continue` resumes the most recent conversation in the cwd, but
+    /// errors out (exit 1) when no transcript exists. Checking the
+    /// session_state row isn't enough — claude stores its history under
+    /// `~/.claude/projects/<encoded-cwd>/*.jsonl`, and that's where we look.
+    /// Pure for testability.
+    static func applyResumeFlag(
+        command: String,
+        args: [String],
+        cwd: String,
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
+        directoryContents: (String) -> [String]? = {
+            try? FileManager.default.contentsOfDirectory(atPath: $0)
+        }
+    ) -> [String] {
+        let lowerCmd = command.lowercased()
+        guard lowerCmd.contains("claude") else { return args }
+        // Don't double-up if the user already set the flag.
+        if args.contains("--continue") || args.contains("-c") || args.contains("--resume") {
+            return args
+        }
+        // claude maps cwd → ~/.claude/projects/<encoded>/ where the encoding
+        // replaces every `/` and `.` with a `-`. So
+        //   /Users/me/checkout/.worktrees/pr-643
+        // becomes
+        //   -Users-me-checkout--worktrees-pr-643
+        let encoded = cwd
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ".", with: "-")
+        let home = NSHomeDirectory()
+        let projectDir = "\(home)/.claude/projects/\(encoded)"
+        guard fileExists(projectDir),
+              let entries = directoryContents(projectDir),
+              entries.contains(where: { $0.hasSuffix(".jsonl") })
+        else { return args }
+        return args + ["--continue"]
     }
 
     /// Same `/bin/sh -c 'cd "<cwd>" && exec <cmd> <args>...'` invocation as
