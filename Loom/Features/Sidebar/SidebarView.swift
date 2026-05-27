@@ -12,7 +12,7 @@ struct SidebarView: View {
 
     private var tabsModel: TabsModel { services.tabs }
 
-    private var filteredTabs: [Tab] {
+    private var filteredTabs: [LoomTab] {
         tabsModel.filtered(by: debouncedQuery)
     }
 
@@ -99,7 +99,7 @@ struct SidebarView: View {
             }
             .buttonStyle(.plain)
             .keyboardShortcut("T", modifiers: [.command])
-            .help("New Tab (⌘T)")
+            .help("New LoomTab (⌘T)")
             .accessibilityIdentifier("sidebar.plus")
         }
         .padding(.horizontal, 12)
@@ -142,7 +142,7 @@ struct SidebarView: View {
     }
 
     @ViewBuilder
-    private func contextMenu(for tab: Tab) -> some View {
+    private func contextMenu(for tab: LoomTab) -> some View {
         Button("Open in Finder") {
             SidebarActions.openInFinder(path: tab.worktreePath)
         }

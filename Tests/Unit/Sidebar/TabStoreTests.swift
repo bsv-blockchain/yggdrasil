@@ -65,6 +65,14 @@ final class TabStoreTests: XCTestCase {
         XCTAssertNoThrow(try store.reorder(ids: [two.id!, one.id!]))
     }
 
+    func testSetLastMainViewPersists() throws {
+        let one = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
+        XCTAssertEqual(one.lastMainView, .agent)
+        try store.setLastMainView(id: one.id!, view: .github)
+        let refetched = try XCTUnwrap(try store.get(id: one.id!))
+        XCTAssertEqual(refetched.lastMainView, .github)
+    }
+
     func testTouchLastActiveAtUpdatesTimestamp() throws {
         let one = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let before = one.lastActiveAt

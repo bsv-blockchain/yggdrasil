@@ -15,7 +15,7 @@ final class SessionStateStoreTests: XCTestCase {
 
     private func makeTab() throws -> Int64 {
         try db.queue.write { db in
-            var tab = Tab(
+            var tab = LoomTab(
                 id: nil, taskID: nil, codingAgentID: nil, position: 0,
                 branchName: "scratch", worktreePath: "/tmp/scratch",
                 lastMainView: .agent, createdAt: Date(), lastActiveAt: Date()

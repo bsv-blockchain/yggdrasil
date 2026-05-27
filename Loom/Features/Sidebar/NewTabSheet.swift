@@ -19,7 +19,7 @@ struct NewTabSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("New Tab").font(.title2).bold()
+            Text("New LoomTab").font(.title2).bold()
 
             row(label: "Repo") {
                 Picker("", selection: $selectedRepoID) {
@@ -55,7 +55,7 @@ struct NewTabSheet: View {
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Open Tab") { Task { await confirm() } }
+                Button("Open LoomTab") { Task { await confirm() } }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canConfirm)
             }

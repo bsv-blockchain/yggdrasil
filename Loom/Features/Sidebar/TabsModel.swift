@@ -6,7 +6,7 @@ import Observation
 /// keyed by tab id.
 @Observable
 final class TabsModel {
-    var tabs: [Tab] = []
+    var tabs: [LoomTab] = []
     /// Cache: tabID → linked LoomTask (filled when a tab.taskID is non-nil).
     var tasksByTabID: [Int64: LoomTask] = [:]
     var selectedID: Int64?
@@ -59,7 +59,7 @@ final class TabsModel {
         }
     }
 
-    func model(for tab: Tab) -> TabRowViewModel {
+    func model(for tab: LoomTab) -> TabRowViewModel {
         let task = tab.id.flatMap { tasksByTabID[$0] }
         return TabRowViewModel(tab: tab, task: task)
     }
@@ -67,7 +67,7 @@ final class TabsModel {
     /// Returns the tabs filtered by a case-insensitive substring match against the
     /// row's titleLine (task title or branch fallback) and branchName. Returns the
     /// full list when `query` is empty after trimming.
-    func filtered(by query: String) -> [Tab] {
+    func filtered(by query: String) -> [LoomTab] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return tabs }
         let needle = trimmed.lowercased()

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Window-wide keyboard shortcuts for sidebar navigation. Installed under the
-/// "Tab" menu so they show up in the menu bar and aren't tied to sidebar focus.
+/// "LoomTab" menu so they show up in the menu bar and aren't tied to sidebar focus.
 ///
 /// - ⌥↑ / ⌥↓ — move selection up/down
 /// - ⌘W — close the selected tab (with confirm)
@@ -12,7 +12,7 @@ struct TabCommands: Commands {
     }
 
     var body: some Commands {
-        CommandMenu("Tab") {
+        CommandMenu("LoomTab") {
             Button("Previous") {
                 services?.tabs.moveSelection(by: -1)
                 if let id = services?.tabs.selectedID {
@@ -31,7 +31,7 @@ struct TabCommands: Commands {
 
             Divider()
 
-            Button("Close Tab…") {
+            Button("Close LoomTab…") {
                 guard let services, let id = services.tabs.selectedID else { return }
                 SidebarActions.removeTab(id: id, services: services)
             }

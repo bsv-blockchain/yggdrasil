@@ -3,7 +3,7 @@ import Foundation
 import Observation
 
 /// One open session in Phase 3's debug UI. Phase 4+ will replace this with proper
-/// `Tab` rows driven by the sidebar.
+/// `LoomTab` rows driven by the sidebar.
 struct OpenSession: Identifiable, Hashable {
     let id: Int64                // tab id
     let displayName: String      // e.g. "Claude · feat/foo"
@@ -21,7 +21,7 @@ final class SessionsModel {
     var selectedID: Int64?
 
     /// `AgentTerminalSurface.Coordinator` registers its PID here so app-quit
-    /// can iterate and SIGTERM every live agent. Tab id → PID.
+    /// can iterate and SIGTERM every live agent. LoomTab id → PID.
     private var livePIDs: [Int64: pid_t] = [:]
 
     func add(_ session: OpenSession) {

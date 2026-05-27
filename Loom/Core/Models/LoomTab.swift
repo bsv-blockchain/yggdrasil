@@ -3,7 +3,7 @@ import GRDB
 
 /// One row in Loom's sidebar (Phase 4+ paints the UI; Phase 3 just persists).
 /// May or may not be linked to a GitHub task and/or a coding-agent profile.
-struct Tab: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
+struct LoomTab: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
     static let databaseTableName = "tab"
 
     enum MainView: String, Codable {

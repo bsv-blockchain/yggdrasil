@@ -26,7 +26,7 @@ struct TabRowViewModel: Equatable {
     let trailingBadge: TrailingBadge
 
     /// `task == nil` for ad-hoc tabs that don't shadow a GitHub issue/PR.
-    init(tab: Tab, task: LoomTask?, maxWorktreeChars: Int = 50) {
+    init(tab: LoomTab, task: LoomTask?, maxWorktreeChars: Int = 50) {
         if let task {
             titleLine = task.title
             switch task.type {

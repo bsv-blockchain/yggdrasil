@@ -44,14 +44,14 @@ final class MigrationV2Tests: XCTestCase {
         // Insert a tab with both FKs nil (ad-hoc tab not tied to a task or agent yet).
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         try db.queue.write { db in
-            var tab = Tab(
+            var tab = LoomTab(
                 id: nil, taskID: nil, codingAgentID: nil, position: 0,
                 branchName: "scratch", worktreePath: "/tmp/scratch",
                 lastMainView: .agent, createdAt: now, lastActiveAt: now
             )
             try tab.insert(db)
         }
-        let count = try db.queue.read { db in try Tab.fetchCount(db) }
+        let count = try db.queue.read { db in try LoomTab.fetchCount(db) }
         XCTAssertEqual(count, 1)
     }
 
@@ -67,7 +67,7 @@ final class MigrationV2Tests: XCTestCase {
             try agent.insert(db)
             let agentID = agent.id!
 
-            var tab = Tab(
+            var tab = LoomTab(
                 id: nil, taskID: nil, codingAgentID: agentID, position: 0,
                 branchName: "scratch", worktreePath: "/tmp/scratch",
                 lastMainView: .agent, createdAt: now, lastActiveAt: now
@@ -76,8 +76,8 @@ final class MigrationV2Tests: XCTestCase {
 
             try agent.delete(db)
         }
-        // Tab should still exist, with coding_agent_id set to NULL.
-        let tab = try db.queue.read { db in try Tab.fetchOne(db) }
+        // LoomTab should still exist, with coding_agent_id set to NULL.
+        let tab = try db.queue.read { db in try LoomTab.fetchOne(db) }
         XCTAssertNotNil(tab)
         XCTAssertNil(tab?.codingAgentID, "deleting an agent must null the tab reference, not cascade")
     }
@@ -86,7 +86,7 @@ final class MigrationV2Tests: XCTestCase {
         let db = try LoomDatabase.inMemory()
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         try db.queue.write { db in
-            var tab = Tab(
+            var tab = LoomTab(
                 id: nil, taskID: nil, codingAgentID: nil, position: 0,
                 branchName: "scratch", worktreePath: "/tmp/scratch",
                 lastMainView: .agent, createdAt: now, lastActiveAt: now

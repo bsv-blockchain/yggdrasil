@@ -12,7 +12,7 @@ final class CodingAgentRunnerTests: XCTestCase {
         sessionStore = SessionStateStore(database: db)
         // Create a tab row to associate sessions with.
         tabID = try db.queue.write { db in
-            var tab = Tab(
+            var tab = LoomTab(
                 id: nil, taskID: nil, codingAgentID: nil, position: 0,
                 branchName: "scratch", worktreePath: NSTemporaryDirectory(),
                 lastMainView: .agent, createdAt: Date(), lastActiveAt: Date()

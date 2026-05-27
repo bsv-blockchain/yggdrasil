@@ -11,8 +11,8 @@ final class TabRowViewModelTests: XCTestCase {
         taskID: Int64? = nil,
         branch: String = "feat/foo",
         worktree: String = "/Users/sigi/code/.worktrees/feat-foo"
-    ) -> Tab {
-        Tab(
+    ) -> LoomTab {
+        LoomTab(
             id: id, taskID: taskID, codingAgentID: nil, position: 0,
             branchName: branch, worktreePath: worktree,
             lastMainView: .agent, createdAt: now, lastActiveAt: now

@@ -67,31 +67,13 @@ struct SidebarSessionsLayout: View {
 
     @ViewBuilder
     private var mainPane: some View {
-        if services.sessions.sessions.isEmpty {
+        if let selectedID = services.tabs.selectedID,
+           let selectedTab = services.tabs.tabs.first(where: { $0.id == selectedID }) {
+            MainPaneView(services: services, selectedTab: selectedTab)
+        } else if services.tabs.tabs.isEmpty {
             emptyMainPane
         } else {
-            // All open sessions in a ZStack so PTYs survive selection changes.
-            // Only the selected one renders visible.
-            ZStack {
-                ForEach(services.sessions.sessions) { session in
-                    AgentTerminalSurface(
-                        tabID: session.id,
-                        cwd: session.cwd,
-                        command: session.command,
-                        args: session.args,
-                        sessionStore: services.sessionStore,
-                        sessions: services.sessions
-                    )
-                    .id(session.id)
-                    .opacity(services.sessions.selectedID == session.id ? 1 : 0)
-                    .allowsHitTesting(services.sessions.selectedID == session.id)
-                }
-                if services.sessions.selectedID == nil
-                    || !services.sessions.sessions
-                    .contains(where: { $0.id == services.sessions.selectedID }) {
-                    selectedTabHasNoSession
-                }
-            }
+            selectedTabHasNoSession
         }
     }
 

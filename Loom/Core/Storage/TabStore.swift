@@ -12,14 +12,14 @@ enum TabStoreError: Error, Equatable {
 struct TabStore {
     let database: LoomDatabase
 
-    func list() throws -> [Tab] {
+    func list() throws -> [LoomTab] {
         try database.queue.read { db in
-            try Tab.fetchAll(db, sql: "SELECT * FROM tab ORDER BY position ASC, id ASC")
+            try LoomTab.fetchAll(db, sql: "SELECT * FROM tab ORDER BY position ASC, id ASC")
         }
     }
 
-    func get(id: Int64) throws -> Tab? {
-        try database.queue.read { db in try Tab.fetchOne(db, key: id) }
+    func get(id: Int64) throws -> LoomTab? {
+        try database.queue.read { db in try LoomTab.fetchOne(db, key: id) }
     }
 
     /// Inserts a new tab at the end (position = max(position) + 1). Returns the
@@ -30,13 +30,13 @@ struct TabStore {
         worktreePath: String,
         agentID: Int64?,
         taskID: Int64?
-    ) throws -> Tab {
+    ) throws -> LoomTab {
         try database.queue.write { db in
             let maxPosition = try Int.fetchOne(
                 db, sql: "SELECT COALESCE(MAX(position), -1) FROM tab"
             ) ?? -1
             let now = Date()
-            var tab = Tab(
+            var tab = LoomTab(
                 id: nil, taskID: taskID, codingAgentID: agentID,
                 position: maxPosition + 1,
                 branchName: branchName, worktreePath: worktreePath,
@@ -69,6 +69,16 @@ struct TabStore {
                     arguments: [position, id]
                 )
             }
+        }
+    }
+
+    /// Updates `tab.last_main_view` for a single row.
+    func setLastMainView(id: Int64, view: LoomTab.MainView) throws {
+        try database.queue.write { db in
+            try db.execute(
+                sql: "UPDATE tab SET last_main_view = ?, last_active_at = ? WHERE id = ?",
+                arguments: [view.rawValue, Date(), id]
+            )
         }
     }
 
