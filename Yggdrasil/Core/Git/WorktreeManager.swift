@@ -29,8 +29,15 @@ actor WorktreeManager {
             throw WorktreeError.parseFailure(reason: "repo \(repo.fullName) has no localMainPath")
         }
         let mainURL = URL(fileURLWithPath: mainPath, isDirectory: true)
-        let worktreesDir = mainURL.deletingLastPathComponent()
-            .appendingPathComponent(".worktrees", isDirectory: true)
+        // Place worktrees INSIDE the repo at `<repoPath>/.worktrees/<slug>` so
+        // multiple tracked repos can have the same PR number without their
+        // worktrees colliding in a shared parent. We auto-extend the repo's
+        // `.git/info/exclude` so `.worktrees/` doesn't appear as untracked in
+        // git status. Legacy worktrees created under `<parent>/.worktrees/`
+        // keep working — the tab row still references the old path and
+        // `TabsModel.repoOwning` accepts both conventions.
+        let worktreesDir = mainURL.appendingPathComponent(".worktrees", isDirectory: true)
+        ensureGitExcludeContainsWorktreesDir(repoURL: mainURL)
         let slug = BranchSlug.slug(for: branch)
         // isDirectory: true so the URL representation is stable regardless of whether
         // the directory exists on disk yet (avoids "/path/foo" vs "/path/foo/" drift
@@ -162,6 +169,31 @@ actor WorktreeManager {
     private func listWorktrees(at mainURL: URL) async throws -> [WorktreeInfo] {
         let result = try await git.run(args: ["worktree", "list", "--porcelain"], cwd: mainURL)
         return try WorktreeInfo.parsePorcelain(result.stdout)
+    }
+
+    /// Best-effort append of `.worktrees/` to the repo's `.git/info/exclude`
+    /// so the in-repo worktree directory doesn't show up as untracked in
+    /// `git status`. We touch `.git/info/exclude` (not `.gitignore`) so the
+    /// change stays private to the user's checkout and never lands in any
+    /// commit. Silent no-op if the file already mentions the line, or if
+    /// the file can't be opened for any reason.
+    private func ensureGitExcludeContainsWorktreesDir(repoURL: URL) {
+        let excludeURL = repoURL
+            .appendingPathComponent(".git", isDirectory: true)
+            .appendingPathComponent("info", isDirectory: true)
+            .appendingPathComponent("exclude")
+        // `.git` may be a file rather than a directory in some worktrees; in
+        // that case there is no info/exclude to edit and we just bail.
+        var infoDirIsDir: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: excludeURL.deletingLastPathComponent().path, isDirectory: &infoDirIsDir
+        ), infoDirIsDir.boolValue else { return }
+        let needle = ".worktrees/"
+        let existing = (try? String(contentsOf: excludeURL, encoding: .utf8)) ?? ""
+        if existing.contains(needle) { return }
+        let separator = (existing.isEmpty || existing.hasSuffix("\n")) ? "" : "\n"
+        let appended = existing + separator + needle + "\n"
+        try? appended.write(to: excludeURL, atomically: true, encoding: .utf8)
     }
 
     /// Git reference-resolution failure messages we want to map to .unknownRef.

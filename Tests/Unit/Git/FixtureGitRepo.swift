@@ -44,9 +44,12 @@ struct FixtureGitRepo {
         try? FileManager.default.removeItem(at: parent)
     }
 
-    /// Convenience: the canonical worktrees dir per spec §2.1.
+    /// Canonical worktrees dir: now inside the repo
+    /// (`<repo>/.worktrees/`). Pre-rename this lived at the parent dir as
+    /// `<parent>/.worktrees/`, but that allowed PR-number collisions across
+    /// repos sharing a parent — see WorktreeManager.ensure for context.
     var worktreesDir: URL {
-        parent.appendingPathComponent(".worktrees")
+        repoURL.appendingPathComponent(".worktrees")
     }
 }
 

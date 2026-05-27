@@ -141,35 +141,36 @@ final class TabsModel {
         return TabRowViewModel(tab: tab, task: task, liveStatus: live)
     }
 
-    /// Resolves the repo that owns a given worktree. WorktreeManager creates
-    /// worktrees at `<repoParent>/.worktrees/<slug>` — i.e. a sibling of the
-    /// main checkout, not a child. So the owning repo is whichever tracked
-    /// repo shares the worktree's grandparent directory.
+    /// Resolves the repo that owns a given worktree. Two layouts coexist:
+    ///   • new (current): `<repo>/.worktrees/<slug>` — inside the repo
+    ///   • legacy:        `<repo-parent>/.worktrees/<slug>` — sibling of repo
+    /// We try in-repo first (path prefix match), then sibling-of-repo.
     static func repoOwning(worktreePath: String, repos: [Repo]) -> Repo? {
-        let worktreeURL = URL(fileURLWithPath: worktreePath, isDirectory: true)
-        let worktreeGrandparent = worktreeURL
-            .deletingLastPathComponent()  // strip /<slug>
-            .deletingLastPathComponent()  // strip /.worktrees
-            .standardizedFileURL.path
-        // Match the repo whose localMainPath sits inside that grandparent.
-        let candidates = repos.compactMap { repo -> Repo? in
+        // 1. In-repo: any tracked repo whose localMainPath is an ancestor of
+        //    the worktree path. Most specific (longest) match wins so a
+        //    nested workspace doesn't accidentally pick a parent repo.
+        let insideCandidates = repos.compactMap { repo -> (Repo, Int)? in
             guard let path = repo.localMainPath, !path.isEmpty else { return nil }
+            let prefix = path.hasSuffix("/") ? path : path + "/"
+            return worktreePath.hasPrefix(prefix) ? (repo, prefix.count) : nil
+        }
+        if let inside = insideCandidates.max(by: { $0.1 < $1.1 })?.0 {
+            return inside
+        }
+
+        // 2. Sibling-of-repo (legacy): grandparent of the worktree equals the
+        //    repo's parent directory.
+        let worktreeGrandparent = URL(fileURLWithPath: worktreePath, isDirectory: true)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .standardizedFileURL.path
+        return repos.first { repo in
+            guard let path = repo.localMainPath, !path.isEmpty else { return false }
             let repoParent = URL(fileURLWithPath: path, isDirectory: true)
                 .deletingLastPathComponent()
                 .standardizedFileURL.path
-            return repoParent == worktreeGrandparent ? repo : nil
+            return repoParent == worktreeGrandparent
         }
-        if candidates.count == 1 { return candidates.first }
-        // Multiple repos under the same parent dir — disambiguate by best path
-        // prefix. The grandparent match got us one tier; here we accept any
-        // repo whose own localMainPath happens to be an ancestor of the
-        // worktree (would only happen if WorktreeManager later changes its
-        // convention to live inside the repo).
-        return repos.first { repo in
-            guard let path = repo.localMainPath, !path.isEmpty else { return false }
-            let prefix = path.hasSuffix("/") ? path : path + "/"
-            return worktreePath.hasPrefix(prefix)
-        } ?? candidates.first
     }
 
     /// Returns the tabs filtered by a case-insensitive substring match against the
