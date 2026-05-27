@@ -119,7 +119,7 @@ struct SidebarView: View {
                     }
                 } label: {
                     TabRow(
-                        model: tabsModel.model(for: tab),
+                        model: tabsModel.model(for: tab, status: services.tabStatus),
                         isSelected: tabsModel.selectedID == tab.id
                     )
                 }

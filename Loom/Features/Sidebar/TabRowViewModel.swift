@@ -24,9 +24,17 @@ struct TabRowViewModel: Equatable {
     let worktreeLine: String
     let statusIcon: StatusIcon
     let trailingBadge: TrailingBadge
+    /// Phase 6+: live status carrying the priority icon + tooltip lines + the
+    /// unread-dot flag. nil when nothing has populated it yet.
+    let liveStatus: TabStatus?
 
     /// `task == nil` for ad-hoc tabs that don't shadow a GitHub issue/PR.
-    init(tab: LoomTab, task: LoomTask?, maxWorktreeChars: Int = 50) {
+    init(
+        tab: LoomTab,
+        task: LoomTask?,
+        liveStatus: TabStatus? = nil,
+        maxWorktreeChars: Int = 50
+    ) {
         if let task {
             titleLine = task.title
             switch task.type {
@@ -41,7 +49,23 @@ struct TabRowViewModel: Equatable {
         }
         branchLine = tab.branchName
         worktreeLine = TabRowViewModel.midEllipsis(tab.worktreePath, max: maxWorktreeChars)
-        statusIcon = .idle // Placeholder until Phase 6.
+        self.liveStatus = liveStatus
+        statusIcon = Self.mapIcon(liveStatus?.icon) ?? .idle
+    }
+
+    /// Map the aggregator's icon onto the row's enum. Returns nil to mean
+    /// "use the default" so callers can fall back to .idle when liveStatus is nil.
+    private static func mapIcon(_ icon: TabStatus.Icon?) -> StatusIcon? {
+        switch icon {
+        case .errored: .errored
+        case .awaitingInput: .awaitingInput
+        case .ciFailing: .ciFailing
+        case .dirty: .dirty
+        case .unread: .unread
+        case .running: .running
+        case .idle: .idle
+        case .none: nil
+        }
     }
 
     /// Mid-ellipsis truncation: keep the head and tail of `s`, drop the middle.

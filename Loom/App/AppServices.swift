@@ -21,6 +21,8 @@ final class AppServices {
     let sessions = SessionsModel()
     let tabs: TabsModel
     let webViewPool: WebViewPool
+    let tabStatus = TabStatusModel()
+    let statusPoller: StatusPoller
 
     init() throws {
         let database = try LoomDatabase.openDefault()
@@ -46,6 +48,9 @@ final class AppServices {
         tabsModel.reload()
         self.tabs = tabsModel
         self.webViewPool = WebViewPool(settingsStore: SettingsStore(database: database))
+        self.statusPoller = StatusPoller(
+            database: database, tabsModel: tabsModel, model: tabStatus
+        )
 
         // Hold a local reference so the closure can capture without going through `self`.
         // Each scheduler tick retries the sync with exponential backoff on failure

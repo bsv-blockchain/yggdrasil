@@ -44,6 +44,15 @@ struct TabRow: View {
         .background(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
+        .help(tooltipText)
+    }
+
+    /// Multi-line help string built from the aggregator's tooltipLines.
+    private var tooltipText: String {
+        if let lines = model.liveStatus?.tooltipLines, !lines.isEmpty {
+            return lines.joined(separator: "\n")
+        }
+        return model.titleLine
     }
 
     @ViewBuilder

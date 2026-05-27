@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.services = services
             Task {
                 await services.scheduler.start()
+                await services.statusPoller.start()
             }
         } catch {
             LoomLog.ui.error("Failed to build AppServices: \(String(describing: error), privacy: .public)")
@@ -37,6 +38,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         LoomLog.ui.info("Loom will terminate")
         if let scheduler = services?.scheduler {
             Task { await scheduler.stop() }
+        }
+        if let poller = services?.statusPoller {
+            Task { await poller.stop() }
         }
         // SIGTERM every live agent PTY. SwiftUI's own dismantleNSView paths
         // catch most cases, but the model is the authoritative registry.

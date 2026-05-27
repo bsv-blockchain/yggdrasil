@@ -64,6 +64,14 @@ final class TabsModel {
         return TabRowViewModel(tab: tab, task: task)
     }
 
+    /// Phase 6+ overload: includes the live status so the row icon reflects
+    /// the latest poller tick.
+    func model(for tab: LoomTab, status: TabStatusModel) -> TabRowViewModel {
+        let task = tab.id.flatMap { tasksByTabID[$0] }
+        let live = tab.id.flatMap { status.status(forTabID: $0) }
+        return TabRowViewModel(tab: tab, task: task, liveStatus: live)
+    }
+
     /// Returns the tabs filtered by a case-insensitive substring match against the
     /// row's titleLine (task title or branch fallback) and branchName. Returns the
     /// full list when `query` is empty after trimming.
