@@ -89,7 +89,8 @@ struct MainPaneView: View {
                 command: session.command,
                 args: session.args,
                 sessionStore: services.sessionStore,
-                sessions: services.sessions
+                sessions: services.sessions,
+                tmux: services.tmux
             )
         } else {
             ZStack {

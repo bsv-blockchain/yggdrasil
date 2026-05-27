@@ -18,6 +18,10 @@ struct YggdrasilApp: App {
         }
 
         PreferencesScene()
+
+        // Menu bar status item — observes appDelegate.services so the popover
+        // content rebinds the moment services is wired.
+        MenuBarStatusScene(appDelegate: appDelegate)
     }
 }
 

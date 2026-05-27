@@ -51,4 +51,19 @@ final class SessionsModel {
     func snapshotLivePIDs() -> [pid_t] {
         Array(livePIDs.values)
     }
+
+    /// Kill the agent for a single tab. Prefers tmux when available so the
+    /// underlying session (not just the attached PTY client) goes down;
+    /// falls back to the recorded PID. Drops the OpenSession entry so the
+    /// sidebar + menu bar refresh immediately. The caller is responsible
+    /// for any further UI updates (e.g. tab status repoll).
+    @MainActor
+    func terminate(tabID: Int64, tmux: TmuxManager?) {
+        if let tmux, tmux.isAvailable {
+            tmux.killSession(forTabID: tabID)
+        } else if let pid = livePIDs[tabID], pid > 0 {
+            kill(pid, SIGTERM)
+        }
+        remove(id: tabID)
+    }
 }

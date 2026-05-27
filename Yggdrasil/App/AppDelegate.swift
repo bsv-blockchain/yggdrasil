@@ -54,14 +54,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         if let poller = services?.statusPoller {
             Task { await poller.stop() }
         }
-        // SIGTERM every live agent PTY. SwiftUI's own dismantleNSView paths
-        // catch most cases, but the model is the authoritative registry.
-        if let pids = services?.sessions.snapshotLivePIDs() {
-            for pid in pids {
-                YggdrasilLog.pty.info("Sending SIGTERM to agent pid=\(pid, privacy: .public) on app quit")
-                kill(pid, SIGTERM)
-            }
-        }
+        // Agents are owned by tmux daemons (see TmuxManager); we deliberately
+        // do NOT SIGTERM them here. When this process exits, our PTY masters
+        // close and the tmux *clients* detach, but the tmux server keeps the
+        // session and its agent process alive. The menu bar's
+        // "Close and kill all" button is the explicit teardown path.
     }
 
     private static var isRunningTests: Bool {
