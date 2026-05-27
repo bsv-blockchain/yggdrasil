@@ -246,20 +246,32 @@ struct NewTabSheet: View {
     static func parsePRNumber(_ branch: String) -> Int? {
         let trimmed = branch.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("#"), let number = Int(trimmed.dropFirst()) { return number }
-        // Order matters: longer prefixes first so "review-pr-643" doesn't match
-        // "pr-" and yield 643's repr against the suffix "643".
-        let prefixes = ["review-pr-", "review-pr/", "review-issue-", "review-issue/", "pr-", "pr/", "issue-", "issue/"]
-        for prefix in prefixes where trimmed.lowercased().hasPrefix(prefix) {
-            if let number = Int(trimmed.dropFirst(prefix.count)) { return number }
+        // Scan for one of the known core prefixes anywhere in the string —
+        // tolerates an agent slug at the front (e.g. "claude-pr-643") so
+        // parallel-agent worktrees still link back to the right task.
+        // Order matters: longer prefixes first so "review-pr-643" doesn't
+        // match "pr-" before the "review-" anchor.
+        let cores = ["review-pr-", "review-pr/", "review-issue-", "review-issue/",
+                     "pr-", "pr/", "issue-", "issue/"]
+        let lower = trimmed.lowercased()
+        for core in cores {
+            guard let range = lower.range(of: core) else { continue }
+            // Accept only if the match is at the start OR preceded by '-'.
+            if range.lowerBound == lower.startIndex
+                || lower[lower.index(before: range.lowerBound)] == "-" {
+                if let number = Int(lower[range.upperBound...]) {
+                    return number
+                }
+            }
         }
         return nil
     }
 
-    /// True if the branch was created via the review-picker flow (prefix
-    /// `review-`). Used by the sidebar row + chrome to render a REVIEW
-    /// pill so the user can't confuse a review session with a normal one.
+    /// True if the branch was created via the review-picker flow. Looks
+    /// for "review-" anywhere — covers both the original `review-pr-N`
+    /// and the agent-prefixed `<agent>-review-pr-N`.
     static func isReviewBranch(_ branch: String) -> Bool {
-        branch.lowercased().hasPrefix("review-")
+        branch.lowercased().contains("review-")
     }
 }
 

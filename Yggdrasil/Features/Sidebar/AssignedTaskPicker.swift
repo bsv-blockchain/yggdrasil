@@ -30,16 +30,41 @@ enum TaskPickerMode {
         }
     }
 
-    /// Branch-name prefix used when opening a task in this mode. The
-    /// `review-` prefix lets the sidebar and chrome pick up the REVIEW
-    /// badge without a schema change.
-    func branchName(for task: YggdrasilTask) -> String {
+    /// Branch + worktree name used when opening a task in this mode. The
+    /// agent slug is the leading segment so the same PR can host parallel
+    /// agents — each one ends up on its own branch in its own worktree
+    /// directory (`<repoParent>/.worktrees/<agent>-<base>`). The `review-`
+    /// infix still lets the sidebar and chrome pick up the REVIEW badge
+    /// without a schema change.
+    func branchName(for task: YggdrasilTask, agentName: String) -> String {
+        let prefix = TaskPickerMode.agentSlug(agentName)
+        let base: String
         switch self {
         case .assigned:
-            return task.type == .pullRequest ? "pr-\(task.number)" : "issue-\(task.number)"
+            base = task.type == .pullRequest ? "pr-\(task.number)" : "issue-\(task.number)"
         case .review:
-            return "review-pr-\(task.number)"
+            base = "review-pr-\(task.number)"
         }
+        return prefix.isEmpty ? base : "\(prefix)-\(base)"
+    }
+
+    /// Lowercase + hyphenated slug from an agent profile name. "Claude" →
+    /// "claude"; "GitHub Copilot" → "github-copilot". Pure for testability.
+    static func agentSlug(_ name: String) -> String {
+        let lowered = name.lowercased()
+        let allowed = CharacterSet.lowercaseLetters.union(.decimalDigits)
+        var out = ""
+        var lastWasDash = true
+        for scalar in lowered.unicodeScalars {
+            if allowed.contains(scalar) {
+                out.append(Character(scalar))
+                lastWasDash = false
+            } else if !lastWasDash {
+                out.append("-")
+                lastWasDash = true
+            }
+        }
+        return out.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
     }
 }
 
@@ -273,7 +298,7 @@ struct AssignedTaskPicker: View {
                 error = "No coding agent configured."
                 return
             }
-            let branch = mode.branchName(for: row.task)
+            let branch = mode.branchName(for: row.task, agentName: agent.name)
             let baseRef: String? = row.task.type == .pullRequest
                 ? "refs/pull/\(row.task.number)/head"
                 : nil
