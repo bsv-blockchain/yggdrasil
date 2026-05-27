@@ -17,6 +17,22 @@ enum Endpoints {
         return components.url!
     }
 
+    /// `/search/issues?q=is:issue+is:open+assignee:@me+archived:false&per_page=100`
+    ///
+    /// Every open issue across all of GitHub assigned to the authenticated
+    /// user, regardless of whether the issue's repo is tracked locally.
+    /// Powers the My Issues table — users have issues across more repos
+    /// than they bother tracking for worktrees.
+    static func allAssignedIssues(perPage: Int = 100) -> URL {
+        var components = URLComponents(url: restBase.appendingPathComponent("search/issues"),
+                                       resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "q", value: "is:issue is:open assignee:@me archived:false"),
+            URLQueryItem(name: "per_page", value: String(perPage))
+        ]
+        return components.url!
+    }
+
     /// `/search/issues?q=is:pr+is:open+author:@me&per_page=100`
     ///
     /// PRs the authenticated user authored. Same `{ items: […] }` envelope

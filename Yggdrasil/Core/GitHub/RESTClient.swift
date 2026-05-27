@@ -51,6 +51,12 @@ struct RESTClient {
         try await searchIssues(url: Endpoints.authoredPRs())
     }
 
+    /// Every issue assigned to the authenticated user, regardless of the
+    /// owning repo's tracked status. Used by the My Issues table picker.
+    func allAssignedIssues() async throws -> [RawTask] {
+        try await searchIssues(url: Endpoints.allAssignedIssues())
+    }
+
     private func searchIssues(url: URL) async throws -> [RawTask] {
         let result = try await http.get(url: url, accept: "application/vnd.github+json")
         let body = result.body ?? Data()
