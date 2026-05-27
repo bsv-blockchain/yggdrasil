@@ -67,6 +67,9 @@ struct SidebarView: View {
                 .buttonStyle(.plain)
                 .listRowInsets(EdgeInsets(top: 1, leading: 4, bottom: 1, trailing: 4))
                 .listRowSeparator(.hidden)
+                .contextMenu {
+                    contextMenu(for: tab)
+                }
             }
             .onMove { from, toOffset in
                 tabsModel.move(fromOffsets: from, toOffset: toOffset)
@@ -74,6 +77,22 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
+    }
+
+    @ViewBuilder
+    private func contextMenu(for tab: Tab) -> some View {
+        Button("Open in Finder") {
+            SidebarActions.openInFinder(path: tab.worktreePath)
+        }
+        Button("Open in Terminal.app") {
+            SidebarActions.openInTerminal(path: tab.worktreePath)
+        }
+        Divider()
+        Button("Remove…", role: .destructive) {
+            if let id = tab.id {
+                SidebarActions.removeTab(id: id, services: services)
+            }
+        }
     }
 
     private var emptyState: some View {

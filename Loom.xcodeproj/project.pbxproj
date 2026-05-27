@@ -82,6 +82,7 @@
 		F16C61F1A8FA363F069EB4CC /* FileLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB1AC5F6ABF606215C34828 /* FileLock.swift */; };
 		F214AFF555015845B7F361F8 /* GitRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 878B0F36B6165280BC512CBD /* GitRunnerTests.swift */; };
 		F2F8E3D62A0EA28602FDEF41 /* Setting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7156A915B0B1A14BCFFB897 /* Setting.swift */; };
+		F93AA30DEB40C5E51477E002 /* SidebarActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBE6079AC98CBDF427ABC37F /* SidebarActions.swift */; };
 		F9F651540C792C0B4EE8D83B /* Tab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E460F91480FE3584AEEF4B /* Tab.swift */; };
 		FA38E752F70D6B999AAA979D /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A75BEED72F66539358F2F980 /* SidebarView.swift */; };
 		FB007E0D6F7C94AA62BDA3FE /* GitHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879315D3D2B7186766F53DDE /* GitHubStatus.swift */; };
@@ -183,6 +184,7 @@
 		F2CBAFC5EF92D128135D3F05 /* BackoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffTests.swift; sourceTree = "<group>"; };
 		F6C32969291BABB883AE4FCB /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
 		FA798D587199F39EA6CD559F /* BranchSlug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchSlug.swift; sourceTree = "<group>"; };
+		FBE6079AC98CBDF427ABC37F /* SidebarActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarActions.swift; sourceTree = "<group>"; };
 		FD637F24CBF0FE3793017936 /* DebugMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugMenu.swift; sourceTree = "<group>"; };
 		FD7BC2543AD208BD2CF22525 /* GitHubError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubError.swift; sourceTree = "<group>"; };
 		FD919DBB349F5EE2742FD85B /* GraphQLClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphQLClient.swift; sourceTree = "<group>"; };
@@ -239,6 +241,7 @@
 			isa = PBXGroup;
 			children = (
 				3F92F8D93AF0BB70616AD3B9 /* NewTabSheet.swift */,
+				FBE6079AC98CBDF427ABC37F /* SidebarActions.swift */,
 				A75BEED72F66539358F2F980 /* SidebarView.swift */,
 				1288EF2C59AD393BA4D8AEE2 /* TabRow.swift */,
 				65F1502EFFFBEF18867A2301 /* TabRowViewModel.swift */,
@@ -640,6 +643,7 @@
 				FD2D620BEA41CA991D3D1245 /* SessionsModel.swift in Sources */,
 				F2F8E3D62A0EA28602FDEF41 /* Setting.swift in Sources */,
 				3C200CDD21EC4D19BA68BB37 /* SettingsStore.swift in Sources */,
+				F93AA30DEB40C5E51477E002 /* SidebarActions.swift in Sources */,
 				FA38E752F70D6B999AAA979D /* SidebarView.swift in Sources */,
 				BAA12A13427C955F2B0095D9 /* Subprocess.swift in Sources */,
 				6A80CD79CE2203A19BEDFD58 /* SyncScheduler.swift in Sources */,
