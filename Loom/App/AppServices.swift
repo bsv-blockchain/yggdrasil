@@ -16,7 +16,9 @@ final class AppServices {
     let scheduler: SyncScheduler
     let agentStore: CodingAgentStore
     let sessionStore: SessionStateStore
+    let tabStore: TabStore
     let sessions = SessionsModel()
+    let tabs: TabsModel
 
     init() throws {
         let database = try LoomDatabase.openDefault()
@@ -36,6 +38,11 @@ final class AppServices {
         self.syncService = syncService
         self.agentStore = CodingAgentStore(database: database)
         self.sessionStore = SessionStateStore(database: database)
+        let tabStore = TabStore(database: database)
+        self.tabStore = tabStore
+        let tabsModel = TabsModel(store: tabStore, database: database)
+        tabsModel.reload()
+        self.tabs = tabsModel
 
         // Hold a local reference so the closure can capture without going through `self`.
         // Each scheduler tick retries the sync with exponential backoff on failure

@@ -222,25 +222,26 @@ struct DebugMenu: Commands {
                 return
             }
             guard let pick = DebugMenu.promptForNewSession(agents: agents) else { return }
-            let tabID = try services.database.queue.write { db -> Int64 in
-                var tab = Tab(
-                    id: nil, taskID: nil, codingAgentID: pick.agent.id,
-                    position: 0, branchName: "ad-hoc",
-                    worktreePath: pick.cwd, lastMainView: .agent,
-                    createdAt: Date(), lastActiveAt: Date()
-                )
-                try tab.insert(db)
-                return tab.id!
-            }
-            services.sessions.add(
-                OpenSession(
-                    id: tabID,
-                    displayName: "\(pick.agent.name) · \(URL(fileURLWithPath: pick.cwd).lastPathComponent)",
-                    cwd: pick.cwd,
-                    command: pick.agent.command,
-                    args: pick.agent.args
-                )
+            let lastComponent = URL(fileURLWithPath: pick.cwd).lastPathComponent
+            let newTab = try services.tabStore.insert(
+                branchName: "ad-hoc",
+                worktreePath: pick.cwd,
+                agentID: pick.agent.id,
+                taskID: nil
             )
+            services.tabs.reload()
+            if let tabID = newTab.id {
+                services.tabs.select(tabID)
+                services.sessions.add(
+                    OpenSession(
+                        id: tabID,
+                        displayName: "\(pick.agent.name) · \(lastComponent)",
+                        cwd: pick.cwd,
+                        command: pick.agent.command,
+                        args: pick.agent.args
+                    )
+                )
+            }
         } catch {
             DebugMenu.alert(title: "New session failed", message: String(describing: error))
         }

@@ -12,6 +12,7 @@
 		0771FF97B55343B8CCD80D07 /* SessionStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192791F4DFB1B442F5F75573 /* SessionStateStore.swift */; };
 		12BDD4B0CFB442E611DBCE34 /* CodingAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81C351F2B2D33F09C38CADCA /* CodingAgent.swift */; };
 		13928AE42F895ADB3C509302 /* TaskAssignee.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87DD3CBCFF1F6ED6BD5E0DAD /* TaskAssignee.swift */; };
+		171EFBBCDF7FB932C331A438 /* TabsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190DBB09BF8549E725D141CC /* TabsModel.swift */; };
 		181598A3CE05594945D7A7A3 /* SettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B67392FF13BE6CBE8F0F4F6D /* SettingsStoreTests.swift */; };
 		1BD055D4E0D2F2E95CA33EE3 /* GraphQLClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD919DBB349F5EE2742FD85B /* GraphQLClient.swift */; };
 		204548C8CF2106ED7BA53FD9 /* BackoffRetryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 364D0F8EEA347E9E53FA5531 /* BackoffRetryTests.swift */; };
@@ -55,10 +56,12 @@
 		A9D79C3526B59E33BCD2E012 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E07BDC71363619A1E5FE9D9 /* AuthService.swift */; };
 		AA1651CBA89E4B26258CE889 /* OutputRingBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50C2D7ECAEBA8DE77D0442DF /* OutputRingBuffer.swift */; };
 		AAC6B0964629178F586CCB8D /* WorktreeManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68589EDD4EB0E76985003347 /* WorktreeManagerTests.swift */; };
+		ACDF9B336E1BEBD97838E7B7 /* TabStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 058A5AA17A76820C6C78B772 /* TabStoreTests.swift */; };
 		AE7AA009A2A8244BD2571662 /* CodingAgentRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB1B95E1CA928B901523C7F7 /* CodingAgentRunnerTests.swift */; };
 		B045EBBFD0B90FA5E3D5B062 /* DebugMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD637F24CBF0FE3793017936 /* DebugMenu.swift */; };
 		B115BA55BF7BF53709973B8D /* LoomDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B5DDCD59C803D57C4D6A26 /* LoomDatabase.swift */; };
 		B23664D17B40E8A19A8A288C /* LoomApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B517E6E2DF8C49D037D18E77 /* LoomApp.swift */; };
+		B839B3AF2E4B8EC05A245572 /* TabStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE2CDBC61BC33316AF8F728 /* TabStore.swift */; };
 		B8B30C0BE74E09342FCB1447 /* BranchSlug.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA798D587199F39EA6CD559F /* BranchSlug.swift */; };
 		BAA12A13427C955F2B0095D9 /* Subprocess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FCC4E437B6AAD7E2289DD09 /* Subprocess.swift */; };
 		BC8AB244645AF73AA95DBA2E /* GitHubLiveSyncIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 409A26BB4B438DF0FC52D8B0 /* GitHubLiveSyncIntegrationTests.swift */; };
@@ -78,6 +81,7 @@
 		F214AFF555015845B7F361F8 /* GitRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 878B0F36B6165280BC512CBD /* GitRunnerTests.swift */; };
 		F2F8E3D62A0EA28602FDEF41 /* Setting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7156A915B0B1A14BCFFB897 /* Setting.swift */; };
 		F9F651540C792C0B4EE8D83B /* Tab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E460F91480FE3584AEEF4B /* Tab.swift */; };
+		FA38E752F70D6B999AAA979D /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A75BEED72F66539358F2F980 /* SidebarView.swift */; };
 		FB007E0D6F7C94AA62BDA3FE /* GitHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879315D3D2B7186766F53DDE /* GitHubStatus.swift */; };
 		FC039C1B5C8B97C01763CFE7 /* HTTPClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECDFC95289A7B6830F8DFE3 /* HTTPClientTests.swift */; };
 		FCC66C2E468F711C3C2ED032 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = 4FB935EE1FF6EE3F23F0BFA4 /* Fixtures */; };
@@ -96,11 +100,14 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		058A5AA17A76820C6C78B772 /* TabStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabStoreTests.swift; sourceTree = "<group>"; };
+		0DE2CDBC61BC33316AF8F728 /* TabStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabStore.swift; sourceTree = "<group>"; };
 		0FBE80EB950A0BABCFF18C67 /* CodingAgentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingAgentStore.swift; sourceTree = "<group>"; };
 		0FCC4E437B6AAD7E2289DD09 /* Subprocess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subprocess.swift; sourceTree = "<group>"; };
 		10A41270D5FD2913859F5156 /* Backoff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backoff.swift; sourceTree = "<group>"; };
 		1288EF2C59AD393BA4D8AEE2 /* TabRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabRow.swift; sourceTree = "<group>"; };
 		13CBE7B660EECC9CD4A008C9 /* WorktreeError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeError.swift; sourceTree = "<group>"; };
+		190DBB09BF8549E725D141CC /* TabsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabsModel.swift; sourceTree = "<group>"; };
 		192791F4DFB1B442F5F75573 /* SessionStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStateStore.swift; sourceTree = "<group>"; };
 		197855D26AA9AEB4088AF08C /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		254A61C8ABDED56F14FC03F8 /* Clibgit2 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Clibgit2; path = Vendor/Clibgit2; sourceTree = SOURCE_ROOT; };
@@ -144,6 +151,7 @@
 		9B1D333E293A9B1CC752EA00 /* Endpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoints.swift; sourceTree = "<group>"; };
 		9E07BDC71363619A1E5FE9D9 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		A37491B6F40A34647CBC6AA7 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
+		A75BEED72F66539358F2F980 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		A9786B37C938624B51D1C5C8 /* LoomLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoomLogger.swift; sourceTree = "<group>"; };
 		AA2DECD7F1ED591D1306A7FD /* MigrationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationsTests.swift; sourceTree = "<group>"; };
 		B0C9460A29E5F663743C9F53 /* RESTClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RESTClientTests.swift; sourceTree = "<group>"; };
@@ -226,8 +234,10 @@
 		2DAE33F0B58CE44064524F08 /* Sidebar */ = {
 			isa = PBXGroup;
 			children = (
+				A75BEED72F66539358F2F980 /* SidebarView.swift */,
 				1288EF2C59AD393BA4D8AEE2 /* TabRow.swift */,
 				65F1502EFFFBEF18867A2301 /* TabRowViewModel.swift */,
+				190DBB09BF8549E725D141CC /* TabsModel.swift */,
 			);
 			path = Sidebar;
 			sourceTree = "<group>";
@@ -236,6 +246,7 @@
 			isa = PBXGroup;
 			children = (
 				363D3DEFCC14A439C55CD6FF /* TabRowViewModelTests.swift */,
+				058A5AA17A76820C6C78B772 /* TabStoreTests.swift */,
 			);
 			path = Sidebar;
 			sourceTree = "<group>";
@@ -319,6 +330,7 @@
 				2A66185DB8D17A184A10D654 /* Migrations.swift */,
 				192791F4DFB1B442F5F75573 /* SessionStateStore.swift */,
 				D355679242F0256CEFCEC699 /* SettingsStore.swift */,
+				0DE2CDBC61BC33316AF8F728 /* TabStore.swift */,
 			);
 			path = Storage;
 			sourceTree = "<group>";
@@ -621,11 +633,14 @@
 				FD2D620BEA41CA991D3D1245 /* SessionsModel.swift in Sources */,
 				F2F8E3D62A0EA28602FDEF41 /* Setting.swift in Sources */,
 				3C200CDD21EC4D19BA68BB37 /* SettingsStore.swift in Sources */,
+				FA38E752F70D6B999AAA979D /* SidebarView.swift in Sources */,
 				BAA12A13427C955F2B0095D9 /* Subprocess.swift in Sources */,
 				6A80CD79CE2203A19BEDFD58 /* SyncScheduler.swift in Sources */,
 				F9F651540C792C0B4EE8D83B /* Tab.swift in Sources */,
 				352D8124CDB741B482CCFA88 /* TabRow.swift in Sources */,
 				5E55D70082923DA2E285B37A /* TabRowViewModel.swift in Sources */,
+				B839B3AF2E4B8EC05A245572 /* TabStore.swift in Sources */,
+				171EFBBCDF7FB932C331A438 /* TabsModel.swift in Sources */,
 				13928AE42F895ADB3C509302 /* TaskAssignee.swift in Sources */,
 				01AABF5B57F81075C7A2B083 /* TaskSyncService.swift in Sources */,
 				53F92F83F0F7376730A5D339 /* WorktreeError.swift in Sources */,
@@ -660,6 +675,7 @@
 				2836556DFF4C07B9206E0118 /* SmokeTests.swift in Sources */,
 				2738BC7003C35D380D6FAB6D /* SyncSchedulerTests.swift in Sources */,
 				420884BD3E0A5183547715A8 /* TabRowViewModelTests.swift in Sources */,
+				ACDF9B336E1BEBD97838E7B7 /* TabStoreTests.swift in Sources */,
 				C4343384EB79A90D051E6591 /* TaskSyncServiceTests.swift in Sources */,
 				AAC6B0964629178F586CCB8D /* WorktreeManagerTests.swift in Sources */,
 			);

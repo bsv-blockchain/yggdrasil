@@ -17,12 +17,11 @@ struct LoomApp: App {
     }
 }
 
-/// Top-level main window. Phase 3 replaces the placeholder with a row of session
-/// tabs along the top and the active agent's terminal in the body. Phase 4 swaps
-/// the row for the proper sidebar.
+/// Top-level main window. Phase 4 introduces the proper sidebar; the main pane
+/// hosts whichever session matches the selected sidebar tab (or an empty state
+/// when no session has been spawned for that tab yet).
 struct RootView: View {
 
-    /// Pulled lazily so SwiftUI doesn't crash under XCTest where AppServices is nil.
     private var services: AppServices? {
         (NSApplication.shared.delegate as? AppDelegate)?.services
     }
@@ -30,12 +29,12 @@ struct RootView: View {
     var body: some View {
         Group {
             if let services {
-                SessionsView(services: services)
+                SidebarSessionsLayout(services: services)
             } else {
                 placeholder
             }
         }
-        .frame(minWidth: 800, minHeight: 600)
+        .frame(minWidth: 900, minHeight: 600)
         .accessibilityIdentifier("loom.root")
     }
 
@@ -50,64 +49,28 @@ struct RootView: View {
     }
 }
 
-/// The "tabs strip + active agent terminal" UI for Phase 3.
-struct SessionsView: View {
+/// HSplit between the sidebar and the main pane. Selection in the sidebar
+/// drives which session is hosted on the right.
+struct SidebarSessionsLayout: View {
     let services: AppServices
 
     var body: some View {
-        VStack(spacing: 0) {
-            tabsStrip
-            Divider()
-            activeSession
-        }
-    }
-
-    private var tabsStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
-                ForEach(services.sessions.sessions) { session in
-                    Button {
-                        services.sessions.selectedID = session.id
-                    } label: {
-                        Text(session.displayName)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(
-                                services.sessions.selectedID == session.id
-                                    ? Color.accentColor.opacity(0.25)
-                                    : Color.clear
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
-                    .buttonStyle(.plain)
-                }
-                Spacer()
+        HStack(spacing: 0) {
+            SidebarView(tabsModel: services.tabs) { _ in
+                services.sessions.selectedID = services.tabs.selectedID
             }
-            .padding(8)
+            Divider()
+            mainPane
         }
-        .frame(height: 38)
     }
 
     @ViewBuilder
-    private var activeSession: some View {
+    private var mainPane: some View {
         if services.sessions.sessions.isEmpty {
-            ZStack {
-                Color(NSColor.windowBackgroundColor)
-                VStack(spacing: 12) {
-                    Text("No sessions yet")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                    Text("Use Debug → + New Session to start a coding agent.")
-                        .font(.callout)
-                        .foregroundStyle(.tertiary)
-                }
-            }
+            emptyMainPane
         } else {
-            // All sessions live in the ZStack so their PTYs stay alive when
-            // off-screen. Only the selected one is visible. Stable .id() per
-            // session prevents SwiftUI from re-creating (and thereby tearing
-            // down) the underlying LocalProcessTerminalView on selection
-            // changes.
+            // All open sessions in a ZStack so PTYs survive selection changes.
+            // Only the selected one renders visible.
             ZStack {
                 ForEach(services.sessions.sessions) { session in
                     AgentTerminalSurface(
@@ -122,6 +85,41 @@ struct SessionsView: View {
                     .opacity(services.sessions.selectedID == session.id ? 1 : 0)
                     .allowsHitTesting(services.sessions.selectedID == session.id)
                 }
+                if services.sessions.selectedID == nil
+                    || !services.sessions.sessions
+                    .contains(where: { $0.id == services.sessions.selectedID }) {
+                    selectedTabHasNoSession
+                }
+            }
+        }
+    }
+
+    private var emptyMainPane: some View {
+        ZStack {
+            Color(NSColor.windowBackgroundColor)
+            VStack(spacing: 12) {
+                Text("No sessions yet")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                Text("Use Debug → + New Session to start a coding agent.")
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private var selectedTabHasNoSession: some View {
+        ZStack {
+            Color(NSColor.windowBackgroundColor)
+            VStack(spacing: 8) {
+                Image(systemName: "play.circle")
+                    .font(.system(size: 36))
+                    .foregroundStyle(.tertiary)
+                Text("No live session for this tab")
+                    .font(.headline)
+                Text("Use Debug → + New Session… or the toolbar “+” (coming) to start one.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
         }
     }
