@@ -52,6 +52,7 @@ struct MenuBarStatusScene: Scene {
 struct MenuBarStatusView: View {
     let services: AppServices
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -170,12 +171,14 @@ struct MenuBarStatusView: View {
 
     private func showMainWindow() {
         NSApp.activate(ignoringOtherApps: true)
-        // The primary window has a stable id of "main" (see WindowGroup in
-        // YggdrasilApp). Re-raise it via the standard URL scheme handler.
-        for window in NSApp.windows where window.canBecomeMain {
-            window.makeKeyAndOrderFront(nil)
-            break
+        // Raise an existing main window if one is around; otherwise the
+        // SwiftUI openWindow action recreates one from the "main" WindowGroup
+        // (id matches `WindowGroup("Yggdrasil", id: "main")` in YggdrasilApp).
+        if let existing = NSApp.windows.first(where: { $0.canBecomeMain && $0.isVisible }) {
+            existing.makeKeyAndOrderFront(nil)
+            return
         }
+        openWindow(id: "main")
     }
 
     private func revealTab(id: Int64) {

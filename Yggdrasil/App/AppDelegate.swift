@@ -58,7 +58,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
-        true
+        // Stay alive (menu bar item still visible) as long as there are
+        // background tmux sessions hosting running agents — the user
+        // explicitly chose the "agents survive app close" model so the menu
+        // bar item is the only handle on those sessions until they're done.
+        // When no tmux sessions remain, fall through to the normal
+        // last-window-closed → quit behaviour.
+        let running = services?.tmux.listSessions() ?? []
+        if running.isEmpty {
+            return true
+        }
+        YggdrasilLog.ui.info(
+            "Last window closed but \(running.count, privacy: .public) tmux sessions still alive; keeping app + menu bar alive"
+        )
+        return false
     }
 
     func applicationWillTerminate(_: Notification) {
