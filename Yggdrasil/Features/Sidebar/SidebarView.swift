@@ -256,39 +256,74 @@ struct SidebarView: View {
     // MARK: - Tab list
 
     private var tabList: some View {
-        List {
-            ForEach(filteredTabs, id: \.id) { tab in
-                // Row is a plain View (no Button wrapper) so SwiftUI's List
-                // drag-to-reorder gesture isn't swallowed by a button's
-                // pointer handling. Selection runs through .onTapGesture
-                // instead.
-                TabRow(
-                    model: tabsModel.model(for: tab, status: services.tabStatus),
-                    agent: tabsModel.agentIdentity(for: tab),
-                    isSelected: tabsModel.selectedID == tab.id
-                )
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if let id = tab.id {
-                        tabsModel.select(id)
-                        onSelect(id)
-                    }
-                }
-                .listRowInsets(EdgeInsets(top: 1, leading: 4, bottom: 1, trailing: 4))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .contextMenu {
-                    contextMenu(for: tab)
+        // .onMove on macOS SwiftUI Lists never reliably fires without an
+        // explicit edit mode, so we use the modern drag-and-drop primitives
+        // (.draggable + .dropDestination) instead. Each row is the drag
+        // payload AND a drop target; dropping computes the new index from
+        // the source/destination tab IDs and calls TabsModel.move(...) which
+        // persists via TabStore.reorder.
+        let reorderEnabled = debouncedQuery.isEmpty && activeFilter == .all
+
+        return ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(filteredTabs, id: \.id) { tab in
+                    rowView(for: tab, reorderEnabled: reorderEnabled)
                 }
             }
-            .onMove { from, toOffset in
-                guard debouncedQuery.isEmpty, activeFilter == .all else { return }
-                tabsModel.move(fromOffsets: from, toOffset: toOffset)
+            .padding(.horizontal, 4)
+        }
+        .background(YggdrasilTheme.bgPane(scheme))
+    }
+
+    @ViewBuilder
+    private func rowView(for tab: YggdrasilTab, reorderEnabled: Bool) -> some View {
+        let row = TabRow(
+            model: tabsModel.model(for: tab, status: services.tabStatus),
+            agent: tabsModel.agentIdentity(for: tab),
+            isSelected: tabsModel.selectedID == tab.id
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let id = tab.id {
+                tabsModel.select(id)
+                onSelect(id)
             }
         }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-        .background(YggdrasilTheme.bgPane(scheme))
+        .contextMenu {
+            contextMenu(for: tab)
+        }
+        .padding(.vertical, 1)
+
+        if reorderEnabled, let id = tab.id {
+            row
+                .draggable(String(id))
+                .dropDestination(for: String.self) { items, _ in
+                    handleDrop(items: items, ontoTabID: id)
+                }
+        } else {
+            row
+        }
+    }
+
+    /// SwiftUI's `.dropDestination` payload is the dragged tab id (as String).
+    /// Compute the source + target indices in the filtered list and ask
+    /// `TabsModel.move(fromOffsets:toOffset:)` to reorder; persistence runs
+    /// through `TabStore.reorder(ids:)`.
+    private func handleDrop(items: [String], ontoTabID: Int64) -> Bool {
+        guard let sourceIDString = items.first,
+              let sourceID = Int64(sourceIDString),
+              sourceID != ontoTabID else { return false }
+        let tabs = tabsModel.tabs
+        guard let from = tabs.firstIndex(where: { $0.id == sourceID }),
+              let onto = tabs.firstIndex(where: { $0.id == ontoTabID }) else { return false }
+        // .move semantics: toOffset is the index BEFORE which the source goes.
+        // Drop-on-row-N means "place me just before row N" when moving up,
+        // and "place me just after row N" when moving down. Match the user's
+        // expectation by computing toOffset = onto when sourceIndex > onto,
+        // else onto + 1.
+        let toOffset = from > onto ? onto : onto + 1
+        tabsModel.move(fromOffsets: IndexSet(integer: from), toOffset: toOffset)
+        return true
     }
 
     @ViewBuilder

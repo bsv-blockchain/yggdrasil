@@ -15,6 +15,7 @@ struct WindowChromeBar: View {
 
     @State private var themeOverride: NSAppearance.Name?
     @State private var showingReviewPicker = false
+    @Environment(\.openSettings) private var openSettings
 
     private var selectedTab: YggdrasilTab? {
         guard let id = services.tabs.selectedID else { return nil }
@@ -133,7 +134,11 @@ struct WindowChromeBar: View {
                     toggleTheme()
                 }
                 chromeButton(systemImage: "gearshape", help: "Preferences") {
-                    NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+                    // macOS 14+ uses the SwiftUI OpenSettingsAction; the
+                    // legacy `showPreferencesWindow:` selector silently
+                    // no-ops because the Settings scene SwiftUI installs
+                    // hangs off a different responder.
+                    openSettings()
                 }
             }
         }

@@ -99,9 +99,13 @@ struct TmuxManager: Sendable {
         let qInner = CodingAgentRunner.shellQuote(inner)
         return """
         if ! tmux -L \(qSocket) has-session -t \(qSession) 2>/dev/null; then
-          tmux -L \(qSocket) new-session -d -s \(qSession) -c \(qCwd) sh -c \(qInner) && \
-          tmux -L \(qSocket) set-option -t \(qSession) status off >/dev/null
+          tmux -L \(qSocket) new-session -d -s \(qSession) -c \(qCwd) sh -c \(qInner)
         fi
+        # Apply preferences on every attach so existing sessions (created
+        # before these options were added) pick them up too. Idempotent.
+        tmux -L \(qSocket) set-option -t \(qSession) status off >/dev/null 2>&1 || true
+        tmux -L \(qSocket) set-option -t \(qSession) mouse on >/dev/null 2>&1 || true
+        tmux -L \(qSocket) set-option -t \(qSession) history-limit 50000 >/dev/null 2>&1 || true
         exec tmux -L \(qSocket) attach -t \(qSession)
         """
     }

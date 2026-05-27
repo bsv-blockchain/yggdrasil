@@ -19,7 +19,7 @@ struct YggdrasilApp: App {
             // Scene graph, hence the AppKit detour.
         }
 
-        PreferencesScene()
+        PreferencesScene(appDelegate: appDelegate)
 
         // Menu bar status item — observes appDelegate.services so the popover
         // content rebinds the moment services is wired.
