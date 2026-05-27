@@ -34,21 +34,81 @@ enum SidebarActions {
         }
     }
 
-    /// Confirm-then-delete a tab. Also tears down any running session for that tab.
+    /// Confirm-then-delete a tab. Tears down any running session and (optionally)
+    /// removes the worktree on disk. Three-way prompt:
+    ///   - Remove Tab Only — DB row + session, worktree stays on disk.
+    ///   - Remove Tab + Worktree — also runs `git worktree remove --force`.
+    ///   - Cancel.
     static func removeTab(id: Int64, services: AppServices) {
+        guard let tab = services.tabs.tabs.first(where: { $0.id == id }) else { return }
         let alert = NSAlert()
         alert.messageText = "Remove this tab?"
-        alert.informativeText = "The tab will be removed from the sidebar. The worktree on disk is left untouched."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Remove")
-        alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        alert.informativeText = """
+        Branch: \(tab.branchName)
+        Worktree: \(tab.worktreePath)
 
+        Choose whether to keep the worktree on disk or delete it too. \
+        Deleting the worktree runs `git worktree remove --force`, which \
+        discards any uncommitted work inside it.
+        """
+        alert.alertStyle = .warning
+        let removeAndDeleteButton = alert.addButton(withTitle: "Remove Tab + Worktree")
+        alert.addButton(withTitle: "Remove Tab Only")
+        alert.addButton(withTitle: "Cancel")
+        // First button is the default; make the destructive option visually marked.
+        removeAndDeleteButton.hasDestructiveAction = true
+
+        let response = alert.runModal()
+        switch response {
+        case .alertFirstButtonReturn:
+            performRemoval(id: id, tab: tab, deleteWorktree: true, services: services)
+        case .alertSecondButtonReturn:
+            performRemoval(id: id, tab: tab, deleteWorktree: false, services: services)
+        default:
+            return
+        }
+    }
+
+    private static func performRemoval(
+        id: Int64, tab: YggdrasilTab, deleteWorktree: Bool, services: AppServices
+    ) {
+        // Tear down the running agent first so its files aren't held open
+        // by the time `git worktree remove` runs.
         services.sessions.remove(id: id)
+
+        if deleteWorktree {
+            // Resolve the owning repo from the worktree's grandparent dir
+            // (WorktreeManager places worktrees at <repoParent>/.worktrees/<slug>).
+            let repo = services.tabs.repoByTabID[id]
+            if let repo {
+                let worktreeURL = URL(fileURLWithPath: tab.worktreePath, isDirectory: true)
+                Task {
+                    do {
+                        try await services.worktreeManager.remove(
+                            repo: repo, path: worktreeURL, force: true
+                        )
+                        YggdrasilLog.ui.info(
+                            "Removed worktree \(tab.worktreePath, privacy: .public) for tab \(id, privacy: .public)"
+                        )
+                    } catch {
+                        YggdrasilLog.ui.error(
+                            "git worktree remove failed for \(tab.worktreePath, privacy: .public): \(String(describing: error), privacy: .public)"
+                        )
+                    }
+                }
+            } else {
+                YggdrasilLog.ui.warning(
+                    "Could not resolve repo for tab \(id, privacy: .public); skipping worktree removal"
+                )
+            }
+        }
+
         do {
             try services.tabStore.delete(id: id)
         } catch {
-            YggdrasilLog.ui.error("Failed to delete tab \(id, privacy: .public): \(String(describing: error), privacy: .public)")
+            YggdrasilLog.ui.error(
+                "Failed to delete tab \(id, privacy: .public): \(String(describing: error), privacy: .public)"
+            )
         }
         services.tabs.reload()
     }
