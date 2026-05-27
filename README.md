@@ -295,4 +295,4 @@ reports in `phase-N-report.md`. Running log of spec deviations:
 
 ## License
 
-TBD.
+[MIT](LICENSE) © BSV Association.
