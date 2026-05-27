@@ -64,6 +64,20 @@ final class TabsModel {
         return TabRowViewModel(tab: tab, task: task)
     }
 
+    /// Returns the tabs filtered by a case-insensitive substring match against the
+    /// row's titleLine (task title or branch fallback) and branchName. Returns the
+    /// full list when `query` is empty after trimming.
+    func filtered(by query: String) -> [Tab] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return tabs }
+        let needle = trimmed.lowercased()
+        return tabs.filter { tab in
+            let row = model(for: tab)
+            return row.titleLine.lowercased().contains(needle)
+                || row.branchLine.lowercased().contains(needle)
+        }
+    }
+
     /// SwiftUI `List`'s `.onMove(perform:)` shape. Reorders the in-memory array
     /// immediately for snappy UI and persists via `TabStore.reorder(ids:)`.
     func move(fromOffsets: IndexSet, toOffset: Int) {

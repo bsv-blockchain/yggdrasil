@@ -69,6 +69,26 @@ final class TabsModelTests: XCTestCase {
         XCTAssertEqual(model.selectedID, first.id, "moveSelection clamps; can't go above the top")
     }
 
+    func testFilteredByQueryMatchesBranchSubstring() throws {
+        _ = try store.insert(branchName: "feat/foo", worktreePath: "/a", agentID: nil, taskID: nil)
+        _ = try store.insert(branchName: "feat/bar", worktreePath: "/b", agentID: nil, taskID: nil)
+        _ = try store.insert(branchName: "fix/baz", worktreePath: "/c", agentID: nil, taskID: nil)
+        model.reload()
+
+        XCTAssertEqual(model.filtered(by: "feat").map(\.branchName), ["feat/foo", "feat/bar"])
+        XCTAssertEqual(model.filtered(by: "bar").map(\.branchName), ["feat/bar"])
+        XCTAssertEqual(model.filtered(by: "FIX").map(\.branchName), ["fix/baz"],
+                       "matching is case-insensitive")
+    }
+
+    func testFilteredEmptyQueryReturnsAllTabs() throws {
+        _ = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
+        _ = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
+        model.reload()
+        XCTAssertEqual(model.filtered(by: "").count, 2)
+        XCTAssertEqual(model.filtered(by: "   ").count, 2, "whitespace-only counts as empty")
+    }
+
     func testReorderPersistsViaStore() throws {
         let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)

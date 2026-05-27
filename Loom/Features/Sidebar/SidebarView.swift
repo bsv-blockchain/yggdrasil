@@ -6,15 +6,25 @@ struct SidebarView: View {
     let services: AppServices
     let onSelect: (Int64) -> Void
     @State private var showingNewTabSheet = false
+    @State private var rawSearchQuery: String = ""
+    @State private var debouncedQuery: String = ""
+    @State private var debounceTask: Task<Void, Never>?
 
     private var tabsModel: TabsModel { services.tabs }
+
+    private var filteredTabs: [Tab] {
+        tabsModel.filtered(by: debouncedQuery)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             header
+            searchField
             Divider()
             if tabsModel.tabs.isEmpty {
                 emptyState
+            } else if filteredTabs.isEmpty {
+                noMatchesState
             } else {
                 tabList
             }
@@ -23,6 +33,55 @@ struct SidebarView: View {
         .background(Color(NSColor.controlBackgroundColor))
         .sheet(isPresented: $showingNewTabSheet) {
             NewTabSheet(services: services)
+        }
+        .onChange(of: rawSearchQuery) { _, newValue in
+            scheduleDebouncedQueryUpdate(to: newValue)
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.tertiary)
+            TextField("Search", text: $rawSearchQuery)
+                .textFieldStyle(.plain)
+                .accessibilityIdentifier("sidebar.search")
+            if !rawSearchQuery.isEmpty {
+                Button {
+                    rawSearchQuery = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+    }
+
+    private var noMatchesState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 24))
+                .foregroundStyle(.tertiary)
+            Text("No matches")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    /// 150 ms debounce per spec §Phase 4 AC #4 ("Search filters live, no UI hang
+    /// on 200 tab fixture"). Cancels any in-flight delay on each keystroke.
+    private func scheduleDebouncedQueryUpdate(to value: String) {
+        debounceTask?.cancel()
+        debounceTask = Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                debouncedQuery = value
+            }
         }
     }
 
@@ -52,7 +111,7 @@ struct SidebarView: View {
         // via .onMove for free. Larger chrome than a LazyVStack but appropriate
         // for the sidebar.
         List {
-            ForEach(tabsModel.tabs, id: \.id) { tab in
+            ForEach(filteredTabs, id: \.id) { tab in
                 Button {
                     if let id = tab.id {
                         tabsModel.select(id)
@@ -72,6 +131,9 @@ struct SidebarView: View {
                 }
             }
             .onMove { from, toOffset in
+                // Only allow reorder when the visible list is the full list —
+                // moving filtered indices would corrupt the canonical positions.
+                guard debouncedQuery.isEmpty else { return }
                 tabsModel.move(fromOffsets: from, toOffset: toOffset)
             }
         }
