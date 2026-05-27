@@ -16,6 +16,20 @@ final class CannedHTTPClient: HTTPClient, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         calledURLs.append(url)
+        // Built-in canned response for the review-requested search endpoint:
+        // TaskSyncService calls /search/issues unconditionally now, and most
+        // existing tests don't care about the review path, so default it to
+        // "no PRs to review" instead of consuming a queued response. Tests
+        // that DO want to assert review behavior should override by enqueuing
+        // a body and matching the assertion accordingly.
+        if url.path.contains("/search/issues") {
+            return HTTPResult(
+                status: 200,
+                body: Data("{\"items\":[]}".utf8),
+                etag: nil,
+                rateLimitRemaining: nil
+            )
+        }
         guard !responses.isEmpty else {
             throw GitHubError.requestFailed(.badServerResponse)
         }

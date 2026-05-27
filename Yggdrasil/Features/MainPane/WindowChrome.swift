@@ -14,6 +14,7 @@ struct WindowChromeBar: View {
     @Environment(\.colorScheme) private var scheme
 
     @State private var themeOverride: NSAppearance.Name?
+    @State private var showingReviewPicker = false
 
     private var selectedTab: YggdrasilTab? {
         guard let id = services.tabs.selectedID else { return nil }
@@ -96,6 +97,29 @@ struct WindowChromeBar: View {
                     )
             }
 
+            if services.tabs.pendingReviewCount > 0 {
+                Button {
+                    showingReviewPicker = true
+                } label: {
+                    Label("\(services.tabs.pendingReviewCount) to review", systemImage: "eye")
+                        .labelStyle(.titleAndIcon)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(YggdrasilTheme.accent)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule().fill(YggdrasilTheme.accentSoft(scheme))
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(YggdrasilTheme.accent.opacity(0.4), lineWidth: 0.5)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("Show PRs awaiting your review")
+                .accessibilityIdentifier("chrome.reviewpill")
+            }
+
             Spacer()
 
             HStack(spacing: 4) {
@@ -122,6 +146,9 @@ struct WindowChromeBar: View {
                 .frame(height: 0.5),
             alignment: .bottom
         )
+        .sheet(isPresented: $showingReviewPicker) {
+            AssignedTaskPicker(services: services, mode: .review)
+        }
     }
 
     private var repoFullName: String? {

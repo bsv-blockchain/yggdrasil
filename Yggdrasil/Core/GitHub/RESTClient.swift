@@ -36,6 +36,27 @@ struct RESTClient {
         return .modified(raws)
     }
 
+    /// PRs across all of GitHub where the authenticated user is a requested
+    /// reviewer. Backed by `/search/issues`, which wraps results in
+    /// `{ items: […] }` — items are the same shape as `RESTIssueDTO`.
+    /// No ETag-cached If-None-Match here; search responses change too often
+    /// to make the conditional GET worthwhile.
+    func reviewRequestedPRs() async throws -> [RawTask] {
+        let result = try await http.get(
+            url: Endpoints.reviewRequestedPRs(),
+            accept: "application/vnd.github+json"
+        )
+        let body = result.body ?? Data()
+        struct Envelope: Decodable { let items: [RESTIssueDTO] }
+        let dtos: [RESTIssueDTO]
+        do {
+            dtos = try Self.decoder.decode(Envelope.self, from: body).items
+        } catch {
+            throw GitHubError.decodingFailed(String(describing: error))
+        }
+        return try dtos.map { try RawTask(issue: $0) }
+    }
+
     func openPRs(forOwner owner: String, name: String) async throws -> [RawTask] {
         switch try await openPRsIfModified(forOwner: owner, name: name) {
         case let .modified(raws): raws

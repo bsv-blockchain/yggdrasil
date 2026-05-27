@@ -15,6 +15,7 @@
 		09654444BE8D9DD427692C62 /* SessionStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B7D16A5E82558480C71BC1 /* SessionStateStore.swift */; };
 		0BB7AEFF9C4333E557DCA812 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5E276B1C5A660F7A97480E80 /* Assets.xcassets */; };
 		0DBDEA2F552D95BE43BAF70B /* IntervalsPrefsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EDEA9CE1F92D154D3762737 /* IntervalsPrefsPane.swift */; };
+		1127A314ABE86CBA0EB815DA /* PRReviewRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6144C93179429F6F1C8272 /* PRReviewRequest.swift */; };
 		11B34E7AEAA136DAABFB885C /* WorktreeInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE934F8A52B03388BF2B0C33 /* WorktreeInfo.swift */; };
 		12A91C1852BCB855AECA8E3B /* DiffSubPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = C786A66165F6A0748293063D /* DiffSubPane.swift */; };
 		14FBF3ED9C9E52E9ED8611AD /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC4D78DD45A5F9D613077301 /* Migrations.swift */; };
@@ -119,6 +120,7 @@
 		E95FF9A36B1FBA30ECEA91A7 /* CodingAgentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88E4FB20AE73F43E9A4934EC /* CodingAgentStore.swift */; };
 		EB5A16940C4EB34E1DD546FC /* index.html in Resources */ = {isa = PBXBuildFile; fileRef = BEC439EAE044AE869E531DAD /* index.html */; };
 		ECB7FF50A3EE91834B7E531E /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 0DCDF4C6F794D772D38F2952 /* GRDB */; };
+		F0877CD15CFE8ACD4D2934CC /* ReviewPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 948A16A92FE75C74D900FC72 /* ReviewPickerTests.swift */; };
 		F3AFA17A8905FA23BB7A8131 /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3642D905571F3D54A5796F /* SmokeTests.swift */; };
 		F47EAD1937EE379E1A26A822 /* YggdrasilApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4A8D8497EF59E2E426DF74 /* YggdrasilApp.swift */; };
 		F653012C07E04B870EF015CE /* diff2html-ui.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 42DF883AE41A0F44F86DE6F5 /* diff2html-ui.min.js */; };
@@ -205,6 +207,7 @@
 		8A30B4717CB6A068A8F5793F /* GHCLIAuthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GHCLIAuthTests.swift; sourceTree = "<group>"; };
 		8E8F555D658DE195C8390B80 /* SyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncScheduler.swift; sourceTree = "<group>"; };
 		918445015D120B181B68D47B /* TaskAssignee.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskAssignee.swift; sourceTree = "<group>"; };
+		948A16A92FE75C74D900FC72 /* ReviewPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPickerTests.swift; sourceTree = "<group>"; };
 		9652BDCE37E52D0F9D613C9A /* WorktreeManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeManagerTests.swift; sourceTree = "<group>"; };
 		990F6605EDD80703D108886D /* PreferencesScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesScene.swift; sourceTree = "<group>"; };
 		9A2515FBAF6E55E8816318DB /* LRUTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LRUTracker.swift; sourceTree = "<group>"; };
@@ -223,6 +226,7 @@
 		BA8E73AFC818DB9C164D07FF /* BackoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffTests.swift; sourceTree = "<group>"; };
 		BB294B77DDC7413F8D9551B1 /* Clibgit2 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Clibgit2; path = Vendor/Clibgit2; sourceTree = SOURCE_ROOT; };
 		BB714284664866D813B72CD3 /* Endpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoints.swift; sourceTree = "<group>"; };
+		BC6144C93179429F6F1C8272 /* PRReviewRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRReviewRequest.swift; sourceTree = "<group>"; };
 		BEB0086A14754A9816E8A746 /* AppearancePrefsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePrefsPane.swift; sourceTree = "<group>"; };
 		BEC439EAE044AE869E531DAD /* index.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = index.html; sourceTree = "<group>"; };
 		BEE2012604DB01A1CFD0B5AB /* TabStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabStoreTests.swift; sourceTree = "<group>"; };
@@ -538,6 +542,7 @@
 			children = (
 				D56D44185226644B2CDBBAC5 /* CodingAgent.swift */,
 				42AC4ECC1A08E5604A2057FC /* GitHubStatus.swift */,
+				BC6144C93179429F6F1C8272 /* PRReviewRequest.swift */,
 				0C7ABCB5C463A7C4CE3D439B /* Repo.swift */,
 				17B95A44765994725D851F56 /* SessionState.swift */,
 				A97729D8FC6AC4C3B31D1522 /* Setting.swift */,
@@ -573,6 +578,7 @@
 			isa = PBXGroup;
 			children = (
 				CC196666CA9FF3A004ACC36C /* NewTabSheetParseTests.swift */,
+				948A16A92FE75C74D900FC72 /* ReviewPickerTests.swift */,
 				A0B6047B65F17F43271FFAE3 /* TabRowViewModelTests.swift */,
 				252F995BF1A44D1A9207F6B8 /* TabsModelTests.swift */,
 				BEE2012604DB01A1CFD0B5AB /* TabStoreTests.swift */,
@@ -810,6 +816,7 @@
 				DEEF67781B6F9FAD73BB4529 /* NewTabSheetParseTests.swift in Sources */,
 				D7751660D21DCCF26C33E7D0 /* OutputRingBufferTests.swift in Sources */,
 				4F7A0286534CE1B8A021E704 /* RESTClientTests.swift in Sources */,
+				F0877CD15CFE8ACD4D2934CC /* ReviewPickerTests.swift in Sources */,
 				FE3EFDC412C327D16585A573 /* SessionStateStoreTests.swift in Sources */,
 				39217F9F21FB0EA87F444757 /* SettingsStoreTests.swift in Sources */,
 				F3AFA17A8905FA23BB7A8131 /* SmokeTests.swift in Sources */,
@@ -868,6 +875,7 @@
 				B43642C383D9167A73FC6D90 /* NewTabSheet.swift in Sources */,
 				93EAB4D3AE7942134EE7A7EA /* OnboardingSheet.swift in Sources */,
 				08B0DF682CA7EF1025465430 /* OutputRingBuffer.swift in Sources */,
+				1127A314ABE86CBA0EB815DA /* PRReviewRequest.swift in Sources */,
 				8F9D3350CA9F4B3FD2B4ED81 /* PreferencesScene.swift in Sources */,
 				D15CA18949CB392828344BB2 /* RESTClient.swift in Sources */,
 				7C0B5CE421A96306020C85B0 /* Repo.swift in Sources */,

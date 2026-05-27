@@ -16,6 +16,9 @@ final class TabsModel {
     var repoByTabID: [Int64: Repo] = [:]
     /// Cache: tabID → resolved agent identity (Claude/Codex/Gemini/Copilot/Grok).
     var agentByTabID: [Int64: AgentIdentity] = [:]
+    /// Number of review-requested PRs not yet shadowed by a tab. Drives the
+    /// "N to review" pill in the window chrome.
+    var pendingReviewCount: Int = 0
     var selectedID: Int64?
 
     private let store: TabStore
@@ -74,6 +77,12 @@ final class TabsModel {
             }
             tasksByTabID = taskMap
             repoByTabID = repoMap
+            pendingReviewCount = try database.queue.read { db in
+                try Int.fetchOne(db, sql: """
+                    SELECT COUNT(*) FROM pr_review_request
+                    WHERE task_id NOT IN (SELECT task_id FROM tab WHERE task_id IS NOT NULL)
+                    """) ?? 0
+            }
             // Resolve per-tab agent identity from CodingAgent.command via the
             // brand heuristic (claude/codex/gemini/copilot/grok).
             agentByTabID = [:]

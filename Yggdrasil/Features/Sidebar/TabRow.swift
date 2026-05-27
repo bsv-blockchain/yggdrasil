@@ -19,12 +19,27 @@ struct TabRow: View {
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(model.titleLine)
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundStyle(YggdrasilTheme.text(scheme))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .accessibilityIdentifier("tabrow.title")
+                HStack(spacing: 6) {
+                    if model.isReview {
+                        Text("REVIEW")
+                            .font(.system(size: 9, weight: .bold))
+                            .tracking(0.6)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .foregroundStyle(YggdrasilTheme.accent)
+                            .background(Capsule().fill(YggdrasilTheme.accentSoft(scheme)))
+                            .overlay(
+                                Capsule().stroke(YggdrasilTheme.accent.opacity(0.4), lineWidth: 0.5)
+                            )
+                            .accessibilityIdentifier("tabrow.reviewbadge")
+                    }
+                    Text(model.titleLine)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(YggdrasilTheme.text(scheme))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .accessibilityIdentifier("tabrow.title")
+                }
 
                 HStack(spacing: 5) {
                     Image(systemName: "arrow.triangle.branch")

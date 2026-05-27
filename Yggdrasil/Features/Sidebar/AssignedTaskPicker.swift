@@ -1,15 +1,58 @@
 import GRDB
 import SwiftUI
 
-/// Sheet that lists every assigned issue / PR not yet open as a tab. Clicking
-/// a row opens it: ensures the worktree (PR head fetched, or new branch off
-/// the default base for issues) and inserts a tab linked to the task using
-/// the user's default coding agent.
+/// Mode toggle for the task-picker sheet. Same UI/flow, different source set:
+/// `assigned` reads from `task` directly (sync filters to assignee:@me);
+/// `review` reads from `pr_review_request` (PRs the user has been asked to
+/// review, fetched via the search endpoint).
+enum TaskPickerMode {
+    case assigned
+    case review
+
+    var title: String {
+        switch self {
+        case .assigned: "Open Assigned"
+        case .review: "PRs to Review"
+        }
+    }
+
+    var emptyTitle: String {
+        switch self {
+        case .assigned: "Nothing to open"
+        case .review: "No reviews waiting"
+        }
+    }
+
+    var emptySubtitle: String {
+        switch self {
+        case .assigned: "All assigned issues and PRs are already open, or nothing has been synced yet."
+        case .review: "You're not currently requested as a reviewer on any open PR."
+        }
+    }
+
+    /// Branch-name prefix used when opening a task in this mode. The
+    /// `review-` prefix lets the sidebar and chrome pick up the REVIEW
+    /// badge without a schema change.
+    func branchName(for task: YggdrasilTask) -> String {
+        switch self {
+        case .assigned:
+            return task.type == .pullRequest ? "pr-\(task.number)" : "issue-\(task.number)"
+        case .review:
+            return "review-pr-\(task.number)"
+        }
+    }
+}
+
+/// Sheet that lists tasks (assigned issues/PRs, or review-requested PRs)
+/// not yet open as a tab. Clicking a row opens it: ensures the worktree
+/// (PR head fetched, or new branch off the default base for issues) and
+/// inserts a tab linked to the task using the user's default coding agent.
 ///
-/// Reads the task table directly — sync already filters to assigned-to-me,
+/// Reads the relevant table directly — sync already filters server-side,
 /// so we don't need an extra GitHub round-trip here.
 struct AssignedTaskPicker: View {
     let services: AppServices
+    var mode: TaskPickerMode = .assigned
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
 
@@ -44,7 +87,7 @@ struct AssignedTaskPicker: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Open Assigned")
+            Text(mode.title)
                 .font(.system(size: 18, weight: .semibold))
                 .tracking(-0.2)
                 .foregroundStyle(YggdrasilTheme.text(scheme))
@@ -107,13 +150,13 @@ struct AssignedTaskPicker: View {
 
     private var emptyState: some View {
         VStack(spacing: 6) {
-            Image(systemName: "checkmark.seal")
+            Image(systemName: mode == .review ? "checkmark.seal" : "tray")
                 .font(.system(size: 28))
                 .foregroundStyle(.tertiary)
-            Text("Nothing to open")
+            Text(mode.emptyTitle)
                 .font(.callout)
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
-            Text("All assigned issues and PRs are already open, or nothing has been synced yet.")
+            Text(mode.emptySubtitle)
                 .font(.caption)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(YggdrasilTheme.textMute(scheme))
@@ -155,15 +198,28 @@ struct AssignedTaskPicker: View {
                 let openedTaskIDs = try Int64.fetchSet(
                     db, sql: "SELECT task_id FROM tab WHERE task_id IS NOT NULL"
                 )
-                let allTasks = try YggdrasilTask
-                    .order(Column("updated_at").desc)
-                    .fetchAll(db)
+                let candidateTasks: [YggdrasilTask]
+                switch mode {
+                case .assigned:
+                    candidateTasks = try YggdrasilTask
+                        .order(Column("updated_at").desc)
+                        .fetchAll(db)
+                case .review:
+                    candidateTasks = try YggdrasilTask.fetchAll(
+                        db,
+                        sql: """
+                        SELECT task.* FROM task
+                        JOIN pr_review_request ON pr_review_request.task_id = task.id
+                        ORDER BY task.updated_at DESC
+                        """
+                    )
+                }
                 let repos = try Repo.fetchAll(db)
                 let repoByID = Dictionary(uniqueKeysWithValues: repos.compactMap { repo -> (Int64, Repo)? in
                     guard let id = repo.id else { return nil }
                     return (id, repo)
                 })
-                return allTasks.compactMap { task -> Row? in
+                return candidateTasks.compactMap { task -> Row? in
                     guard let taskID = task.id, !openedTaskIDs.contains(taskID) else { return nil }
                     guard let repo = repoByID[task.repoID] else { return nil }
                     return Row(task: task, repo: repo)
@@ -198,16 +254,10 @@ struct AssignedTaskPicker: View {
                 error = "No coding agent configured."
                 return
             }
-            let branch: String
-            let baseRef: String?
-            switch row.task.type {
-            case .pullRequest:
-                branch = "pr-\(row.task.number)"
-                baseRef = "refs/pull/\(row.task.number)/head"
-            case .issue:
-                branch = "issue-\(row.task.number)"
-                baseRef = nil
-            }
+            let branch = mode.branchName(for: row.task)
+            let baseRef: String? = row.task.type == .pullRequest
+                ? "refs/pull/\(row.task.number)/head"
+                : nil
             let worktreeURL = try await services.worktreeManager.ensure(
                 repo: row.repo, branch: branch, baseRef: baseRef
             )

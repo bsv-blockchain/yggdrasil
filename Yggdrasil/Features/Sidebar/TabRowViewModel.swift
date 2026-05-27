@@ -24,6 +24,10 @@ struct TabRowViewModel: Equatable {
     let worktreeLine: String
     let statusIcon: StatusIcon
     let trailingBadge: TrailingBadge
+    /// True when the tab was opened via the review picker (branch prefixed
+    /// with `review-`). Drives the REVIEW pill in TabRow so the user can
+    /// distinguish a review session from a normal one at a glance.
+    let isReview: Bool
     /// Phase 6+: live status carrying the priority icon + tooltip lines + the
     /// unread-dot flag. nil when nothing has populated it yet.
     let liveStatus: TabStatus?
@@ -51,6 +55,7 @@ struct TabRowViewModel: Equatable {
         worktreeLine = TabRowViewModel.midEllipsis(tab.worktreePath, max: maxWorktreeChars)
         self.liveStatus = liveStatus
         statusIcon = Self.mapIcon(liveStatus?.icon) ?? .idle
+        isReview = NewTabSheet.isReviewBranch(tab.branchName)
     }
 
     /// Map the aggregator's icon onto the row's enum. Returns nil to mean

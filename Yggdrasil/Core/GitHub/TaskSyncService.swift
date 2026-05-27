@@ -34,13 +34,30 @@ actor TaskSyncService {
 
         YggdrasilLog.sync.info("Starting full sync over \(trackedRepos.count, privacy: .public) tracked repos")
         let assigned = try await rest.assignedIssues()
-        let relevant = assigned.filter { trackedKey["\($0.repoOwner)/\($0.repoName)"] != nil }
+        let relevantAssigned = assigned.filter { trackedKey["\($0.repoOwner)/\($0.repoName)"] != nil }
+
+        // Review-requested PRs are a separate axis from assignment. Pulled
+        // from the search endpoint and merged into the same task table —
+        // duplicates between the two lists are deduped by (repo, type, number).
+        let reviewRequested = (try? await rest.reviewRequestedPRs()) ?? []
+        let relevantReview = reviewRequested.filter { trackedKey["\($0.repoOwner)/\($0.repoName)"] != nil }
+
+        // Union for the upsert / stale-prune pass; both lists feed the same
+        // task rows. pr_review_request membership is rebuilt from
+        // `relevantReview` alone after the upserts land.
+        var merged: [RawTask] = relevantAssigned
+        let assignedKeys = Set(relevantAssigned.map { Self.compositeKey(owner: $0.repoOwner, name: $0.repoName, number: $0.number) })
+        for raw in relevantReview where !assignedKeys.contains(
+            Self.compositeKey(owner: raw.repoOwner, name: raw.repoName, number: raw.number)
+        ) {
+            merged.append(raw)
+        }
         YggdrasilLog.sync.info(
-            "REST returned \(assigned.count, privacy: .public) assigned tasks, \(relevant.count, privacy: .public) within tracked repos"
+            "REST returned \(assigned.count, privacy: .public) assigned tasks, \(relevantAssigned.count, privacy: .public) within tracked repos; \(reviewRequested.count, privacy: .public) review-requested, \(relevantReview.count, privacy: .public) within tracked repos"
         )
 
         var prDetails: [String: PRDetail] = [:]
-        for raw in relevant where raw.type == .pullRequest {
+        for raw in merged where raw.type == .pullRequest {
             let detail = try await graphql.prDetail(
                 owner: raw.repoOwner, repo: raw.repoName, number: raw.number
             )
@@ -50,9 +67,12 @@ actor TaskSyncService {
         let now = Date()
         try await database.queue.write { db in
             try TaskSyncWrites.applyUpserts(
-                db: db, raws: relevant, repos: trackedKey, prDetails: prDetails, now: now
+                db: db, raws: merged, repos: trackedKey, prDetails: prDetails, now: now
             )
-            try TaskSyncWrites.deleteStaleTasks(db: db, repos: trackedRepos, fetched: relevant)
+            try TaskSyncWrites.deleteStaleTasks(db: db, repos: trackedRepos, fetched: merged)
+            try TaskSyncWrites.applyReviewRequests(
+                db: db, raws: relevantReview, repos: trackedKey, now: now
+            )
         }
         YggdrasilLog.sync.info("Full sync complete")
     }
@@ -133,6 +153,33 @@ enum TaskSyncWrites {
                 fetchedAt: now
             )
             try status.save(db)
+        }
+    }
+
+    /// Replaces the `pr_review_request` table contents for tracked repos
+    /// with the set of PRs the user has been asked to review. PRs that drop
+    /// out of `raws` (review dismissed, PR closed, …) get their row removed.
+    /// Runs inside the same transaction as `applyUpserts` so a partial sync
+    /// can't leave the membership table out of step with the task table.
+    static func applyReviewRequests(
+        db: Database,
+        raws: [RawTask],
+        repos: [String: Repo],
+        now: Date
+    ) throws {
+        // Wipe and rewrite. The table is tiny (one row per outstanding
+        // review request) and the search endpoint returns the full current
+        // set, so an authoritative replace is simpler than a diff.
+        try db.execute(sql: "DELETE FROM pr_review_request")
+        for raw in raws where raw.type == .pullRequest {
+            guard let repo = repos["\(raw.repoOwner)/\(raw.repoName)"], let repoID = repo.id else { continue }
+            let taskID: Int64? = try Int64.fetchOne(
+                db,
+                sql: "SELECT id FROM task WHERE repo_id = ? AND type = ? AND number = ?",
+                arguments: [repoID, raw.type.rawValue, raw.number]
+            )
+            guard let taskID else { continue }
+            try PRReviewRequest(taskID: taskID, requestedAt: now).insert(db)
         }
     }
 

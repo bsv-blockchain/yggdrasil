@@ -246,11 +246,20 @@ struct NewTabSheet: View {
     static func parsePRNumber(_ branch: String) -> Int? {
         let trimmed = branch.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("#"), let number = Int(trimmed.dropFirst()) { return number }
-        let prefixes = ["pr-", "pr/", "issue-", "issue/"]
+        // Order matters: longer prefixes first so "review-pr-643" doesn't match
+        // "pr-" and yield 643's repr against the suffix "643".
+        let prefixes = ["review-pr-", "review-pr/", "review-issue-", "review-issue/", "pr-", "pr/", "issue-", "issue/"]
         for prefix in prefixes where trimmed.lowercased().hasPrefix(prefix) {
             if let number = Int(trimmed.dropFirst(prefix.count)) { return number }
         }
         return nil
+    }
+
+    /// True if the branch was created via the review-picker flow (prefix
+    /// `review-`). Used by the sidebar row + chrome to render a REVIEW
+    /// pill so the user can't confuse a review session with a normal one.
+    static func isReviewBranch(_ branch: String) -> Bool {
+        branch.lowercased().hasPrefix("review-")
     }
 }
 

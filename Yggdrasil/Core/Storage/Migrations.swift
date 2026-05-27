@@ -7,7 +7,23 @@ enum Migrations {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("v1", migrate: v1)
         migrator.registerMigration("v2", migrate: v2)
+        migrator.registerMigration("v3", migrate: v3)
         return migrator
+    }
+
+    // MARK: - v3 — PR review-requested marker
+    //
+    // A row here means the current viewer was requested to review this PR
+    // (the linked task row is the PR itself; review-requested is an
+    // orthogonal status to assignment, so it gets its own table — same
+    // shape as task_assignee).
+    private static func v3(_ db: Database) throws {
+        try db.create(table: "pr_review_request") { table in
+            table.column("task_id", .integer)
+                .primaryKey()
+                .references("task", onDelete: .cascade)
+            table.column("requested_at", .datetime).notNull()
+        }
     }
 
     // MARK: - v1 (Phase 1)

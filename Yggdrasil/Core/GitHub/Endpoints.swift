@@ -17,6 +17,23 @@ enum Endpoints {
         return components.url!
     }
 
+    /// `/search/issues?q=is:pr+is:open+review-requested:@me&per_page=100`
+    ///
+    /// GitHub's `/search/issues` returns both issues and PRs; the `is:pr`
+    /// qualifier narrows to PRs. `review-requested:@me` matches PRs where
+    /// the authenticated user is a requested reviewer (either directly or
+    /// via a team). Uses the same `RESTIssueDTO` payload shape as
+    /// `/issues`, wrapped in a `{ items: […] }` envelope.
+    static func reviewRequestedPRs(perPage: Int = 100) -> URL {
+        var components = URLComponents(url: restBase.appendingPathComponent("search/issues"),
+                                       resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "q", value: "is:pr is:open review-requested:@me archived:false"),
+            URLQueryItem(name: "per_page", value: String(perPage))
+        ]
+        return components.url!
+    }
+
     /// `/repos/{owner}/{repo}/pulls?state=open&per_page=100`
     static func openPullRequests(owner: String, repo: String, perPage: Int = 100) -> URL {
         var components = URLComponents(
