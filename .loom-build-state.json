@@ -56,13 +56,13 @@
       "name": "Main pane: GitHub WebView + Terminal binding",
       "approved": false,
       "branch": "main",
-      "git_sha": "PENDING_FINALIZATION",
+      "git_sha": "eec590f4bd00f81b647607baf5f77b7a2c8e090d",
       "completed_at": "2026-05-27T03:30:00Z",
       "blockers": []
     }
   ],
   "started_at": "2026-05-26T19:00:00Z",
   "last_updated": "2026-05-27T03:30:00Z",
-  "last_git_sha": "PENDING_FINALIZATION",
+  "last_git_sha": "eec590f4bd00f81b647607baf5f77b7a2c8e090d",
   "blockers": []
 }
