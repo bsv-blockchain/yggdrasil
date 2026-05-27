@@ -23,7 +23,42 @@ struct MainPaneView: View {
             content
         }
         .id(selectedTab.id) // Fresh state every tab.
-        .onAppear { applyDefaultViewForTab() }
+        .onAppear {
+            applyDefaultViewForTab()
+            ensureSessionForSelectedTab()
+        }
+    }
+
+    /// Spec §Phase 5: "If the tab doesn't have a session yet (first open),
+    /// ensure(worktree) from Phase 2 runs, then session spawns." Phase 4's "+"
+    /// sheet already creates the worktree at tab-creation time, so on selection
+    /// we only need to materialise the SessionsModel entry — the
+    /// `AgentTerminalSurface` mount in the .agent branch then spawns the agent.
+    private func ensureSessionForSelectedTab() {
+        guard let tabID = selectedTab.id else { return }
+        if services.sessions.sessions.contains(where: { $0.id == tabID }) { return }
+        guard let agentID = selectedTab.codingAgentID else {
+            LoomLog.ui.info("Tab \(tabID, privacy: .public) has no coding_agent_id; cannot auto-spawn")
+            return
+        }
+        do {
+            guard let agent = try services.agentStore.get(id: agentID) else {
+                LoomLog.ui.warning("Tab \(tabID, privacy: .public) references missing agent id=\(agentID, privacy: .public)")
+                return
+            }
+            services.sessions.add(
+                OpenSession(
+                    id: tabID,
+                    displayName: "\(agent.name) · \(selectedTab.branchName)",
+                    cwd: selectedTab.worktreePath,
+                    command: agent.command,
+                    args: agent.args
+                )
+            )
+            services.sessions.selectedID = tabID
+        } catch {
+            LoomLog.ui.error("Auto-spawn failed for tab \(tabID, privacy: .public): \(String(describing: error), privacy: .public)")
+        }
     }
 
     // MARK: - Segments
