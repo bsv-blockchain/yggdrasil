@@ -32,12 +32,41 @@ struct ProcessRunner: SubprocessRunner {
             process.standardOutput = stdoutPipe
             process.standardError = stderrPipe
 
+            // Drain pipes continuously rather than only in terminationHandler.
+            // A child writing > 64 KB (the macOS pipe buffer default) before
+            // exiting would otherwise deadlock against the parent, which doesn't
+            // read until termination.
+            let stdoutAccumulator = PipeAccumulator()
+            let stderrAccumulator = PipeAccumulator()
+            stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                if chunk.isEmpty {
+                    // EOF — closing the pipe ends the read loop.
+                    handle.readabilityHandler = nil
+                } else {
+                    stdoutAccumulator.append(chunk)
+                }
+            }
+            stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                if chunk.isEmpty {
+                    handle.readabilityHandler = nil
+                } else {
+                    stderrAccumulator.append(chunk)
+                }
+            }
+
             process.terminationHandler = { proc in
-                let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                // Drain any data sitting in the pipe at the moment of termination.
+                stdoutPipe.fileHandleForReading.readabilityHandler = nil
+                stderrPipe.fileHandleForReading.readabilityHandler = nil
+                let remainingOut = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                if !remainingOut.isEmpty { stdoutAccumulator.append(remainingOut) }
+                let remainingErr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                if !remainingErr.isEmpty { stderrAccumulator.append(remainingErr) }
                 let result = SubprocessResult(
-                    stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-                    stderr: String(data: stderrData, encoding: .utf8) ?? "",
+                    stdout: String(data: stdoutAccumulator.data, encoding: .utf8) ?? "",
+                    stderr: String(data: stderrAccumulator.data, encoding: .utf8) ?? "",
                     exitCode: proc.terminationStatus
                 )
                 continuation.resume(returning: result)
@@ -49,5 +78,22 @@ struct ProcessRunner: SubprocessRunner {
                 continuation.resume(throwing: Error.launchFailed(underlying: error))
             }
         }
+    }
+}
+
+/// Thread-safe Data accumulator for the pipe readability handlers, which fire
+/// on a background queue.
+private final class PipeAccumulator: @unchecked Sendable {
+    private let lock = NSLock()
+    private var buffer = Data()
+
+    func append(_ chunk: Data) {
+        lock.lock(); defer { lock.unlock() }
+        buffer.append(chunk)
+    }
+
+    var data: Data {
+        lock.lock(); defer { lock.unlock() }
+        return buffer
     }
 }

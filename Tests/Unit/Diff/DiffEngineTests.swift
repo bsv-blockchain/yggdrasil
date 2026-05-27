@@ -94,10 +94,24 @@ final class DiffEngineTests: XCTestCase {
         }
     }
 
-    // Large-diff truncation (`isTruncated`) is checked against
-    // DiffEngine.truncationLimit (5 MB) in source. We do not exercise it from
-    // a test because the current ProcessRunner drains pipes only in the
-    // termination handler — a >5 MB git diff fills the pipe buffer and
-    // deadlocks the child. A separate pipe-drain refactor is logged as a
-    // follow-up before a real large-diff integration test is safe.
+    func testLargeDiffIsFlaggedTruncated() async throws {
+        try await runGit(["checkout", "-b", "feat/huge"])
+        // Write a single >5MB file. Repeated short line so the file gets a
+        // useful line count in the diff. Phase 8's async pipe drain in
+        // ProcessRunner unblocks this test.
+        let path = fixture.repoURL.appendingPathComponent("huge.txt")
+        let chunk = String(repeating: "x", count: 64) + "\n" // 65 bytes/line
+        let lines = (5 * 1024 * 1024 / chunk.count) + 100 // > 5 MB worth
+        let blob = String(repeating: chunk, count: lines)
+        try blob.write(to: path, atomically: true, encoding: .utf8)
+        try await runGit(["add", "huge.txt"])
+        try await runGit(["commit", "-m", "huge"])
+
+        let engine = DiffEngine()
+        let diff = try await engine.unifiedDiff(
+            worktreePath: fixture.repoURL.path,
+            baseRef: "main"
+        )
+        XCTAssertTrue(diff.isTruncated, "diff over 5MB should be flagged as truncated")
+    }
 }
