@@ -1,5 +1,5 @@
 {
-  "current_phase": 7,
+  "current_phase": 8,
   "completed_phases": [
     {
       "phase": 0,
@@ -64,17 +64,30 @@
     {
       "phase": 6,
       "name": "Status aggregation",
-      "approved": false,
+      "approved": true,
+      "approved_at": "2026-05-27T04:30:00Z",
       "branch": "main",
       "git_sha": "fda7a5f89301ee0d87c437918142da2caf5f1b8e",
       "completed_at": "2026-05-27T04:30:00Z",
       "blockers": [
         "AC#5 (Claude awaiting-input within 10s) blocked pending ClaudeSessionLocator + ClaudeSessionTailer (Phase 6.5)"
       ]
+    },
+    {
+      "phase": 7,
+      "name": "Bonus: native diff view",
+      "approved": false,
+      "branch": "main",
+      "git_sha": "PENDING_FINALIZATION",
+      "completed_at": "2026-05-27T12:30:00Z",
+      "blockers": [
+        "FSEvents auto-refresh on commit (AC #5) deferred to Phase 8 polish",
+        "ProcessRunner pipe-drain refactor needed before large-diff test is safe"
+      ]
     }
   ],
   "started_at": "2026-05-26T19:00:00Z",
-  "last_updated": "2026-05-27T04:30:00Z",
-  "last_git_sha": "fda7a5f89301ee0d87c437918142da2caf5f1b8e",
+  "last_updated": "2026-05-27T12:30:00Z",
+  "last_git_sha": "PENDING_FINALIZATION",
   "blockers": []
 }

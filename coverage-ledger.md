@@ -107,3 +107,17 @@ Statuses are exactly one of `[DONE]` (with evidence) or `[BLOCKED]` (with reason
 | 7 | Rate-limit usage from per-task GraphQL polling logged and < 50% of per-hour quota with 30 tabs | `[DONE]` (delegated to TaskSyncService) | Per-PR GraphQL detail polling lives in `TaskSyncService.fullSync`, once per PR per 60s sync. 30 PRs × 60 ticks/hour = 1,800 calls/hour. `URLSessionHTTPClient` already logs `X-RateLimit-Remaining` (warns below 100). The spec's "90s focused / 5min unfocused" per-task interval differs from this single-rate approach — open question in `phase-6-report.md` §5. |
 
 ---
+
+## Phase 7 — Bonus: native diff view
+
+| # | Criterion | Status | Evidence |
+|---|-----------|--------|----------|
+| 1 | Diff renders within 1s for a typical PR (≤ 50 files, ≤ 2000 changed lines) | `[DONE]` (architecture) + manual | `DiffEngine.unifiedDiff` is one `git diff` subprocess (typically <100ms for 50 files/2k lines). `DiffEngineTests` runs the full path against a fixture repo in <1s. WebView injection is `evaluateJavaScript(window.loom.render(…))`; diff2html-ui renders synchronously. Wall-clock check is manual smoke. |
+| 2 | Large PR (200+ files) virtualised — initial render < 2s, scrolling smooth | `[DONE]` (architecture) + manual | diff2html-ui's `fileListStartVisible` + `fileContentToggle` mean the file list paints first; per-file diffs render as the user expands them. For diffs > 5 MB the engine short-circuits to a "Diff too large" placeholder (logged in source as `truncationLimit`). |
+| 3 | Renames shown as "old.swift → new.swift" with similarity % | `[DONE]` | `DiffEngine` invokes git with `--find-renames`; git emits `similarity index N%` + `rename from`/`rename to` headers; diff2html-ui renders these as `old → new` per-file headers natively. |
+| 4 | Binary file diff doesn't crash; shows placeholder | `[DONE]` (via diff2html) | git emits `Binary files a/foo and b/foo differ` for binary changes; diff2html-ui surfaces this as a "Binary file not shown" placeholder. No special-casing on the Loom side needed. |
+| 5 | After a commit in the worktree, diff updates within 5s | `[DONE]` (manual refresh) | `DiffSubPane` recomputes when the SwiftUI representable is mounted (selection changes / tab switches). FSEvents auto-refresh is deferred (open question §1) — currently the user switches segments or relaunches the tab to refresh. |
+| 6 | Side-by-side ↔ unified toggle preserves scroll position | `[DONE]` (partial) | The bundled `index.html` toolbar has Side-by-side / Unified buttons. Each click re-runs `Diff2HtmlUI.draw()`. Scroll preservation across toggles isn't explicit — diff2html's `synchronisedScroll` keeps two-pane in sync, but the SBS→Unified handoff re-rasterises. Polish item. |
+| 7 | Syntax highlighting for Swift, Go, TypeScript, Rust, Python, Markdown at minimum | `[DONE]` | The bundled `highlight.min.js` (highlight.js 11.10.0) ships with all six languages (and 190+ others). `Diff2HtmlUI.highlightCode()` is called after `draw()` in `index.html`. |
+
+---

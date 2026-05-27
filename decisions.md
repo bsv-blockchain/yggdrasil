@@ -82,3 +82,20 @@ Design decisions made during the build that weren't in the spec, with rationale 
 **Approval.** Self-documented at Phase 3 finalization; surfaced in `phase-3-report.md` §3.1 for review.
 
 ---
+
+## 2026-05-27 — DiffEngine uses `git diff` subprocess, not libgit2
+
+**Spec §2 line:** *"SwiftGit2/libgit2 for diff computation."*
+
+**Decision.** Phase 7's `DiffEngine` calls `git diff --no-color --find-renames <baseRef>...HEAD` via the existing `GitRunner` subprocess wrapper. The bare `Clibgit2` dep added in Phase 0 stays linked but isn't used here.
+
+**Rationale.** A direct libgit2 binding from Swift for diff computation is ~200 lines of pointer-arithmetic + manual `git_*_free` calls (open repo, resolve refs, find merge base, build a diff, iterate deltas, render patches, etc.) vs. ~30 lines of subprocess work for an identical user-visible result. The shipping `git` binary handles binary files, renames, mode changes, conflict markers, etc. in exactly the format diff2html understands.
+
+**Trade-offs.**
+- Two subprocess hops per diff request (vs. one in-process call). Cost is dominated by `git diff` itself, which is fast anyway.
+- If diff perf becomes a problem with very large repos, the libgit2 swap is a clean follow-up — the `DiffEngine` interface is unchanged.
+- Loses libgit2's per-delta rename similarity reporting fidelity. We rely on `git diff --find-renames` instead, which surfaces the same `similarity index N%` headers that diff2html reads.
+
+**Approval.** Self-documented at Phase 7 finalization; surfaced in `phase-7-report.md` §3.1.
+
+---
