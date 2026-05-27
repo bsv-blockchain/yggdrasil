@@ -21,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let services = try AppServices()
             self.services = services
+            Diagnostics.ensureCrashFolder()
+            AppearancePrefsPane.applyPersisted(services: services)
             Task {
                 await services.scheduler.start()
                 await services.statusPoller.start()

@@ -14,7 +14,10 @@ struct LoomApp: App {
             CommandGroup(replacing: .newItem) {}
             TabCommands()
             DebugMenu()
+            DiagnosticsCommands()
         }
+
+        PreferencesScene()
     }
 }
 
