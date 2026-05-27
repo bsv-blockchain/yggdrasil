@@ -14,16 +14,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         YggdrasilLog.ui
             .info("Yggdrasil did finish launching (pid=\(ProcessInfo.processInfo.processIdentifier, privacy: .public))")
 
-        // SwiftUI's WindowGroup restores window frames from UserDefaults. Frames saved
-        // from previous sessions may reference monitors that no longer exist, leaving
-        // the window off-screen. Watch for windows becoming visible and recenter any
-        // whose frame doesn't intersect any currently-attached screen.
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.didBecomeKeyNotification,
-            object: nil,
-            queue: .main
-        ) { _ in Self.recenterOffscreenWindows() }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { Self.recenterOffscreenWindows() }
+        // One-shot rescue for windows whose restored frame lands on a screen that
+        // is no longer connected at all. Multi-monitor users move windows around;
+        // we must not second-guess that. Only act if the frame intersects *no*
+        // currently-attached screen — i.e. the window is genuinely invisible.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { Self.rescueOrphanedWindows() }
 
         // Skip building the real service graph under tests — the test bundle has its own
         // mock wiring and we don't want the production DB / Keychain reached during
@@ -74,30 +69,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
-    /// Recenters visible windows onto the screen with the menu bar (the
-    /// "primary" screen — `NSScreen.screens.first`). SwiftUI restores frames
-    /// from UserDefaults and `NSScreen.main` follows the focused window, so a
-    /// window restored to an off-side display reports that display *as* main
-    /// and a naive "on main screen" check is a no-op. Use the array order
-    /// instead, which is stable across launches and matches the menu-bar
-    /// screen.
-    private static func recenterOffscreenWindows() {
-        let allScreens = NSScreen.screens
-        YggdrasilLog.ui.info(
-            "Display layout: \(allScreens.count, privacy: .public) screens; main=\(String(describing: NSScreen.main?.frame), privacy: .public)"
-        )
-        guard let primary = allScreens.first else { return }
-        let primaryFrame = primary.visibleFrame
+    /// One-shot rescue for windows that SwiftUI restored onto a screen the OS
+    /// no longer reports — e.g. a monitor that was attached on the previous
+    /// launch but is gone now. Runs once, shortly after launch, and only
+    /// touches windows whose frame intersects *zero* currently-attached
+    /// screens. A window the user dragged to any connected screen (including
+    /// an out-of-the-way one) is left exactly where it is.
+    private static func rescueOrphanedWindows() {
+        let screens = NSScreen.screens
+        guard !screens.isEmpty, let primary = screens.first else { return }
         for window in NSApp.windows where window.isVisible && window.canBecomeMain {
-            let center = NSPoint(x: window.frame.midX, y: window.frame.midY)
-            if !primaryFrame.contains(center) {
-                let newOrigin = NSPoint(
+            let onSomeScreen = screens.contains { $0.frame.intersects(window.frame) }
+            if !onSomeScreen {
+                let primaryFrame = primary.visibleFrame
+                window.setFrameOrigin(NSPoint(
                     x: primaryFrame.midX - window.frame.width / 2,
                     y: primaryFrame.midY - window.frame.height / 2
-                )
-                window.setFrameOrigin(newOrigin)
+                ))
                 YggdrasilLog.ui.info(
-                    "Recentered window '\(window.title, privacy: .public)' to primary screen origin=\(String(describing: newOrigin), privacy: .public)"
+                    "Rescued orphaned window '\(window.title, privacy: .public)' to primary screen"
                 )
             }
         }
