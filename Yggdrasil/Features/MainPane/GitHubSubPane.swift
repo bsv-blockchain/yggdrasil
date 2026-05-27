@@ -28,9 +28,18 @@ struct GitHubSubPane: View {
     }
 
     private var githubURL: URL? {
-        guard let id = tab.id,
-              let task = services.tabs.tasksByTabID[id]
+        guard let id = tab.id else { return nil }
+        // Prefer the synced task's canonical githubURL when available.
+        if let task = services.tabs.tasksByTabID[id], let url = URL(string: task.githubURL) {
+            return url
+        }
+        // Fallback: synthesize a URL from the owning repo + the PR/issue
+        // number parsed out of the branch name. Lets the user navigate to
+        // their PR before the next sync tick imports it.
+        guard let repo = services.tabs.repoByTabID[id],
+              let number = NewTabSheet.parsePRNumber(tab.branchName)
         else { return nil }
-        return URL(string: task.githubURL)
+        let path = tab.branchName.lowercased().hasPrefix("issue") ? "issues" : "pull"
+        return URL(string: "https://github.com/\(repo.owner)/\(repo.name)/\(path)/\(number)")
     }
 }

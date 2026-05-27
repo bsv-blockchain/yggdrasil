@@ -10,6 +10,10 @@ final class TabsModel {
     var tabs: [YggdrasilTab] = []
     /// Cache: tabID → linked YggdrasilTask (filled when a tab.taskID is non-nil).
     var tasksByTabID: [Int64: YggdrasilTask] = [:]
+    /// Cache: tabID → owning Repo, resolved from the tab's worktreePath. Lets
+    /// the GitHub pane synthesize a URL for tabs whose PR/issue hasn't been
+    /// synced yet (so we don't gate the WebView on the next 60s sync tick).
+    var repoByTabID: [Int64: Repo] = [:]
     /// Cache: tabID → resolved agent identity (Claude/Codex/Gemini/Copilot/Grok).
     var agentByTabID: [Int64: AgentIdentity] = [:]
     var selectedID: Int64?
@@ -34,32 +38,42 @@ final class TabsModel {
         do {
             tabs = try store.list()
             // Refresh the task index for tabs that shadow a GitHub task.
-            tasksByTabID = try database.queue.read { db -> [Int64: YggdrasilTask] in
-                var out: [Int64: YggdrasilTask] = [:]
+            let (taskMap, repoMap) = try database.queue.read { db -> ([Int64: YggdrasilTask], [Int64: Repo]) in
+                var tasks: [Int64: YggdrasilTask] = [:]
+                var repos: [Int64: Repo] = [:]
                 let allRepos = try Repo.fetchAll(db)
                 for tab in self.tabs {
                     guard let tabID = tab.id else { continue }
+                    // Always try to resolve the owning repo from the worktree
+                    // path; the GitHub pane needs it as a fallback when no task
+                    // row exists yet.
+                    if let owning = Self.repoOwning(worktreePath: tab.worktreePath, repos: allRepos) {
+                        repos[tabID] = owning
+                    }
                     if let taskID = tab.taskID,
                        let task = try YggdrasilTask.fetchOne(db, key: taskID) {
-                        out[tabID] = task
+                        tasks[tabID] = task
                         continue
                     }
-                    // Fallback: tab.taskID is nil (the user typed e.g. "pr-643"
-                    // before sync had imported the task). Match by branch-name
-                    // pattern + the repo whose localMainPath is an ancestor of
-                    // the worktree. Lets the GitHub pane light up later as sync
-                    // catches up, without needing the tab row touched.
-                    if let task = try Self.lookupTaskByBranch(
-                        branch: tab.branchName,
-                        worktreePath: tab.worktreePath,
-                        repos: allRepos,
-                        db: db
-                    ) {
-                        out[tabID] = task
+                    // Lazy task link: tab.taskID is nil (the user typed e.g.
+                    // "pr-643" before sync had imported the task). Match by
+                    // branch-name pattern + owning repo. When the next sync
+                    // brings the PR in, this lookup succeeds and the GitHub
+                    // pane lights up — no tab row mutation required.
+                    if let owning = repos[tabID], let repoID = owning.id,
+                       let number = NewTabSheet.parsePRNumber(tab.branchName) {
+                        let match = try YggdrasilTask
+                            .filter(Column("repo_id") == repoID && Column("number") == number)
+                            .fetchOne(db)
+                        if let match {
+                            tasks[tabID] = match
+                        }
                     }
                 }
-                return out
+                return (tasks, repos)
             }
+            tasksByTabID = taskMap
+            repoByTabID = repoMap
             // Resolve per-tab agent identity from CodingAgent.command via the
             // brand heuristic (claude/codex/gemini/copilot/grok).
             agentByTabID = [:]
@@ -110,29 +124,35 @@ final class TabsModel {
         return TabRowViewModel(tab: tab, task: task, liveStatus: live)
     }
 
-    /// Lookup helper for the fallback path in `reload`. Returns the task whose
-    /// `(repo_id, number)` matches a PR/issue-style branch name like "pr-643",
-    /// scoped to the repo whose `localMainPath` is an ancestor of the
-    /// worktree. Returns nil if either the branch doesn't look like a PR ref or
-    /// no matching task has been synced yet.
-    static func lookupTaskByBranch(
-        branch: String,
-        worktreePath: String,
-        repos: [Repo],
-        db: GRDB.Database
-    ) throws -> YggdrasilTask? {
-        guard let number = NewTabSheet.parsePRNumber(branch) else { return nil }
-        // Match against the repo whose localMainPath is a directory prefix of
-        // the worktree path. Worktree convention is <repoPath>/.worktrees/<slug>.
-        let owningRepo = repos.first { repo in
+    /// Resolves the repo that owns a given worktree. WorktreeManager creates
+    /// worktrees at `<repoParent>/.worktrees/<slug>` — i.e. a sibling of the
+    /// main checkout, not a child. So the owning repo is whichever tracked
+    /// repo shares the worktree's grandparent directory.
+    static func repoOwning(worktreePath: String, repos: [Repo]) -> Repo? {
+        let worktreeURL = URL(fileURLWithPath: worktreePath, isDirectory: true)
+        let worktreeGrandparent = worktreeURL
+            .deletingLastPathComponent()  // strip /<slug>
+            .deletingLastPathComponent()  // strip /.worktrees
+            .standardizedFileURL.path
+        // Match the repo whose localMainPath sits inside that grandparent.
+        let candidates = repos.compactMap { repo -> Repo? in
+            guard let path = repo.localMainPath, !path.isEmpty else { return nil }
+            let repoParent = URL(fileURLWithPath: path, isDirectory: true)
+                .deletingLastPathComponent()
+                .standardizedFileURL.path
+            return repoParent == worktreeGrandparent ? repo : nil
+        }
+        if candidates.count == 1 { return candidates.first }
+        // Multiple repos under the same parent dir — disambiguate by best path
+        // prefix. The grandparent match got us one tier; here we accept any
+        // repo whose own localMainPath happens to be an ancestor of the
+        // worktree (would only happen if WorktreeManager later changes its
+        // convention to live inside the repo).
+        return repos.first { repo in
             guard let path = repo.localMainPath, !path.isEmpty else { return false }
             let prefix = path.hasSuffix("/") ? path : path + "/"
             return worktreePath.hasPrefix(prefix)
-        }
-        guard let owningRepo, let repoID = owningRepo.id else { return nil }
-        return try YggdrasilTask
-            .filter(Column("repo_id") == repoID && Column("number") == number)
-            .fetchOne(db)
+        } ?? candidates.first
     }
 
     /// Returns the tabs filtered by a case-insensitive substring match against the
