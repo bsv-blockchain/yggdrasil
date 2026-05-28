@@ -58,6 +58,16 @@ targets:
         NSPrincipalClass: NSApplication
         NSMainStoryboardFile: ""
         LSApplicationCategoryType: public.app-category.developer-tools
+        # Custom scheme the OAuth login flow redirects to (ASWebAuthenticationSession).
+        CFBundleURLTypes:
+          - CFBundleURLName: com.bsvassociation.yggdrasil.oauth
+            CFBundleURLSchemes:
+              - yggdrasil
+        # GitHub OAuth App credentials. Empty here — inject at release build time
+        # or via the YGGDRASIL_GH_OAUTH_CLIENT_ID/_SECRET env vars for local dev.
+        # See RELEASE.md "GitHub OAuth login".
+        GitHubOAuthClientID: ""
+        GitHubOAuthClientSecret: ""
     entitlements:
       path: Yggdrasil/Yggdrasil.entitlements
       properties:

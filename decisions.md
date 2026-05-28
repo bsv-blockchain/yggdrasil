@@ -4,6 +4,28 @@ Design decisions made during the build that weren't in the spec, with rationale 
 
 ---
 
+## 2026-05-28 — GitHub passkey login via ASWebAuthenticationSession (not WKWebView)
+
+**Goal under review:** *"add passkey support within the embedded browser panel so that github login via passkey works."*
+
+**Problem.** Passkeys (WebAuthn) inside the embedded `WKWebView` do **not** work for a relying party we don't own (github.com). WebKit gates WebAuthn in `WKWebView` behind the restricted entitlement `com.apple.developer.web-browser.public-key-credential`; without it GitHub's passkey prompt fails with `ASAuthorizationError 1004`. Associated-domains (`webcredentials:github.com`) can't help — GitHub's AASA file doesn't list our app, so it never validates. The entitlement is a managed capability requiring an Apple-portal request + approval + a provisioning profile, and is incompatible with ad-hoc local signing.
+
+**Decision.** Don't pursue the restricted entitlement. Implement GitHub login as an OAuth-App authorization-code flow driven by `ASWebAuthenticationSession`. The system presents a Safari-backed sheet where **passkeys work natively with no special entitlement**; the sheet redirects to `yggdrasil://oauth-callback`, we exchange the code for an access token, and store it. `AuthService` prefers this OAuth token over `gh auth token`.
+
+**Rationale.**
+- Achieves passkey login today, no Apple approval / paid-capability dependency.
+- Reuses the existing `AuthService` token abstraction; gh CLI remains the fallback.
+- Login UX is a standard system sheet rather than in-panel, accepted by the user when choosing this path.
+
+**Trade-offs.**
+- Login happens in a system sheet, not inside the embedded panel. The panel's own github.com session (cookies) is unaffected; this flow yields an API token, not a webview cookie session.
+- GitHub OAuth Apps don't support PKCE, so the token exchange needs the client secret. For a distributed desktop client the secret isn't truly confidential — an accepted property of the OAuth-App flow for native apps. Credentials come from env vars (dev) or Info.plist (release); see RELEASE.md.
+- OAuth token is stored in the GRDB `setting` table (plaintext), consistent with the existing no-Keychain posture for ad-hoc builds (the gh token already lives plaintext in `hosts.yml`).
+
+**Approval.** User chose "ASWebAuthenticationSession OAuth" and "won't request the entitlement, just use the system panel" when asked.
+
+---
+
 ## 2026-05-26 — Replace SwiftGit2 SwiftPM dep with a local `Clibgit2` system module
 
 **Spec §2 line under review:** *"Git operations | git subprocess for worktrees + status; SwiftGit2/libgit2 for diff computation."*

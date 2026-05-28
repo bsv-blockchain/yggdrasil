@@ -4,7 +4,7 @@ import GRDB
 /// Owns the GRDB `DatabaseQueue` for Yggdrasil. Created either against a real on-disk
 /// SQLite file under `~/Library/Application Support/Yggdrasil/yggdrasil.sqlite` (production)
 /// or against an in-memory database (tests).
-final class YggdrasilDatabase {
+final class YggdrasilDatabase: Sendable {
     let queue: DatabaseQueue
 
     private init(queue: DatabaseQueue) {

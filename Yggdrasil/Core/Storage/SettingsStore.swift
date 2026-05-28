@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 
 /// Typed string get/set over the `setting` key-value table.
-struct SettingsStore {
+struct SettingsStore: Sendable {
     let database: YggdrasilDatabase
 
     func get(forKey key: String) throws -> String? {
