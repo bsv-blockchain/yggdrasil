@@ -53,10 +53,14 @@ jobs:
           brew update
           brew install xcodegen libgit2 create-dmg
 
-      - name: Xcode first-launch + Metal toolchain
+      - name: Xcode first-launch
         run: |
           sudo xcodebuild -runFirstLaunch
-          sudo xcodebuild -downloadComponent MetalToolchain
+          # Metal toolchain (`-downloadComponent MetalToolchain`) is Xcode
+          # 15.4+; macos-latest's xcodebuild rejects the flag with exit 64.
+          # SwiftTerm has a non-Metal fallback, so the toolchain is best-
+          # effort — try to download but don't fail the workflow if not.
+          sudo xcodebuild -downloadComponent MetalToolchain || true
 
       - name: Generate Xcode project
         run: make project
