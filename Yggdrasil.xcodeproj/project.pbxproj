@@ -15,6 +15,7 @@
 		09654444BE8D9DD427692C62 /* SessionStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B7D16A5E82558480C71BC1 /* SessionStateStore.swift */; };
 		0BB7AEFF9C4333E557DCA812 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5E276B1C5A660F7A97480E80 /* Assets.xcassets */; };
 		0DBDEA2F552D95BE43BAF70B /* IntervalsPrefsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EDEA9CE1F92D154D3762737 /* IntervalsPrefsPane.swift */; };
+		0FA01B7188CFB130E8A7B062 /* SidebarGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219E731640E2F18B3E598F12 /* SidebarGroupingTests.swift */; };
 		1127A314ABE86CBA0EB815DA /* PRReviewRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6144C93179429F6F1C8272 /* PRReviewRequest.swift */; };
 		11B34E7AEAA136DAABFB885C /* WorktreeInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE934F8A52B03388BF2B0C33 /* WorktreeInfo.swift */; };
 		12A91C1852BCB855AECA8E3B /* DiffSubPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = C786A66165F6A0748293063D /* DiffSubPane.swift */; };
@@ -26,6 +27,7 @@
 		1BCD4BA660EF67BBF384B315 /* WindowChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97BAAB8ABEAADA789A31964 /* WindowChrome.swift */; };
 		1E2A23BCD1C10DB19AAC4ABA /* SessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B95A44765994725D851F56 /* SessionState.swift */; };
 		1F8031DCD2EE5E0F1A4B896A /* FileLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8608519C08339C5FD66181C3 /* FileLock.swift */; };
+		202B8CCF90BE010DBADD301D /* SidebarGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251CFF837211B6BB1AD7F55D /* SidebarGrouping.swift */; };
 		21C09EC0F24D216C1F32BBA4 /* HTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE6616FD3AC11226A29952B6 /* HTTPClient.swift */; };
 		21F45EF708A99658DED84851 /* AuxiliaryWindowScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C60E56FD195FC46D844489D3 /* AuxiliaryWindowScenes.swift */; };
 		261A4E67952D92CEB25FDA6C /* YggdrasilLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 862CFF5B72023650A938BD9B /* YggdrasilLogger.swift */; };
@@ -175,8 +177,10 @@
 		1CA3559D5CBA6AAA76D09427 /* CodingAgentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingAgentStoreTests.swift; sourceTree = "<group>"; };
 		1EF28D57C8B062A9B31FA82E /* TabCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabCommands.swift; sourceTree = "<group>"; };
 		2190C3BD95D1EAED24B99011 /* OutputRingBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputRingBuffer.swift; sourceTree = "<group>"; };
+		219E731640E2F18B3E598F12 /* SidebarGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarGroupingTests.swift; sourceTree = "<group>"; };
 		22CEA97C97FF4C1D4A2578B1 /* StartupValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupValidator.swift; sourceTree = "<group>"; };
 		23E1BAC47DC8DB5BE5B9D093 /* Fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Fixtures; path = Tests/Unit/Fixtures; sourceTree = SOURCE_ROOT; };
+		251CFF837211B6BB1AD7F55D /* SidebarGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarGrouping.swift; sourceTree = "<group>"; };
 		252F995BF1A44D1A9207F6B8 /* TabsModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabsModelTests.swift; sourceTree = "<group>"; };
 		2696119602D5B020469CE2E2 /* GitRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRunner.swift; sourceTree = "<group>"; };
 		278531A25A012A11A6E09539 /* TmuxManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TmuxManager.swift; sourceTree = "<group>"; };
@@ -357,6 +361,7 @@
 				5CFA54FB47300C73485DBCAD /* IssueDetailsPicker.swift */,
 				F568C1A658CEBABFA3C48F37 /* NewTabSheet.swift */,
 				C72249D71DE8A1587B435695 /* SidebarActions.swift */,
+				251CFF837211B6BB1AD7F55D /* SidebarGrouping.swift */,
 				B9AF4BA8572678F249A60386 /* SidebarView.swift */,
 				1EF28D57C8B062A9B31FA82E /* TabCommands.swift */,
 				DEA57CACB3BC2B8317C73272 /* TabRow.swift */,
@@ -640,6 +645,7 @@
 				A844E5303219C86E31F0D9F2 /* IssueDetailsPickerFilterTests.swift */,
 				CC196666CA9FF3A004ACC36C /* NewTabSheetParseTests.swift */,
 				948A16A92FE75C74D900FC72 /* ReviewPickerTests.swift */,
+				219E731640E2F18B3E598F12 /* SidebarGroupingTests.swift */,
 				A0B6047B65F17F43271FFAE3 /* TabRowViewModelTests.swift */,
 				252F995BF1A44D1A9207F6B8 /* TabsModelTests.swift */,
 				BEE2012604DB01A1CFD0B5AB /* TabStoreTests.swift */,
@@ -876,6 +882,7 @@
 				F0877CD15CFE8ACD4D2934CC /* ReviewPickerTests.swift in Sources */,
 				FE3EFDC412C327D16585A573 /* SessionStateStoreTests.swift in Sources */,
 				39217F9F21FB0EA87F444757 /* SettingsStoreTests.swift in Sources */,
+				0FA01B7188CFB130E8A7B062 /* SidebarGroupingTests.swift in Sources */,
 				F3AFA17A8905FA23BB7A8131 /* SmokeTests.swift in Sources */,
 				480C39E29EE6A9739B9CE578 /* StartupValidatorTests.swift in Sources */,
 				C70F98EAECDF5302AF9660F0 /* SyncSchedulerTests.swift in Sources */,
@@ -951,6 +958,7 @@
 				450EC25B507E2C4A94273B66 /* Setting.swift in Sources */,
 				15CA2C4826B709C8A5408DE4 /* SettingsStore.swift in Sources */,
 				37511615DFFB74718A500ECD /* SidebarActions.swift in Sources */,
+				202B8CCF90BE010DBADD301D /* SidebarGrouping.swift in Sources */,
 				5FE9BB6133AC4B9C6573F8AE /* SidebarView.swift in Sources */,
 				6EE2F76B0DAC9EAB9EF1BA57 /* StartupValidator.swift in Sources */,
 				FF0DC7433E694D39125C6EA4 /* StatusPoller.swift in Sources */,

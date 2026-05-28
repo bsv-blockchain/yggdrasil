@@ -18,6 +18,7 @@ struct SidebarView: View {
     @State private var debouncedQuery: String = ""
     @State private var debounceTask: Task<Void, Never>?
     @State private var activeFilter: Filter = .all
+    @State private var groupByRepo: Bool = false
     @Environment(\.colorScheme) private var scheme
 
     private var tabsModel: TabsModel { services.tabs }
@@ -72,6 +73,12 @@ struct SidebarView: View {
         .background(YggdrasilTheme.bgPane(scheme))
         .onChange(of: rawSearchQuery) { _, newValue in
             scheduleDebouncedQueryUpdate(to: newValue)
+        }
+        .onAppear {
+            groupByRepo = AppearancePrefsPane.readGroupByRepo(services: services)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sidebarGroupingChanged)) { _ in
+            groupByRepo = AppearancePrefsPane.readGroupByRepo(services: services)
         }
     }
 
@@ -258,13 +265,37 @@ struct SidebarView: View {
 
         return ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(filteredTabs, id: \.id) { tab in
-                    rowView(for: tab, reorderEnabled: reorderEnabled)
+                if groupByRepo {
+                    let groups = SidebarGrouping.groupByRepo(
+                        tabs: filteredTabs,
+                        repoByTabID: tabsModel.repoByTabID
+                    )
+                    ForEach(groups) { group in
+                        groupHeader(title: group.title)
+                        ForEach(group.tabs, id: \.id) { tab in
+                            rowView(for: tab, reorderEnabled: reorderEnabled)
+                        }
+                    }
+                } else {
+                    ForEach(filteredTabs, id: \.id) { tab in
+                        rowView(for: tab, reorderEnabled: reorderEnabled)
+                    }
                 }
             }
             .padding(.horizontal, 4)
         }
         .background(YggdrasilTheme.bgPane(scheme))
+    }
+
+    private func groupHeader(title: String) -> some View {
+        Text(title.uppercased())
+            .font(.system(size: 10, weight: .semibold))
+            .tracking(0.4)
+            .foregroundStyle(YggdrasilTheme.textMute(scheme))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
     }
 
     @ViewBuilder
@@ -342,6 +373,12 @@ struct SidebarView: View {
         guard let sourceIDString = items.first,
               let sourceID = Int64(sourceIDString),
               sourceID != ontoTabID else { return false }
+        // Reject cross-group drops when grouping by repo is enabled.
+        guard SidebarGrouping.dropAllowed(
+            sourceTabID: sourceID, targetTabID: ontoTabID,
+            repoByTabID: tabsModel.repoByTabID,
+            grouped: groupByRepo
+        ) else { return false }
         let tabs = tabsModel.tabs
         guard let from = tabs.firstIndex(where: { $0.id == sourceID }),
               let onto = tabs.firstIndex(where: { $0.id == ontoTabID }) else { return false }
