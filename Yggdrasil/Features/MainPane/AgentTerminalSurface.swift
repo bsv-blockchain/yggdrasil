@@ -59,11 +59,11 @@ struct AgentTerminalSurface: NSViewRepresentable {
     static let cellFont: NSFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
 
     func makeNSView(context: Context) -> LocalProcessTerminalView {
-        let view = LocalProcessTerminalView(frame: .zero)
+        let view = DroppableTerminalView(frame: .zero)
         AgentTerminalSurface.applyTheme(to: view)
         view.processDelegate = context.coordinator
         context.coordinator.attach(view: view)
-        // Register for Option-drag selection bypass — see
+        // Register for Shift-drag selection bypass — see
         // TerminalMouseSelectionBypass for context.
         TerminalViewRegistry.register(view)
         return view

@@ -129,6 +129,56 @@ enum TerminalKeyInterceptor {
     }
 }
 
+/// `LocalProcessTerminalView` subclass that accepts file drops. When the user
+/// drags one or more files from Finder (or any source that publishes file
+/// URLs) onto the terminal pane, the paths are inserted at the prompt as a
+/// space-separated, shell-quoted list. Matches iTerm2/Warp/Terminal.app.
+///
+/// Single drop = `'/path/to/file'`. Multiple drops are joined with spaces:
+/// `'/path/a' '/path/b'`. The result is sent to the PTY via `send(txt:)` —
+/// the running program (shell or agent CLI) sees it as if the user had
+/// typed those characters.
+@MainActor
+final class DroppableTerminalView: LocalProcessTerminalView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: nil)
+            ? .copy
+            : []
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let pasteboard = sender.draggingPasteboard
+        guard let urls = pasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL], !urls.isEmpty else {
+            return false
+        }
+        let payload = urls
+            .map { DroppableTerminalView.shellQuote($0.path) }
+            .joined(separator: " ")
+        send(txt: payload)
+        return true
+    }
+
+    /// Wraps a path in single quotes, escaping any embedded single quotes
+    /// the POSIX way (`'\''`). Same algorithm `CodingAgentRunner.shellQuote`
+    /// uses but inlined to avoid pulling the runner into the view layer.
+    static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+}
+
 /// Registry of every live `LocalProcessTerminalView` so the Option-drag
 /// bypass can flip `allowMouseReporting` without relying on AppKit hit-
 /// testing (which is fragile across the SwiftUI/NSHostingView boundary).
@@ -148,22 +198,22 @@ enum TerminalViewRegistry {
     }
 }
 
-/// Option-drag selection bypass. tmux is configured with `mouse on` so the
+/// Shift-drag selection bypass. tmux is configured with `mouse on` so the
 /// scroll wheel can drive tmux's copy-mode (see `TerminalScrollInterceptor`).
 /// The side-effect is that `LocalProcessTerminalView.allowMouseReporting`
 /// forwards every left-mouse-down to the PTY as a mouse event, which means
 /// the user can never just drag-select text — the drag becomes a tmux
 /// mouse-drag.
 ///
-/// To match iTerm2/Terminal.app, while Option is held we suppress mouse
-/// reporting on every live terminal view: SwiftTerm's native selection
-/// takes over. When Option is released, reporting is restored so scroll
-/// wheels still drive tmux copy-mode.
+/// To match iTerm2/Terminal.app/Warp, while Shift is held we suppress
+/// mouse reporting on every live terminal view: SwiftTerm's native
+/// selection takes over. When Shift is released, reporting is restored so
+/// scroll wheels still drive tmux copy-mode.
 ///
 /// We watch `.flagsChanged` (modifier key transitions) rather than
 /// per-click events because: (a) it doesn't depend on AppKit hit-testing
 /// finding the right view through SwiftUI's host layer; (b) it handles
-/// the case where the user presses Option BEFORE clicking; (c) it
+/// the case where the user presses Shift BEFORE clicking; (c) it
 /// correctly handles long drags that outlast a single mouse-down event.
 @MainActor
 enum TerminalMouseSelectionBypass {
@@ -183,13 +233,13 @@ enum TerminalMouseSelectionBypass {
     }
 
     private static func handleFlagsChanged(_ event: NSEvent) {
-        let optionDown = event.modifierFlags.contains(.option)
-        if optionDown, suppressedViews.isEmpty {
+        let shiftDown = event.modifierFlags.contains(.shift)
+        if shiftDown, suppressedViews.isEmpty {
             for view in TerminalViewRegistry.allViews() where view.allowMouseReporting {
                 view.allowMouseReporting = false
                 suppressedViews.append(view)
             }
-        } else if !optionDown, !suppressedViews.isEmpty {
+        } else if !shiftDown, !suppressedViews.isEmpty {
             for view in suppressedViews {
                 view.allowMouseReporting = true
             }
