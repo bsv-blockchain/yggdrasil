@@ -94,6 +94,50 @@ final class DiffEngineTests: XCTestCase {
         }
     }
 
+    func testUnstagedWorkingTreeModificationsAppearInDiff() async throws {
+        // Commit a file on main first, then branch and modify the file in
+        // the working tree WITHOUT committing. The diff viewer should still
+        // show the change — previously it didn't, because the engine ran
+        // `git diff <base>...HEAD` which only sees commits.
+        let path = fixture.repoURL.appendingPathComponent("file.txt")
+        try "alpha\n".write(to: path, atomically: true, encoding: .utf8)
+        try await runGit(["add", "file.txt"])
+        try await runGit(["commit", "-m", "add file"])
+
+        try await runGit(["checkout", "-b", "feat/dirty"])
+        // Modify the file without committing.
+        try "alpha\nbeta\n".write(to: path, atomically: true, encoding: .utf8)
+
+        let engine = DiffEngine()
+        let diff = try await engine.unifiedDiff(
+            worktreePath: fixture.repoURL.path,
+            baseRef: "main"
+        )
+
+        XCTAssertTrue(diff.text.contains("file.txt"), "diff should mention the modified file")
+        XCTAssertTrue(diff.text.contains("+beta"), "diff should contain the unstaged added line")
+    }
+
+    func testStagedButUncommittedModificationsAppearInDiff() async throws {
+        let path = fixture.repoURL.appendingPathComponent("file.txt")
+        try "alpha\n".write(to: path, atomically: true, encoding: .utf8)
+        try await runGit(["add", "file.txt"])
+        try await runGit(["commit", "-m", "add file"])
+
+        try await runGit(["checkout", "-b", "feat/staged"])
+        try "alpha\ngamma\n".write(to: path, atomically: true, encoding: .utf8)
+        try await runGit(["add", "file.txt"]) // staged, NOT committed
+
+        let engine = DiffEngine()
+        let diff = try await engine.unifiedDiff(
+            worktreePath: fixture.repoURL.path,
+            baseRef: "main"
+        )
+
+        XCTAssertTrue(diff.text.contains("file.txt"))
+        XCTAssertTrue(diff.text.contains("+gamma"))
+    }
+
     func testLargeDiffIsFlaggedTruncated() async throws {
         try await runGit(["checkout", "-b", "feat/huge"])
         // Write a single >5MB file. Repeated short line so the file gets a

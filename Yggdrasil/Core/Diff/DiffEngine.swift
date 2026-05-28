@@ -33,17 +33,39 @@ struct DiffEngine {
     }
 
     /// Compute the diff between `baseRef` (e.g. `main`, `origin/main`,
-    /// `refs/heads/feat/x`) and HEAD inside `worktreePath`. Uses the three-dot
-    /// form `<base>...HEAD` so the diff is against the merge base — which is
-    /// what GitHub shows on a PR.
+    /// `refs/heads/feat/x`) and the worktree's CURRENT state inside
+    /// `worktreePath` — that is, the merge-base of `baseRef` and HEAD
+    /// versus everything tracked in the working tree (committed, staged,
+    /// AND unstaged).
+    ///
+    /// Implementation: `git diff <merge-base-sha>` (single-commit form).
+    /// Git's three-dot form `<base>...HEAD` only sees commits, so any
+    /// uncommitted edits the user was about to land never showed up.
+    /// Resolving the merge-base ourselves and feeding it to the
+    /// single-commit `git diff` keeps GitHub's "PR base" semantics while
+    /// also pulling in the working-tree changes the user is actively
+    /// editing.
     func unifiedDiff(worktreePath: String, baseRef: String) async throws -> UnifiedDiff {
         let cwd = URL(fileURLWithPath: worktreePath, isDirectory: true)
+        // Merge-base; falls back to the literal baseRef when the histories
+        // share no common ancestor (rare — typically unrelated repos).
+        let mergeBase: String
+        do {
+            let result = try await git.run(args: ["merge-base", baseRef, "HEAD"], cwd: cwd)
+            let trimmed = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            mergeBase = trimmed.isEmpty ? baseRef : trimmed
+        } catch let WorktreeError.gitFailed(stderr, code) {
+            if Self.stderrIndicatesUnknownRef(stderr) {
+                throw DiffEngineError.unknownBaseRef(baseRef)
+            }
+            throw DiffEngineError.gitFailed(stderr: stderr, exitCode: code)
+        }
         do {
             let result = try await git.run(
                 args: [
                     "diff", "--no-color", "--no-ext-diff",
                     "--find-renames",
-                    "\(baseRef)...HEAD",
+                    mergeBase,
                 ],
                 cwd: cwd
             )
@@ -52,13 +74,19 @@ struct DiffEngine {
             let files = Self.fileNames(fromUnifiedDiff: text)
             return UnifiedDiff(text: text, files: files, isTruncated: truncated)
         } catch let WorktreeError.gitFailed(stderr, code) {
-            if stderr.lowercased().contains("unknown revision")
-                || stderr.lowercased().contains("ambiguous argument")
-                || stderr.lowercased().contains("bad revision") {
+            if Self.stderrIndicatesUnknownRef(stderr) {
                 throw DiffEngineError.unknownBaseRef(baseRef)
             }
             throw DiffEngineError.gitFailed(stderr: stderr, exitCode: code)
         }
+    }
+
+    private static func stderrIndicatesUnknownRef(_ stderr: String) -> Bool {
+        let lower = stderr.lowercased()
+        return lower.contains("unknown revision")
+            || lower.contains("ambiguous argument")
+            || lower.contains("bad revision")
+            || lower.contains("not a valid")
     }
 
     /// Extracts the `+++ b/<path>` lines from unified-diff text. Strips the
