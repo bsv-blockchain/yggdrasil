@@ -95,12 +95,21 @@ jobs:
 
       - name: Build (Release)
         run: |
+          # ARCHS=arm64 because Homebrew ships libgit2 as arm64-only on the
+          # macos-latest (Apple Silicon) runner. v0.1.0 got away with the
+          # default (arm64 + x86_64) because git_libgit2_version was
+          # unreachable and dead-code-stripped; StartupValidator calls it on
+          # every launch now, so the x86_64 link needs a libgit2 we don't
+          # have. Every Yggdrasil user is on Apple Silicon — Intel isn't a
+          # goal.
           xcodebuild \
             -project Yggdrasil.xcodeproj \
             -scheme Yggdrasil \
             -configuration Release \
             -destination 'platform=macOS' \
             -derivedDataPath build/derived \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="${{ steps.identity.outputs.identity }}" \
             OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
