@@ -32,6 +32,54 @@ final class TabStoreTests: XCTestCase {
         XCTAssertEqual(all.map(\.branchName), ["feat/foo", "feat/bar", "feat/baz"])
     }
 
+    /// Insert a real Repo + YggdrasilTask so the `tab.task_id` foreign-key
+    /// constraint is satisfiable. Returns the inserted task id.
+    private func insertFixtureTask() throws -> Int64 {
+        try db.queue.write { db in
+            var repo = Repo(
+                id: nil, owner: "fix", name: "ture",
+                defaultBranch: "main", localMainPath: nil,
+                addedAt: Date(timeIntervalSince1970: 0)
+            )
+            try repo.insert(db)
+            var task = YggdrasilTask(
+                id: nil, repoID: repo.id!, type: .pullRequest,
+                number: 643, title: "fix",
+                body: nil, state: .open, authorLogin: "me",
+                githubURL: "", apiURL: "",
+                createdAt: Date(timeIntervalSince1970: 0),
+                updatedAt: Date(timeIntervalSince1970: 0),
+                lastSyncedAt: Date(timeIntervalSince1970: 0),
+                etag: nil, labelsJSON: "[]", milestoneTitle: nil
+            )
+            try task.insert(db)
+            return task.id!
+        }
+    }
+
+    func testSetTaskIDLinksTabToTask() throws {
+        let taskID = try insertFixtureTask()
+        let tab = try store.insert(
+            branchName: "claude-pr-643", worktreePath: "/tmp/x",
+            agentID: nil, taskID: nil
+        )
+        XCTAssertNil(tab.taskID, "fresh tab starts with no task linkage")
+        try store.setTaskID(id: tab.id!, taskID: taskID)
+        let reloaded = try store.get(id: tab.id!)
+        XCTAssertEqual(reloaded?.taskID, taskID)
+    }
+
+    func testSetTaskIDCanClearLinkWithNil() throws {
+        let taskID = try insertFixtureTask()
+        let tab = try store.insert(
+            branchName: "x", worktreePath: "/x",
+            agentID: nil, taskID: taskID
+        )
+        try store.setTaskID(id: tab.id!, taskID: nil)
+        let reloaded = try store.get(id: tab.id!)
+        XCTAssertNil(reloaded?.taskID)
+    }
+
     func testDeleteRemovesRow() throws {
         let one = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let two = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)

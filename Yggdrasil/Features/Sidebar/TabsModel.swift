@@ -41,6 +41,12 @@ final class TabsModel {
         do {
             tabs = try store.list()
             // Refresh the task index for tabs that shadow a GitHub task.
+            // The `lazyLinks` map captures tabs whose stored `task_id` was
+            // nil but whose branch name now resolves to a real task row —
+            // we persist those after the read transaction so downstream
+            // queries (review-picker exclusion, pendingReviewCount, the
+            // sidebar #xxx badge) all see them as linked.
+            var lazyLinks: [(tabID: Int64, taskID: Int64)] = []
             let (taskMap, repoMap) = try database.queue.read { db -> ([Int64: YggdrasilTask], [Int64: Repo]) in
                 var tasks: [Int64: YggdrasilTask] = [:]
                 var repos: [Int64: Repo] = [:]
@@ -61,15 +67,18 @@ final class TabsModel {
                     // Lazy task link: tab.taskID is nil (the user typed e.g.
                     // "pr-643" before sync had imported the task). Match by
                     // branch-name pattern + owning repo. When the next sync
-                    // brings the PR in, this lookup succeeds and the GitHub
-                    // pane lights up — no tab row mutation required.
+                    // brings the PR in, this lookup succeeds — and now we
+                    // also write it back to tab.task_id so the review
+                    // picker stops listing the PR (it filters via
+                    // `WHERE task_id IS NOT NULL`).
                     if let owning = repos[tabID], let repoID = owning.id,
                        let number = NewTabSheet.parsePRNumber(tab.branchName) {
                         let match = try YggdrasilTask
                             .filter(Column("repo_id") == repoID && Column("number") == number)
                             .fetchOne(db)
-                        if let match {
+                        if let match, let matchID = match.id {
                             tasks[tabID] = match
+                            lazyLinks.append((tabID: tabID, taskID: matchID))
                         }
                     }
                 }
@@ -77,6 +86,9 @@ final class TabsModel {
             }
             tasksByTabID = taskMap
             repoByTabID = repoMap
+            for link in lazyLinks {
+                try? store.setTaskID(id: link.tabID, taskID: link.taskID)
+            }
             pendingReviewCount = try database.queue.read { db in
                 // Match AssignedTaskPicker(.review) — review-requested ∪
                 // assigned-but-not-authored — minus what's already a tab.

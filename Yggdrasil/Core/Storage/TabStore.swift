@@ -72,6 +72,21 @@ struct TabStore {
         }
     }
 
+    /// Persist a (possibly nil) `task_id` for a single tab. Used by
+    /// `TabsModel.reload` to materialise a lazy branch-name → task link
+    /// once the linked YggdrasilTask actually shows up in the DB, so
+    /// downstream queries that join on `tab.task_id` (review-picker
+    /// exclusion, pendingReviewCount, sidebar #xxx badge) all stay in
+    /// sync.
+    func setTaskID(id: Int64, taskID: Int64?) throws {
+        try database.queue.write { db in
+            try db.execute(
+                sql: "UPDATE tab SET task_id = ? WHERE id = ?",
+                arguments: [taskID, id]
+            )
+        }
+    }
+
     /// Updates `tab.last_main_view` for a single row.
     func setLastMainView(id: Int64, view: YggdrasilTab.MainView) throws {
         try database.queue.write { db in
