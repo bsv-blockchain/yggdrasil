@@ -55,12 +55,14 @@ actor WorktreeManager {
         )
         defer { lock.release() }
 
-        // Case 1: a worktree is already registered at `target` — idempotent.
         // Resolve both sides through symlinks because git outputs canonical paths
         // (e.g. /private/var/...) but our `target` is built from the user-facing form
         // (e.g. /var/folders/...).
         let canonicalTarget = target.resolvingSymlinksInPath().path
         let existing = try await listWorktrees(at: mainURL)
+
+        // Case 1a: a worktree is already registered at exactly `target` —
+        // idempotent (or error if it's on the wrong branch).
         if let match = existing.first(where: {
             $0.path.resolvingSymlinksInPath().path == canonicalTarget
         }) {
@@ -70,6 +72,19 @@ actor WorktreeManager {
             throw WorktreeError.existsOnDifferentBranch(
                 path: target, found: match.branch ?? "<detached>", expected: branch
             )
+        }
+
+        // Case 1b: a worktree for the SAME branch already exists at a
+        // different path. Happens when the legacy `<parent>/.worktrees/`
+        // layout coexists with the current in-repo `<repo>/.worktrees/`
+        // one, when the user moved a worktree directory, or when `git
+        // worktree add` was previously run out-of-band. Without this
+        // branch, the subsequent `worktree add <target> <branch>` aborts
+        // with "branch already used by worktree at <other-path>". Reuse
+        // the existing path — the user's contract: "use it if it
+        // exists, on the right branch".
+        if let match = existing.first(where: { $0.branch == branch }) {
+            return match.path
         }
 
         // Case 2: create the .worktrees parent if needed.

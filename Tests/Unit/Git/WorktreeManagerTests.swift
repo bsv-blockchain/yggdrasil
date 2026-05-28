@@ -71,6 +71,62 @@ final class WorktreeManagerTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.worktreesDir.path))
     }
 
+    func testEnsureReusesExistingWorktreeForSameBranchAtDifferentPath() async throws {
+        // Bug: when a worktree for the requested branch already exists at
+        // a DIFFERENT path (legacy `<parent>/.worktrees/<slug>` layout, a
+        // user-renamed directory, or any out-of-band `git worktree add`),
+        // the current code's path-only match misses it and then `git
+        // worktree add <new-path> <branch>` fails with "branch already
+        // used by another worktree". Expected behaviour: reuse the
+        // existing worktree's path.
+        let runner = ProcessRunner()
+        let custom = fixture.repoURL.appendingPathComponent(".custom-wt")
+        // Out-of-band worktree on branch "feat/foo" at the custom path.
+        _ = try await runner.runOrThrow(
+            args: ["worktree", "add", "-b", "feat/foo", custom.path],
+            cwd: fixture.repoURL
+        )
+
+        let manager = WorktreeManager()
+        let path = try await manager.ensure(
+            repo: fixture.repo, branch: "feat/foo", baseRef: nil
+        )
+        // Should return the pre-existing worktree's path, not try to
+        // create another one (which would fail) at the slug-based target.
+        XCTAssertEqual(
+            path.resolvingSymlinksInPath().path,
+            custom.resolvingSymlinksInPath().path
+        )
+    }
+
+    func testEnsureErrorsWhenSlugTargetPathHoldsDifferentBranch() async throws {
+        // Other half of the user contract: "if not on the correct PR,
+        // error out". A worktree at exactly the computed slug-target path
+        // but on a different branch should throw — don't silently steal
+        // the wrong branch.
+        let runner = ProcessRunner()
+        // Pre-create a worktree at the slug path for "feat/foo" but on a
+        // DIFFERENT branch name. Slug("feat/foo") = "feat-foo".
+        let slugTarget = fixture.worktreesDir.appendingPathComponent("feat-foo")
+        try FileManager.default.createDirectory(
+            at: fixture.worktreesDir, withIntermediateDirectories: true
+        )
+        _ = try await runner.runOrThrow(
+            args: ["worktree", "add", "-b", "decoy", slugTarget.path],
+            cwd: fixture.repoURL
+        )
+
+        let manager = WorktreeManager()
+        do {
+            _ = try await manager.ensure(repo: fixture.repo, branch: "feat/foo", baseRef: nil)
+            XCTFail("expected throw — target path holds a different branch")
+        } catch WorktreeError.existsOnDifferentBranch {
+            // expected
+        } catch {
+            XCTFail("expected .existsOnDifferentBranch, got \(error)")
+        }
+    }
+
     // MARK: - list()
 
     func testListIncludesNewlyCreatedWorktree() async throws {
