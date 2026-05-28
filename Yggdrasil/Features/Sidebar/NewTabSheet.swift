@@ -61,7 +61,10 @@ struct NewTabSheet: View {
             }
         }
         .padding(22)
-        .frame(width: 660, height: 560)
+        .frame(
+            minWidth: 580, idealWidth: 660, maxWidth: .infinity,
+            minHeight: 440, idealHeight: 560, maxHeight: .infinity
+        )
         .background(YggdrasilTheme.bgPane(scheme))
         .onAppear(perform: load)
         .accessibilityIdentifier("sidebar.newtab.sheet")

@@ -102,7 +102,10 @@ struct AssignedTaskPicker: View {
             footer
         }
         .padding(22)
-        .frame(width: 720, height: 540)
+        .frame(
+            minWidth: 600, idealWidth: 720, maxWidth: .infinity,
+            minHeight: 420, idealHeight: 540, maxHeight: .infinity
+        )
         .background(YggdrasilTheme.bgPane(scheme))
         .onAppear(perform: reload)
         .accessibilityIdentifier("sidebar.assignedpicker.sheet")
