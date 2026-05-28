@@ -33,6 +33,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             return
         }
 
+        // Probe tmux now (we'll reuse the result for both AppServices wiring
+        // and the startup validator below).
+        let tmuxManager = TmuxManager.detect()
+
+        // Hard-fail on missing dependencies. v0.1.0 shipped with a broken
+        // libgit2 bundle and crashed every user at dyld time. The fail-hard
+        // alert ensures any future regression — bundled dylib missing, gh
+        // not installed, tmux gone — surfaces a precise error instead of a
+        // silent crash or degraded mode the user can't diagnose.
+        let validator = StartupValidator.production(tmuxAvailable: tmuxManager.isAvailable)
+        let failures = validator.validate()
+        if !failures.isEmpty {
+            Self.presentStartupFailureAlertAndExit(failures: failures)
+            return
+        }
+
         do {
             let services = try AppServices()
             self.services = services
@@ -92,6 +108,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // close and the tmux *clients* detach, but the tmux server keeps the
         // session and its agent process alive. The menu bar's
         // "Close and kill all" button is the explicit teardown path.
+    }
+
+    /// Show a blocking NSAlert listing every failed startup check and exit
+    /// the process. The alert is the only thing the user sees — main window
+    /// never appears, no MenuBarExtra is installed. Exit code 1 so anything
+    /// supervising the process (e.g. a launchd job, an installer test) can
+    /// distinguish startup-validation failure from a graceful quit.
+    private static func presentStartupFailureAlertAndExit(failures: [StartupCheckFailure]) {
+        // Surface to Console.app for users who file bug reports without
+        // copying the alert text.
+        for failure in failures {
+            YggdrasilLog.ui.error(
+                "Startup check failed (\(failure.tool, privacy: .public)): \(failure.message, privacy: .public)"
+            )
+        }
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Yggdrasil can't start"
+        alert.informativeText = failures
+            .map { "• \($0.tool): \($0.message)" }
+            .joined(separator: "\n\n")
+        alert.addButton(withTitle: "Quit")
+        alert.runModal()
+        exit(1)
     }
 
     private static var isRunningTests: Bool {

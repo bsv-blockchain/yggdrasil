@@ -49,6 +49,7 @@
 		456679CC7AD808ECC50C054C /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 0790ED46EB079E34E3E55996 /* SwiftTerm */; };
 		4622D3A2BE656132E3203B08 /* SyncScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E8F555D658DE195C8390B80 /* SyncScheduler.swift */; };
 		477ABE5479F24DE5A6E36550 /* AgentResumeFlagTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3608459737EDC4326ADCB9DF /* AgentResumeFlagTests.swift */; };
+		480C39E29EE6A9739B9CE578 /* StartupValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 984816FB566D23BDE9C40076 /* StartupValidatorTests.swift */; };
 		48EFDBF853A861CA4F79DA7C /* AgentTerminalSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F61C5690D1BA51C291B7C8B /* AgentTerminalSurface.swift */; };
 		497450A80A785D691596E093 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = 22C8DA0B09E246E196AD567A /* KeychainAccess */; };
 		4AFD450AE557FF2F85070776 /* GitRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2696119602D5B020469CE2E2 /* GitRunner.swift */; };
@@ -66,6 +67,7 @@
 		64BCF660F02BDF04F99AA60F /* GitHubLiveSyncIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68F9552DD7F1AC4861DA2D1E /* GitHubLiveSyncIntegrationTests.swift */; };
 		656DC0CBFCE1CCEA1909C218 /* WorktreeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67CEC205580D915F373EBB2D /* WorktreeManager.swift */; };
 		66F3A087942A639BA2E442B5 /* TmuxManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 278531A25A012A11A6E09539 /* TmuxManager.swift */; };
+		6EE2F76B0DAC9EAB9EF1BA57 /* StartupValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CEA97C97FF4C1D4A2578B1 /* StartupValidator.swift */; };
 		704A55EE84220A6F097E4E7C /* TabRowViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B6047B65F17F43271FFAE3 /* TabRowViewModelTests.swift */; };
 		7425EBE4549F248571D16098 /* TabStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0646F96A4EF7D2E9EB3DA65D /* TabStore.swift */; };
 		7488BB4471858CAE7341486B /* Subprocess.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA7EE5A957004D99E791FF2D /* Subprocess.swift */; };
@@ -169,6 +171,7 @@
 		1CA3559D5CBA6AAA76D09427 /* CodingAgentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingAgentStoreTests.swift; sourceTree = "<group>"; };
 		1EF28D57C8B062A9B31FA82E /* TabCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabCommands.swift; sourceTree = "<group>"; };
 		2190C3BD95D1EAED24B99011 /* OutputRingBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputRingBuffer.swift; sourceTree = "<group>"; };
+		22CEA97C97FF4C1D4A2578B1 /* StartupValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupValidator.swift; sourceTree = "<group>"; };
 		23E1BAC47DC8DB5BE5B9D093 /* Fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Fixtures; path = Tests/Unit/Fixtures; sourceTree = SOURCE_ROOT; };
 		252F995BF1A44D1A9207F6B8 /* TabsModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabsModelTests.swift; sourceTree = "<group>"; };
 		2696119602D5B020469CE2E2 /* GitRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRunner.swift; sourceTree = "<group>"; };
@@ -221,6 +224,7 @@
 		918445015D120B181B68D47B /* TaskAssignee.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskAssignee.swift; sourceTree = "<group>"; };
 		948A16A92FE75C74D900FC72 /* ReviewPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPickerTests.swift; sourceTree = "<group>"; };
 		9652BDCE37E52D0F9D613C9A /* WorktreeManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeManagerTests.swift; sourceTree = "<group>"; };
+		984816FB566D23BDE9C40076 /* StartupValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupValidatorTests.swift; sourceTree = "<group>"; };
 		990F6605EDD80703D108886D /* PreferencesScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesScene.swift; sourceTree = "<group>"; };
 		9CF3A58689FCE476DAB8A711 /* DebugMenuPrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugMenuPrompts.swift; sourceTree = "<group>"; };
 		9D99E1F4178F9D4EDF6BC427 /* highlight.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = highlight.min.js; sourceTree = "<group>"; };
@@ -398,6 +402,14 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		35A4EFDE719547E178539B8F /* App */ = {
+			isa = PBXGroup;
+			children = (
+				984816FB566D23BDE9C40076 /* StartupValidatorTests.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
 		47DFE0034E18E109541FF789 /* UI */ = {
 			isa = PBXGroup;
 			children = (
@@ -452,6 +464,7 @@
 			children = (
 				23E1BAC47DC8DB5BE5B9D093 /* Fixtures */,
 				4F3642D905571F3D54A5796F /* SmokeTests.swift */,
+				35A4EFDE719547E178539B8F /* App */,
 				6F4C4DDA34D87227165990CF /* Auth */,
 				16AFD2DA7E78296DAB21985D /* Diff */,
 				C49EB649593DD1A04F2B183F /* Git */,
@@ -541,6 +554,7 @@
 				50A21AE81239B21D83CAB04D /* DebugMenu.swift */,
 				9CF3A58689FCE476DAB8A711 /* DebugMenuPrompts.swift */,
 				7B807AA6EDFF979585823C68 /* DiagnosticsCommands.swift */,
+				22CEA97C97FF4C1D4A2578B1 /* StartupValidator.swift */,
 				CE4A8D8497EF59E2E426DF74 /* YggdrasilApp.swift */,
 			);
 			path = App;
@@ -841,6 +855,7 @@
 				FE3EFDC412C327D16585A573 /* SessionStateStoreTests.swift in Sources */,
 				39217F9F21FB0EA87F444757 /* SettingsStoreTests.swift in Sources */,
 				F3AFA17A8905FA23BB7A8131 /* SmokeTests.swift in Sources */,
+				480C39E29EE6A9739B9CE578 /* StartupValidatorTests.swift in Sources */,
 				C70F98EAECDF5302AF9660F0 /* SyncSchedulerTests.swift in Sources */,
 				704A55EE84220A6F097E4E7C /* TabRowViewModelTests.swift in Sources */,
 				1B982FBB4E43911C40294A87 /* TabStatusTests.swift in Sources */,
@@ -913,6 +928,7 @@
 				15CA2C4826B709C8A5408DE4 /* SettingsStore.swift in Sources */,
 				37511615DFFB74718A500ECD /* SidebarActions.swift in Sources */,
 				5FE9BB6133AC4B9C6573F8AE /* SidebarView.swift in Sources */,
+				6EE2F76B0DAC9EAB9EF1BA57 /* StartupValidator.swift in Sources */,
 				FF0DC7433E694D39125C6EA4 /* StatusPoller.swift in Sources */,
 				7488BB4471858CAE7341486B /* Subprocess.swift in Sources */,
 				4622D3A2BE656132E3203B08 /* SyncScheduler.swift in Sources */,
