@@ -1,6 +1,7 @@
 import GRDB
 import SwiftUI
 
+// swiftlint:disable file_length type_body_length
 /// "+" sheet shown from the sidebar — redesigned per `Yggdrasil.html`'s agent
 /// picker. Top: context strip (repo + branch). Middle: row of agent cards
 /// (one per CodingAgent profile, badged with its brand identity, default
@@ -18,6 +19,10 @@ struct NewTabSheet: View {
     @State private var selectedRepoID: Int64?
     @State private var selectedAgentID: Int64?
     @State private var branchName: String = ""
+    /// Base ref the new branch is created off (e.g. `main`, `develop`).
+    /// Defaults to the picked repo's recorded default branch but is fully
+    /// editable so the user can branch off any commit-ish.
+    @State private var baseBranch: String = ""
     @State private var inProgress: Bool = false
     @State private var error: String?
 
@@ -56,7 +61,7 @@ struct NewTabSheet: View {
             }
         }
         .padding(22)
-        .frame(width: 640, height: 460)
+        .frame(width: 660, height: 560)
         .background(YggdrasilTheme.bgPane(scheme))
         .onAppear(perform: load)
         .accessibilityIdentifier("sidebar.newtab.sheet")
@@ -127,30 +132,92 @@ struct NewTabSheet: View {
     }
 
     private var branchRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Branch")
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.4)
-                .textCase(.uppercase)
-                .foregroundStyle(YggdrasilTheme.textMute(scheme))
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("New branch")
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(0.4)
+                    .textCase(.uppercase)
+                    .foregroundStyle(YggdrasilTheme.textMute(scheme))
 
-            HStack(spacing: 7) {
-                Image(systemName: "arrow.triangle.branch")
-                    .foregroundStyle(YggdrasilTheme.textDim(scheme))
-                TextField("e.g. feat/something or pr-655", text: $branchName)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13, design: .monospaced))
-                    .foregroundStyle(YggdrasilTheme.text(scheme))
+                HStack(spacing: 7) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .foregroundStyle(YggdrasilTheme.textDim(scheme))
+                    TextField("feat/new-thing", text: $branchName)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13, design: .monospaced))
+                        .foregroundStyle(YggdrasilTheme.text(scheme))
+                    Button("Auto-name") { branchName = autoBranchName() }
+                        .buttonStyle(.borderless)
+                        .font(.system(size: 11))
+                        .disabled(selectedAgentID == nil)
+                }
+                .padding(.horizontal, 11)
+                .frame(height: 32)
+                .background(YggdrasilTheme.bgPaneSoft(scheme))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+
+                Text("Yggdrasil will create this branch in a new worktree under \(repoMainPath ?? "<repo>")/.worktrees/. Type `pr-N` or `issue-N` to auto-link to an existing GitHub task.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 11)
-            .frame(height: 32)
-            .background(YggdrasilTheme.bgPaneSoft(scheme))
-            .overlay(
-                RoundedRectangle(cornerRadius: 7)
-                    .stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 7))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Base branch")
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(0.4)
+                    .textCase(.uppercase)
+                    .foregroundStyle(YggdrasilTheme.textMute(scheme))
+
+                HStack(spacing: 7) {
+                    Image(systemName: "point.3.connected.trianglepath.dotted")
+                        .foregroundStyle(YggdrasilTheme.textDim(scheme))
+                    TextField(defaultBranchPlaceholder, text: $baseBranch)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13, design: .monospaced))
+                        .foregroundStyle(YggdrasilTheme.text(scheme))
+                }
+                .padding(.horizontal, 11)
+                .frame(height: 32)
+                .background(YggdrasilTheme.bgPaneSoft(scheme))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+
+                Text("The commit the new branch starts from. Defaults to the repo's default branch (\(defaultBranchPlaceholder)).")
+                    .font(.system(size: 10))
+                    .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
+    }
+
+    private var defaultBranchPlaceholder: String {
+        selectedRepo?.defaultBranch ?? "main"
+    }
+
+    private var repoMainPath: String? { selectedRepo?.localMainPath }
+
+    private var selectedRepo: Repo? {
+        repos.first { $0.id == selectedRepoID }
+    }
+
+    /// Build a unique-ish branch suggestion combining the picked agent's
+    /// slug and a short timestamp. Helps users who just want to jump into a
+    /// new session without thinking up a branch name.
+    private func autoBranchName() -> String {
+        let agent = agents.first { $0.id == selectedAgentID }
+        let agentSlug = agent.map { TaskPickerMode.agentSlug($0.name) } ?? "session"
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmm"
+        return "\(agentSlug)/\(formatter.string(from: Date()))"
     }
 
     // MARK: - Logic (preserved)
@@ -167,12 +234,26 @@ struct NewTabSheet: View {
             agents = try services.agentStore.list()
             selectedRepoID = repos.first?.id
             selectedAgentID = (try? services.agentStore.getDefault()?.id) ?? agents.first?.id
+            // Seed the base-branch field with the picked repo's default
+            // branch so the common case (cut a new branch off main) needs
+            // zero typing.
+            baseBranch = selectedRepo?.defaultBranch ?? ""
         } catch {
             self.error = "Failed to load: \(error.localizedDescription)"
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private func confirm() async {
+        // If the user pasted a GitHub URL, switch the repo picker to the
+        // matching tracked repo (when available) before resolving the rest
+        // of the confirm path. Avoids "wrong repo" surprises.
+        let interpretedSlug = Self.interpretBranchInput(branchName).repoSlug
+        if let slug = interpretedSlug,
+           let match = repos.first(where: { "\($0.owner)/\($0.name)".lowercased() == slug.lowercased() }) {
+            selectedRepoID = match.id
+        }
+
         guard let repoID = selectedRepoID,
               let agent = agents.first(where: { $0.id == selectedAgentID }),
               let repo = repos.first(where: { $0.id == repoID })
@@ -187,21 +268,51 @@ struct NewTabSheet: View {
             return
         }
 
-        let trimmedBranch = branchName.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Interpret whatever the user typed: GitHub URL ➜ pr-N/issue-N
+        // (plus repo auto-switch), bare number ➜ pr-N, otherwise pass-
+        // through. The interpretation drives both the branch name and
+        // whether we treat this as a PR session (skip agent prefix, use
+        // refs/pull/N/head as base) or a free-form session.
+        let interpretation = Self.interpretBranchInput(branchName)
+        let userBranch = interpretation.branch
+        let parsedNumber = Self.parsePRNumber(userBranch)
+        // PR sessions use the literal `pr-N` / `issue-N` branch — no
+        // agent prefix — so the local branch matches the PR and a follow-up
+        // `git push` reaches the right ref. Multi-agent parallelism stays
+        // available for free-form branches (still gets the agent prefix).
+        let agentSlug = TaskPickerMode.agentSlug(agent.name)
+        let finalBranch: String = {
+            if parsedNumber != nil { return userBranch }
+            if !agentSlug.isEmpty,
+               !userBranch.lowercased().hasPrefix(agentSlug.lowercased() + "-") {
+                return "\(agentSlug)-\(userBranch)"
+            }
+            return userBranch
+        }()
+        // For PR-identified inputs, point WorktreeManager at the PR head
+        // ref so it does `git fetch origin pull/N/head:<branch>` before
+        // creating the worktree. WorktreeManager spots this prefix and
+        // takes the fetch path. (For issue-N this isn't a thing, so we
+        // skip.)
+        let trimmedBase = baseBranch.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseFromInput = parsedNumber.flatMap { number -> String? in
+            userBranch.lowercased().hasPrefix("pr-") ? "refs/pull/\(number)/head" : nil
+        }
+        let effectiveBase = baseFromInput ?? (trimmedBase.isEmpty ? nil : trimmedBase)
         do {
             let worktreeURL = try await services.worktreeManager.ensure(
-                repo: repo, branch: trimmedBranch, baseRef: nil
+                repo: repo, branch: finalBranch, baseRef: effectiveBase
             )
             // Match the branch against PR/issue patterns ("pr-643", "#643") so the
             // GitHub pane has a task to render. Falls back to nil (= no task link)
             // for free-form branch names like "feat/foo".
             let resolvedTaskID = Self.resolveTaskID(
-                forBranch: trimmedBranch,
+                forBranch: finalBranch,
                 repoID: repoID,
                 database: services.database
             )
             let newTab = try services.tabStore.insert(
-                branchName: trimmedBranch,
+                branchName: finalBranch,
                 worktreePath: worktreeURL.path,
                 agentID: agent.id,
                 taskID: resolvedTaskID
@@ -212,7 +323,7 @@ struct NewTabSheet: View {
                 services.sessions.add(
                     OpenSession(
                         id: tabID,
-                        displayName: "\(agent.name) · \(trimmedBranch)",
+                        displayName: "\(agent.name) · \(finalBranch)",
                         cwd: worktreeURL.path,
                         command: agent.command,
                         args: agent.args
@@ -265,6 +376,59 @@ struct NewTabSheet: View {
             }
         }
         return nil
+    }
+
+    /// Result of interpreting whatever the user typed in the New Session
+    /// branch field: branch name to use + (when the input named a specific
+    /// repo, e.g. a GitHub URL) the repo's `<owner>/<name>` for picker
+    /// auto-select.
+    struct BranchInterpretation: Equatable {
+        let branch: String
+        /// `<owner>/<name>` if the input identified a specific repo
+        /// (currently only GitHub URLs do).
+        let repoSlug: String?
+    }
+
+    /// Normalize whatever the user typed in the New Session branch field
+    /// into a canonical branch name.
+    ///
+    /// Accepts:
+    ///   • A GitHub URL — `https://github.com/<owner>/<repo>/pull/643` or
+    ///     `…/issues/12` — returns `pr-643` / `issue-12` plus the repo slug
+    ///     so the picker can auto-switch to the matching tracked repo.
+    ///   • A bare number — `643` — interpreted as a PR by default, returns
+    ///     `pr-643`.
+    ///   • A `#N` shorthand — returns `pr-N` (we don't know without context
+    ///     whether `#` means issue or PR; PR is the safer default).
+    ///   • Anything else (existing branch names like `pr-643`, `feat/foo`,
+    ///     `review-pr-948`) — passed through untouched.
+    static func interpretBranchInput(_ raw: String) -> BranchInterpretation {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // GitHub URL
+        if let url = URL(string: trimmed),
+           let host = url.host?.lowercased(),
+           host == "github.com" || host.hasSuffix(".github.com") {
+            let parts = url.pathComponents.filter { $0 != "/" }
+            // ["<owner>", "<repo>", "pull"|"issues", "<N>", ...]
+            if parts.count >= 4,
+               let number = Int(parts[3]),
+               parts[2] == "pull" || parts[2] == "issues" {
+                let kind = parts[2] == "pull" ? "pr" : "issue"
+                return BranchInterpretation(
+                    branch: "\(kind)-\(number)",
+                    repoSlug: "\(parts[0])/\(parts[1])"
+                )
+            }
+        }
+
+        // Bare number (with optional leading '#'). Default to PR.
+        let stripped = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
+        if !stripped.isEmpty, stripped.allSatisfy(\.isNumber), let number = Int(stripped) {
+            return BranchInterpretation(branch: "pr-\(number)", repoSlug: nil)
+        }
+
+        return BranchInterpretation(branch: trimmed, repoSlug: nil)
     }
 
     /// True if the branch was created via the review-picker flow. Looks
@@ -344,3 +508,4 @@ private struct AgentCard: View {
         )
     }
 }
+// swiftlint:enable file_length type_body_length

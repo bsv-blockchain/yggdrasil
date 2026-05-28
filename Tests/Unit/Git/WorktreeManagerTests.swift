@@ -175,7 +175,7 @@ final class WorktreeManagerTests: XCTestCase {
         XCTAssertEqual(calls[0].arguments, ["-C", "/tmp/repo", "worktree", "list", "--porcelain"])
         XCTAssertEqual(
             calls[1].arguments,
-            ["-C", "/tmp/repo", "fetch", "origin", "pull/655/head:pr-655"]
+            ["-C", "/tmp/repo", "fetch", "origin", "+pull/655/head:pr-655"]
         )
         XCTAssertEqual(calls[2].arguments[0 ..< 5], ["-C", "/tmp/repo", "worktree", "add", "/tmp/repo/.worktrees/pr-655"])
         XCTAssertEqual(calls[2].arguments.last, "pr-655")

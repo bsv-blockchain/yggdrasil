@@ -16,6 +16,7 @@ actor WorktreeManager {
     /// Matches `refs/pull/<N>/head` (the GitHub PR convention). Captures the number.
     private static let pullRefRegex = #"^refs/pull/(\d+)/head$"#
 
+    // swiftlint:disable function_body_length
     /// Ensure a worktree for `branch` exists. Idempotent — if the worktree at the
     /// expected path is already on the right branch, returns its URL without doing
     /// any git work.
@@ -23,7 +24,8 @@ actor WorktreeManager {
     /// - For PR refs (`baseRef` matching `refs/pull/<N>/head`): first runs
     ///   `git fetch origin pull/<N>/head:<branch>` to materialise the local branch,
     ///   then `git worktree add <path> <branch>`.
-    /// - For regular refs: `git worktree add -b <branch> <path> <baseRef ?? default>`.
+    /// - For regular refs: `git worktree add -b <branch> <path> <baseRef ?? default>`,
+    ///   unless `<branch>` already exists locally — then plain `worktree add <path> <branch>`.
     func ensure(repo: Repo, branch: String, baseRef: String? = nil) async throws -> URL {
         guard let mainPath = repo.localMainPath else {
             throw WorktreeError.parseFailure(reason: "repo \(repo.fullName) has no localMainPath")
@@ -75,11 +77,13 @@ actor WorktreeManager {
             at: worktreesDir, withIntermediateDirectories: true
         )
 
-        // Case 3a: PR ref → fetch then worktree add (no -b).
+        // Case 3a: PR ref → fetch then worktree add. Force-update the
+        // local branch with `+pull/N/head:<branch>` so re-opening an
+        // older PR brings it up to date.
         if let baseRef, let prNumber = Self.pullRequestNumber(from: baseRef) {
             do {
                 try await git.run(
-                    args: ["fetch", "origin", "pull/\(prNumber)/head:\(branch)"],
+                    args: ["fetch", "origin", "+pull/\(prNumber)/head:\(branch)"],
                     cwd: mainURL
                 )
             } catch let WorktreeError.gitFailed(stderr, code) {
@@ -95,13 +99,25 @@ actor WorktreeManager {
             return target
         }
 
-        // Case 3b: regular ref → `git worktree add -b <branch> <target> <baseRef ?? default>`.
+        // Case 3b: regular ref.
+        // - branch exists locally → check it out without `-b`.
+        // - branch doesn't exist  → create it off `baseRef ?? defaultBranch`.
         let base = baseRef ?? repo.defaultBranch
+        let branchExistsLocally: Bool
         do {
-            try await git.run(
-                args: ["worktree", "add", "-b", branch, target.path, base],
+            _ = try await git.run(
+                args: ["rev-parse", "--verify", "--quiet", "refs/heads/\(branch)"],
                 cwd: mainURL
             )
+            branchExistsLocally = true
+        } catch {
+            branchExistsLocally = false
+        }
+        do {
+            let addArgs: [String] = branchExistsLocally
+                ? ["worktree", "add", target.path, branch]
+                : ["worktree", "add", "-b", branch, target.path, base]
+            try await git.run(args: addArgs, cwd: mainURL)
         } catch let WorktreeError.gitFailed(stderr, code) {
             // Map git's reference-resolution failure to a typed error so callers can
             // distinguish "you typoed the base ref" from arbitrary git failures.
@@ -115,6 +131,7 @@ actor WorktreeManager {
 
         return target
     }
+    // swiftlint:enable function_body_length
 
     private static func pullRequestNumber(from baseRef: String) -> Int? {
         let regex = try? NSRegularExpression(pattern: pullRefRegex)
