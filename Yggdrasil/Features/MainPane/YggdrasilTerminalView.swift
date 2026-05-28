@@ -129,6 +129,25 @@ enum TerminalKeyInterceptor {
     }
 }
 
+/// Registry of every live `LocalProcessTerminalView` so the Option-drag
+/// bypass can flip `allowMouseReporting` without relying on AppKit hit-
+/// testing (which is fragile across the SwiftUI/NSHostingView boundary).
+/// `AgentTerminalSurface.makeNSView` registers; `dismantleNSView` would
+/// remove (but views typically live for the whole app session so we don't
+/// require strict deregistration — the set is held weakly).
+@MainActor
+enum TerminalViewRegistry {
+    private static let storage = NSHashTable<LocalProcessTerminalView>.weakObjects()
+
+    static func register(_ view: LocalProcessTerminalView) {
+        storage.add(view)
+    }
+
+    static func allViews() -> [LocalProcessTerminalView] {
+        storage.allObjects
+    }
+}
+
 /// Option-drag selection bypass. tmux is configured with `mouse on` so the
 /// scroll wheel can drive tmux's copy-mode (see `TerminalScrollInterceptor`).
 /// The side-effect is that `LocalProcessTerminalView.allowMouseReporting`
@@ -136,46 +155,45 @@ enum TerminalKeyInterceptor {
 /// the user can never just drag-select text — the drag becomes a tmux
 /// mouse-drag.
 ///
-/// To match iTerm2/Terminal.app, holding Option while dragging temporarily
-/// suppresses mouse reporting on the targeted terminal view: SwiftTerm's
-/// native selection takes over for the duration of the drag, then mouse
-/// reporting is restored on mouse-up so subsequent scroll-wheel events
-/// still reach tmux.
+/// To match iTerm2/Terminal.app, while Option is held we suppress mouse
+/// reporting on every live terminal view: SwiftTerm's native selection
+/// takes over. When Option is released, reporting is restored so scroll
+/// wheels still drive tmux copy-mode.
+///
+/// We watch `.flagsChanged` (modifier key transitions) rather than
+/// per-click events because: (a) it doesn't depend on AppKit hit-testing
+/// finding the right view through SwiftUI's host layer; (b) it handles
+/// the case where the user presses Option BEFORE clicking; (c) it
+/// correctly handles long drags that outlast a single mouse-down event.
 @MainActor
 enum TerminalMouseSelectionBypass {
-    private static var downMonitor: Any?
-    private static var upMonitor: Any?
-    private static weak var suppressedView: LocalProcessTerminalView?
+    private static var flagsMonitor: Any?
+    /// Views whose `allowMouseReporting` we forced false while Option was
+    /// held, so we know which to restore when Option releases. Stored
+    /// strongly here for the brief life of one Option-hold; cleared on
+    /// release.
+    private static var suppressedViews: [LocalProcessTerminalView] = []
 
     static func install() {
-        guard downMonitor == nil else { return }
-        downMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
-            handleDown(event)
-            return event
-        }
-        upMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { event in
-            handleUp()
+        guard flagsMonitor == nil else { return }
+        flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            handleFlagsChanged(event)
             return event
         }
     }
 
-    private static func handleDown(_ event: NSEvent) {
-        guard event.modifierFlags.contains(.option) else { return }
-        guard let contentView = event.window?.contentView else { return }
-        let pointInContent = contentView.convert(event.locationInWindow, from: nil)
-        guard let hit = contentView.hitTest(pointInContent),
-              let terminalView = TerminalScrollInterceptor.closestTerminalView(from: hit)
-        else { return }
-        // Only flip when mouse reporting was actually on — otherwise we'd
-        // re-enable it on mouse-up where it wasn't enabled before.
-        guard terminalView.allowMouseReporting else { return }
-        terminalView.allowMouseReporting = false
-        suppressedView = terminalView
-    }
-
-    private static func handleUp() {
-        guard let view = suppressedView else { return }
-        view.allowMouseReporting = true
-        suppressedView = nil
+    private static func handleFlagsChanged(_ event: NSEvent) {
+        let optionDown = event.modifierFlags.contains(.option)
+        if optionDown, suppressedViews.isEmpty {
+            for view in TerminalViewRegistry.allViews() where view.allowMouseReporting {
+                view.allowMouseReporting = false
+                suppressedViews.append(view)
+            }
+        } else if !optionDown, !suppressedViews.isEmpty {
+            for view in suppressedViews {
+                view.allowMouseReporting = true
+            }
+            suppressedViews.removeAll()
+        }
     }
 }

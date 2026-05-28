@@ -63,6 +63,9 @@ struct AgentTerminalSurface: NSViewRepresentable {
         AgentTerminalSurface.applyTheme(to: view)
         view.processDelegate = context.coordinator
         context.coordinator.attach(view: view)
+        // Register for Option-drag selection bypass — see
+        // TerminalMouseSelectionBypass for context.
+        TerminalViewRegistry.register(view)
         return view
     }
 
