@@ -16,7 +16,9 @@ struct IssueDetailsPicker: View {
     @Environment(\.colorScheme) private var scheme
 
     @State private var rows: [Row] = []
+    @State private var trackedRepoKeys: Set<String> = []
     @State private var search: String = ""
+    @State private var trackedOnly: Bool = false
     @State private var sortOrder: [KeyPathComparator<Row>] = [
         .init(\Row.updatedAtSort, order: .reverse)
     ]
@@ -66,7 +68,13 @@ struct IssueDetailsPicker: View {
             footer
         }
         .padding(20)
-        .frame(minWidth: 760, idealWidth: 1100, minHeight: 460, idealHeight: 680)
+        // maxWidth/maxHeight = .infinity is what lets the user actually drag
+        // the sheet edges to resize. Without them macOS treats the sheet as
+        // a fixed-size dialog locked to idealWidth/idealHeight.
+        .frame(
+            minWidth: 760, idealWidth: 1100, maxWidth: .infinity,
+            minHeight: 460, idealHeight: 680, maxHeight: .infinity
+        )
         .background(YggdrasilTheme.bgPane(scheme))
         .onAppear { Task { await reload() } }
         .accessibilityIdentifier("sidebar.issuedetails.sheet")
@@ -99,22 +107,32 @@ struct IssueDetailsPicker: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: 7) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(YggdrasilTheme.textDim(scheme))
-            TextField("Filter by title, repo, label, milestone, or #number", text: $search)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12))
-                .foregroundStyle(YggdrasilTheme.text(scheme))
+        HStack(spacing: 10) {
+            HStack(spacing: 7) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(YggdrasilTheme.textDim(scheme))
+                TextField("Filter by title, repo, label, milestone, or #number", text: $search)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .foregroundStyle(YggdrasilTheme.text(scheme))
+            }
+            .padding(.horizontal, 11)
+            .frame(height: 30)
+            .background(YggdrasilTheme.bgPaneSoft(scheme))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+
+            Toggle(isOn: $trackedOnly) {
+                Text("Tracked repos only")
+                    .font(.system(size: 11))
+                    .foregroundStyle(YggdrasilTheme.textDim(scheme))
+            }
+            .toggleStyle(.checkbox)
+            .accessibilityIdentifier("sidebar.issuedetails.trackedOnly")
         }
-        .padding(.horizontal, 11)
-        .frame(height: 30)
-        .background(YggdrasilTheme.bgPaneSoft(scheme))
-        .overlay(
-            RoundedRectangle(cornerRadius: 7)
-                .stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 7))
     }
 
     private var table: some View {
@@ -247,9 +265,24 @@ struct IssueDetailsPicker: View {
     // MARK: - Data + actions
 
     private var filteredRows: [Row] {
+        Self.filter(
+            rows: rows, search: search,
+            trackedRepoKeys: trackedRepoKeys, trackedOnly: trackedOnly
+        )
+    }
+
+    /// Pure helper exposed for unit testing. The view body just renders the
+    /// result, so all filter logic lives here in one place.
+    static func filter(
+        rows: [Row], search: String, trackedRepoKeys: Set<String>, trackedOnly: Bool
+    ) -> [Row] {
+        var result = rows
+        if trackedOnly {
+            result = result.filter { trackedRepoKeys.contains($0.repoFull) }
+        }
         let trimmed = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !trimmed.isEmpty else { return rows }
-        return rows.filter { row in
+        guard !trimmed.isEmpty else { return result }
+        return result.filter { row in
             row.title.lowercased().contains(trimmed)
                 || row.repoFull.lowercased().contains(trimmed)
                 || "#\(row.number)".contains(trimmed)
@@ -307,6 +340,7 @@ struct IssueDetailsPicker: View {
                 )
             }
             rows.sort(using: sortOrder)
+            trackedRepoKeys = Set(local.reposByKey.keys)
         } catch {
             self.error = "Failed to load issues: \(error.localizedDescription)"
         }
