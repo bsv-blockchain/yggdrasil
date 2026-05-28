@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Loom Diff</title>
+  <title>Yggdrasil Diff</title>
   <link rel="stylesheet" href="diff2html.min.css">
   <link rel="stylesheet" href="highlight-github.min.css">
   <style>
@@ -13,8 +13,8 @@
       font-size: 12px;
     }
     body {
-      background: var(--loom-bg, #ffffff);
-      color: var(--loom-fg, #1c1c1e);
+      background: var(--yggdrasil-bg, #ffffff);
+      color: var(--yggdrasil-fg, #1c1c1e);
     }
     @media (prefers-color-scheme: dark) {
       body { background: #1e1e1e; color: #e6e6e6; }
@@ -51,15 +51,15 @@
     <button id="btn-line">Unified</button>
     <input id="filter" placeholder="Filter files…" autocomplete="off">
   </div>
-  <div id="empty-state">No diff yet. Compute and inject one via window.loom.render.</div>
+  <div id="empty-state">No diff yet.</div>
   <div id="diff-target"></div>
 
   <script src="highlight.min.js"></script>
   <script src="diff2html-ui.min.js"></script>
   <script>
     // The `Diff2HtmlUI` global comes from diff2html-ui.min.js. `hljs` from
-    // highlight.min.js. We don't render anything until Loom calls
-    // window.loom.render(diffText, opts).
+    // highlight.min.js. We don't render anything until Yggdrasil calls
+    // window.yggdrasil.render(diffText, opts).
     (function () {
       const targetEl   = document.getElementById('diff-target');
       const emptyEl    = document.getElementById('empty-state');
@@ -120,12 +120,12 @@
       });
       filterEl.addEventListener('input', applyFilter);
 
-      window.loom = window.loom || {};
-      window.loom.render = function (diffText) {
+      window.yggdrasil = window.yggdrasil || {};
+      window.yggdrasil.render = function (diffText) {
         lastDiffText = (diffText || '').toString();
         rerender();
       };
-      window.loom.clear = function () {
+      window.yggdrasil.clear = function () {
         lastDiffText = '';
         rerender();
       };
