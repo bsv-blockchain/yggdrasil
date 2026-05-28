@@ -122,7 +122,7 @@ struct SidebarSessionsLayout: View {
                 Text("No sessions yet")
                     .font(.title2)
                     .foregroundStyle(.secondary)
-                Text("Use Debug → + New Session to start a coding agent.")
+                Text("Click the “+” in the sidebar (or Coding → New Session… ⌘N) to start a coding agent.")
                     .font(.callout)
                     .foregroundStyle(.tertiary)
             }
@@ -138,7 +138,7 @@ struct SidebarSessionsLayout: View {
                     .foregroundStyle(.tertiary)
                 Text("No live session for this tab")
                     .font(.headline)
-                Text("Use Debug → + New Session… or the toolbar “+” (coming) to start one.")
+                Text("Click the “+” in the sidebar or Coding → New Session… (⌘N).")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }

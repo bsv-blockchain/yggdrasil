@@ -55,8 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             Diagnostics.ensureCrashFolder()
             AppearancePrefsPane.applyPersisted(services: services)
             Task {
-                await services.scheduler.start()
-                await services.statusPoller.start()
+                await services.startSchedulers()
             }
         } catch {
             YggdrasilLog.ui.error("Failed to build AppServices: \(String(describing: error), privacy: .public)")

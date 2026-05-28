@@ -8,12 +8,16 @@ import Foundation
 @MainActor
 final class AppServices {
     let database: YggdrasilDatabase
+    let settingsStore: SettingsStore
     let authService: AuthService
     let httpClient: URLSessionHTTPClient
     let restClient: RESTClient
     let graphqlClient: GraphQLClient
     let syncService: TaskSyncService
-    let scheduler: SyncScheduler
+    /// Replaceable from `applyIntervals(_:)` — IntervalsPrefsPane rebuilds
+    /// the scheduler when the user changes the sync interval. Readers see
+    /// the latest instance because lookups always go through `services`.
+    private(set) var scheduler: SyncScheduler
     let agentStore: CodingAgentStore
     let sessionStore: SessionStateStore
     let tabStore: TabStore
@@ -25,10 +29,16 @@ final class AppServices {
     let tabStatus = TabStatusModel()
     let statusPoller: StatusPoller
     let diffEngine = DiffEngine()
+    /// Snapshot of the live intervals. Mutated by `applyIntervals(_:)`.
+    private(set) var intervals: IntervalSettings
 
     init() throws {
         let database = try YggdrasilDatabase.openDefault()
         self.database = database
+        let settingsStore = SettingsStore(database: database)
+        self.settingsStore = settingsStore
+        let intervals = (try? IntervalSettings.load(from: settingsStore)) ?? .defaults
+        self.intervals = intervals
 
         // Token sourced from `gh auth token` on first request + in-memory
         // cached. The Keychain detour is gone — ad-hoc-signed local builds
@@ -52,7 +62,7 @@ final class AppServices {
         let tabsModel = TabsModel(store: tabStore, database: database)
         tabsModel.reload()
         self.tabs = tabsModel
-        self.webViewPool = WebViewPool(settingsStore: SettingsStore(database: database))
+        self.webViewPool = WebViewPool(settingsStore: settingsStore)
         // Probe once at launch — tmux availability is a property of the
         // user's PATH, not something that changes during a run.
         self.tmux = TmuxManager.detect()
@@ -75,7 +85,56 @@ final class AppServices {
         // After every successful sync, refresh `tabsModel` so the chrome pill's
         // pending-review count and the lazy task-link map (tasksByTabID) pick up
         // anything new — review-requests added or dismissed since the last tick.
-        self.scheduler = SyncScheduler(interval: .seconds(60)) { [syncService, tabsModel] in
+        self.scheduler = Self.makeScheduler(
+            intervalSeconds: intervals.syncSeconds,
+            syncService: syncService,
+            tabsModel: tabsModel
+        )
+    }
+
+    /// Replace both intervals at runtime. Persists to SettingsStore, then
+    /// stops + recreates the scheduler/poller with the new values. Safe to
+    /// call before they were started — start() is idempotent.
+    func applyIntervals(_ new: IntervalSettings) async {
+        try? new.save(to: settingsStore)
+        // Re-load to pick up the clamped values rather than trusting the
+        // caller's potentially-out-of-range input.
+        let resolved = (try? IntervalSettings.load(from: settingsStore)) ?? .defaults
+        intervals = resolved
+
+        await scheduler.stop()
+        scheduler = Self.makeScheduler(
+            intervalSeconds: resolved.syncSeconds,
+            syncService: syncService,
+            tabsModel: tabs
+        )
+        await scheduler.start()
+
+        await statusPoller.stop()
+        await statusPoller.start(interval: .seconds(resolved.statusProbeSeconds))
+    }
+
+    /// `applicationDidFinishLaunching` calls this in place of the bare
+    /// `scheduler.start()` + `statusPoller.start()` so the poller actually
+    /// gets the user's chosen probe interval (not the StatusPoller
+    /// default of 5s).
+    func startSchedulers() async {
+        await scheduler.start()
+        await statusPoller.start(interval: .seconds(intervals.statusProbeSeconds))
+    }
+
+    private static func makeScheduler(
+        intervalSeconds: Int,
+        syncService: TaskSyncService,
+        tabsModel: TabsModel
+    ) -> SyncScheduler {
+        SyncScheduler(interval: .seconds(intervalSeconds)) { [syncService, tabsModel] in
+            // Each scheduler tick retries the sync with exponential backoff
+            // on failure (1s, 2s, 4s, 8s, 16s, then give up for this tick)
+            // per spec §Phase 1. After every successful sync, refresh
+            // `tabsModel` so the chrome pill's pending-review count and the
+            // lazy task-link map (tasksByTabID) pick up anything new —
+            // review-requests added or dismissed since the last tick.
             try await BackoffRetry.attempt(maxAttempts: 5) {
                 try await syncService.fullSync()
             }

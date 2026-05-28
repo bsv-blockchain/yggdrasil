@@ -1,37 +1,105 @@
 import SwiftUI
 
-/// Read-only display of the spec's polling intervals. Edits are Phase 8.5+;
-/// for now the values are sourced from `SettingsStore` (overrideable via
-/// `defaults write`) or fall back to the spec defaults.
+/// Editable polling-interval pane. Changes are persisted to SettingsStore
+/// and applied to the running schedulers immediately via
+/// `AppServices.applyIntervals(_:)` — no relaunch needed.
 struct IntervalsPrefsPane: View {
     let services: AppServices
 
+    @State private var syncSeconds: Int = IntervalSettings.defaults.syncSeconds
+    @State private var statusProbeSeconds: Int = IntervalSettings.defaults.statusProbeSeconds
+    @State private var lastApplied: Date?
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("Refresh Intervals").font(.title3).bold()
-            Text("Yggdrasil's polling cadence. Hardcoded in this build — a future release will surface sliders here.")
+            Text("How often Yggdrasil polls GitHub + the worktree. Lower = fresher pills, higher = lighter on API quota.")
                 .font(.callout).foregroundStyle(.secondary)
 
-            VStack(alignment: .leading, spacing: 8) {
-                row(label: "GitHub sync", value: "60 s", note: "Assigned issues + PRs across all tracked repos")
-                row(label: "Per-tab git probe", value: "5 s", note: "git status + ahead/behind")
-                row(label: "Per-PR GraphQL", value: "60 s", note: "CI / mergeable / review (piggybacks on sync)")
-                row(label: "BackoffRetry on sync failure", value: "1, 2, 4, 8, 16 s", note: "Then waits for next tick")
+            VStack(alignment: .leading, spacing: 14) {
+                intervalRow(
+                    label: "GitHub sync",
+                    value: $syncSeconds,
+                    range: IntervalSettings.syncRange,
+                    step: 5,
+                    note: "Assigned issues + PRs + review-requested across all tracked repos."
+                )
+                intervalRow(
+                    label: "Per-tab git probe",
+                    value: $statusProbeSeconds,
+                    range: IntervalSettings.statusProbeRange,
+                    step: 1,
+                    note: "git status + ahead/behind for the worktree of each open tab."
+                )
             }
-            .padding(.top, 4)
+
+            HStack(spacing: 8) {
+                Button("Reset to defaults") {
+                    syncSeconds = IntervalSettings.defaults.syncSeconds
+                    statusProbeSeconds = IntervalSettings.defaults.statusProbeSeconds
+                    apply()
+                }
+                if let lastApplied {
+                    Text("Applied \(Self.timeFormatter.string(from: lastApplied))")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer()
+            }
 
             Spacer()
         }
-    }
-
-    private func row(label: String, value: String, note: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(label).frame(width: 200, alignment: .leading)
-            Text(value)
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.primary)
-                .frame(width: 110, alignment: .leading)
-            Text(note).foregroundStyle(.tertiary).font(.callout)
+        .onAppear {
+            syncSeconds = services.intervals.syncSeconds
+            statusProbeSeconds = services.intervals.statusProbeSeconds
         }
     }
+
+    private func intervalRow(
+        label: String,
+        value: Binding<Int>,
+        range: ClosedRange<Int>,
+        step: Int,
+        note: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(label).frame(width: 180, alignment: .leading)
+                Stepper(value: value, in: range, step: step) {
+                    Text("\(value.wrappedValue) s")
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minWidth: 60, alignment: .leading)
+                }
+                .onChange(of: value.wrappedValue) { _, _ in
+                    apply()
+                }
+                Text("(\(range.lowerBound)–\(range.upperBound) s)")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                Spacer()
+            }
+            Text(note)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 180)
+        }
+    }
+
+    private func apply() {
+        let new = IntervalSettings(
+            syncSeconds: syncSeconds,
+            statusProbeSeconds: statusProbeSeconds
+        )
+        Task {
+            await services.applyIntervals(new)
+            lastApplied = Date()
+        }
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .medium
+        return formatter
+    }()
 }

@@ -55,6 +55,7 @@
 		497450A80A785D691596E093 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = 22C8DA0B09E246E196AD567A /* KeychainAccess */; };
 		4AFD450AE557FF2F85070776 /* GitRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2696119602D5B020469CE2E2 /* GitRunner.swift */; };
 		4EC6A8F7E934C8A3ED11496A /* GHCLIAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4592E29AC7752D741FA4F483 /* GHCLIAuth.swift */; };
+		4EF8D76933A867D553763BBC /* IntervalSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEEDDC0EA22C512E4F6C4D4E /* IntervalSettingsTests.swift */; };
 		4F10AF7B1CA082C26E3BDE7C /* Clibgit2 in Frameworks */ = {isa = PBXBuildFile; productRef = B95C7CBB5969F9856E882084 /* Clibgit2 */; };
 		4F7A0286534CE1B8A021E704 /* RESTClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73854E9178E174B970B0EAE4 /* RESTClientTests.swift */; };
 		4F83E454B10A81CA113644D7 /* GitStateProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E39389CC1E8E55A0BB9139F /* GitStateProbe.swift */; };
@@ -111,6 +112,7 @@
 		C12EAAD3E2067A4D2067CF8B /* MainPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 685917A4DBDCFDE875F155E5 /* MainPaneView.swift */; };
 		C1A1B93AFF5279C24B3FD45B /* BackoffRetryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB928EFBED62237C3233A2FA /* BackoffRetryTests.swift */; };
 		C24F0673AAD1CDBEFCF54BF3 /* DebugMenuPrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF3A58689FCE476DAB8A711 /* DebugMenuPrompts.swift */; };
+		C3BCE9FFB63C0A1C7B4DFF02 /* IntervalSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE9C1B93008E18523A8627A /* IntervalSettings.swift */; };
 		C6D1D2BB56DCCF8F6473CB75 /* GitHubWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B258E487852090EBD0E38E5 /* GitHubWebView.swift */; };
 		C70F98EAECDF5302AF9660F0 /* SyncSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F4BA7A10FE8C1FF1F8D12C5 /* SyncSchedulerTests.swift */; };
 		C852604623C22EAAB86DEFEE /* MenuBarStatusScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC72FCD6F57B00D32DBF9797 /* MenuBarStatusScene.swift */; };
@@ -221,6 +223,7 @@
 		88AE2C7159A7E5623495819D /* GitHubSubPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubSubPane.swift; sourceTree = "<group>"; };
 		88E4FB20AE73F43E9A4934EC /* CodingAgentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingAgentStore.swift; sourceTree = "<group>"; };
 		8A30B4717CB6A068A8F5793F /* GHCLIAuthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GHCLIAuthTests.swift; sourceTree = "<group>"; };
+		8AE9C1B93008E18523A8627A /* IntervalSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntervalSettings.swift; sourceTree = "<group>"; };
 		8D87FE2B8D82A2E53D859AC1 /* YggdrasilTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilTerminalView.swift; sourceTree = "<group>"; };
 		8E8F555D658DE195C8390B80 /* SyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncScheduler.swift; sourceTree = "<group>"; };
 		918445015D120B181B68D47B /* TaskAssignee.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskAssignee.swift; sourceTree = "<group>"; };
@@ -277,6 +280,7 @@
 		E3D75BDE3A007C358FFF93E0 /* RESTClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RESTClient.swift; sourceTree = "<group>"; };
 		EA7EE5A957004D99E791FF2D /* Subprocess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subprocess.swift; sourceTree = "<group>"; };
 		EB928EFBED62237C3233A2FA /* BackoffRetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffRetryTests.swift; sourceTree = "<group>"; };
+		EEEDDC0EA22C512E4F6C4D4E /* IntervalSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntervalSettingsTests.swift; sourceTree = "<group>"; };
 		EF224817FACE506642F5FA5C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F255851443755D5A45358E17 /* TabRowViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabRowViewModel.swift; sourceTree = "<group>"; };
 		F536F49306D06FB2EC7D0FE7 /* Yggdrasil.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Yggdrasil.entitlements; sourceTree = "<group>"; };
@@ -573,6 +577,14 @@
 			path = MenuBar;
 			sourceTree = "<group>";
 		};
+		A99505B623EECCF3BD64DE4A /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				8AE9C1B93008E18523A8627A /* IntervalSettings.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
 		C49EB649593DD1A04F2B183F /* Git */ = {
 			isa = PBXGroup;
 			children = (
@@ -645,6 +657,7 @@
 				F7F6A8E4AB062000A577F27B /* GitHub */,
 				F74FA637A31EE4D85C53D6E7 /* Logging */,
 				C76F35237905FF879B5037BA /* Models */,
+				A99505B623EECCF3BD64DE4A /* Settings */,
 				927B031B9CA38B9D77145784 /* Status */,
 				03756532DE9FC18860A0F786 /* Storage */,
 				4EE31A89A2B8C89CD9BF54AF /* Terminal */,
@@ -665,6 +678,7 @@
 			isa = PBXGroup;
 			children = (
 				1CA3559D5CBA6AAA76D09427 /* CodingAgentStoreTests.swift */,
+				EEEDDC0EA22C512E4F6C4D4E /* IntervalSettingsTests.swift */,
 				A9118B23EDBB71CED83EDB88 /* MigrationsTests.swift */,
 				C0C6F9E02BB1B5D10BB95BAC /* MigrationV2Tests.swift */,
 				2A8A112A91F42061FC56C62A /* SessionStateStoreTests.swift */,
@@ -852,6 +866,7 @@
 				9428A4D5D1FC751917F0F286 /* GitStateProbeTests.swift in Sources */,
 				D39E74E386F6872503063B36 /* GraphQLClientTests.swift in Sources */,
 				B1EBBF232899A9FDD9AB7F3F /* HTTPClientTests.swift in Sources */,
+				4EF8D76933A867D553763BBC /* IntervalSettingsTests.swift in Sources */,
 				D0F5C4E4CB2D5C4D40B0B072 /* IssueDetailsPickerFilterTests.swift in Sources */,
 				CE86ADE572BB3E89F23D11BF /* MigrationV2Tests.swift in Sources */,
 				7AB9655B92BB8DCB0727F8F0 /* MigrationsTests.swift in Sources */,
@@ -914,6 +929,7 @@
 				4F83E454B10A81CA113644D7 /* GitStateProbe.swift in Sources */,
 				3DBD5A2E7761DF60A1BEFD07 /* GraphQLClient.swift in Sources */,
 				21C09EC0F24D216C1F32BBA4 /* HTTPClient.swift in Sources */,
+				C3BCE9FFB63C0A1C7B4DFF02 /* IntervalSettings.swift in Sources */,
 				0DBDEA2F552D95BE43BAF70B /* IntervalsPrefsPane.swift in Sources */,
 				2985E8F34154CD0C30C6036D /* IssueDetailsPicker.swift in Sources */,
 				A5F84F86044F5A57272B95CA /* KeychainStore.swift in Sources */,
