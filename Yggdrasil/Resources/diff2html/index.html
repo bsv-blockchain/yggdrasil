@@ -1,55 +1,335 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <title>Yggdrasil Diff</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="diff2html.min.css">
   <link rel="stylesheet" href="highlight-github.min.css">
   <style>
+    /* --- Design tokens (Claude Design / Yggdrasil) -------------------- */
+    :root {
+      --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+      --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+      --accent: #4670ff;
+      --accent-soft: rgba(70, 112, 255, 0.14);
+      --ember: #ff7a59;
+      --add: #2ea043;
+      --add-bg: rgba(46, 160, 67, 0.14);
+      --add-line: rgba(46, 160, 67, 0.32);
+      --del: #cf3838;
+      --del-bg: rgba(207, 56, 56, 0.13);
+      --del-line: rgba(207, 56, 56, 0.32);
+    }
+
+    [data-theme="dark"] {
+      --bg: #0d0e11;
+      --bg-pane: #181b21;
+      --bg-pane-soft: #1d2128;
+      --bg-elev: #232730;
+      --bg-hover: rgba(255, 255, 255, 0.04);
+      --border: rgba(255, 255, 255, 0.07);
+      --border-strong: rgba(255, 255, 255, 0.13);
+      --divider: rgba(255, 255, 255, 0.06);
+      --text: #e8eaef;
+      --text-dim: #a4abb8;
+      --text-mute: #6b7384;
+      --text-faint: #4a5161;
+      --chip-bg: rgba(255, 255, 255, 0.05);
+      --chip-bd: rgba(255, 255, 255, 0.08);
+      --diff-add-fg: #b7eccb;
+      --diff-del-fg: #f5b8b8;
+      --diff-context: #c4cad6;
+      --diff-gutter: #5b6273;
+    }
+
+    [data-theme="light"] {
+      --bg: #ece8df;
+      --bg-pane: #fbf8f2;
+      --bg-pane-soft: #f0ece2;
+      --bg-elev: #ffffff;
+      --bg-hover: rgba(0, 0, 0, 0.035);
+      --border: rgba(60, 50, 30, 0.10);
+      --border-strong: rgba(60, 50, 30, 0.18);
+      --divider: rgba(60, 50, 30, 0.08);
+      --text: #1a1814;
+      --text-dim: #5a5448;
+      --text-mute: #8a8474;
+      --text-faint: #b3ad9b;
+      --chip-bg: rgba(60, 50, 30, 0.05);
+      --chip-bd: rgba(60, 50, 30, 0.10);
+      --diff-add-fg: #1a4730;
+      --diff-del-fg: #6b1717;
+      --diff-context: #3a3528;
+      --diff-gutter: #a09a87;
+    }
+
+    /* --- Page chrome -------------------------------------------------- */
+    * { box-sizing: border-box; }
     html, body {
       margin: 0; padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
-                   Helvetica, Arial, sans-serif;
+      font-family: var(--font-sans);
+      font-feature-settings: "ss01", "ss02", "cv11";
       font-size: 12px;
+      color: var(--text);
+      background: var(--bg-pane);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
     }
-    body {
-      background: var(--yggdrasil-bg, #ffffff);
-      color: var(--yggdrasil-fg, #1c1c1e);
+
+    ::selection { background: var(--accent-soft); }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 8px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
     }
-    @media (prefers-color-scheme: dark) {
-      body { background: #1e1e1e; color: #e6e6e6; }
-      .d2h-file-header { background: #2a2a2a; }
-      .d2h-code-line, .d2h-info { background: #1e1e1e; }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-faint);
+      background-clip: padding-box;
     }
+
     #toolbar {
       position: sticky; top: 0; z-index: 10;
-      padding: 8px 12px;
-      border-bottom: 1px solid rgba(127,127,127,0.3);
-      background: inherit;
-      display: flex; gap: 8px; align-items: center;
+      padding: 9px 12px;
+      background: var(--bg-pane-soft);
+      border-bottom: 1px solid var(--divider);
+      display: flex; gap: 6px; align-items: center;
     }
-    #toolbar input {
-      flex: 1; padding: 4px 8px;
-      border: 1px solid rgba(127,127,127,0.4);
-      background: transparent; color: inherit;
-      border-radius: 4px; font-size: 12px;
+    #toolbar .modes {
+      display: flex; gap: 2px;
+      padding: 2px;
+      background: var(--bg-pane);
+      border: 1px solid var(--border);
+      border-radius: 7px;
     }
     #toolbar button {
-      padding: 4px 10px; font-size: 12px;
-      border: 1px solid rgba(127,127,127,0.4);
-      background: transparent; color: inherit;
-      border-radius: 4px; cursor: pointer;
+      padding: 4px 10px;
+      font-family: var(--font-sans);
+      font-size: 11.5px;
+      font-weight: 500;
+      border: none;
+      background: transparent;
+      color: var(--text-mute);
+      border-radius: 5px;
+      cursor: pointer;
+      letter-spacing: -0.05px;
     }
-    #toolbar button.active { background: rgba(0,122,255,0.2); }
-    #diff-target { padding: 12px; }
-    #empty-state { padding: 48px; text-align: center; color: rgba(127,127,127,0.8); }
+    #toolbar button.active {
+      background: var(--bg-elev);
+      color: var(--text);
+      font-weight: 600;
+    }
+    #toolbar button:hover:not(.active) { color: var(--text-dim); }
+    #toolbar input {
+      flex: 1;
+      padding: 5px 10px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      border: 1px solid var(--border);
+      background: var(--bg-pane);
+      color: var(--text);
+      border-radius: 7px;
+    }
+    #toolbar input::placeholder { color: var(--text-faint); }
+    #toolbar input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    #diff-target { padding: 0 12px 24px; }
+    #empty-state {
+      padding: 64px 24px;
+      text-align: center;
+      color: var(--text-mute);
+      font-family: var(--font-sans);
+      font-size: 13px;
+    }
+
+    /* --- diff2html overrides ----------------------------------------- */
+    .d2h-wrapper { background: transparent; }
+
+    .d2h-file-list-wrapper {
+      margin: 14px 0 6px;
+      background: var(--bg-pane-soft);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      overflow: hidden;
+    }
+    .d2h-file-list-header {
+      padding: 8px 12px;
+      background: transparent;
+      border-bottom: 1px solid var(--divider);
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-mute);
+    }
+    .d2h-file-list-title { color: inherit; }
+    .d2h-file-list-line {
+      padding: 4px 12px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text);
+      border-bottom: 1px solid transparent;
+    }
+    .d2h-file-list-line:hover { background: var(--bg-hover); }
+    .d2h-file-name { color: var(--text); }
+    .d2h-file-name-wrapper a { color: var(--text); text-decoration: none; }
+    .d2h-file-name-wrapper a:hover { color: var(--accent); }
+    .d2h-lines-added { color: var(--add); font-family: var(--font-mono); }
+    .d2h-lines-deleted { color: var(--del); font-family: var(--font-mono); }
+
+    .d2h-file-wrapper {
+      margin: 12px 0;
+      background: var(--bg-pane);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      overflow: hidden;
+    }
+    .d2h-file-header {
+      padding: 8px 12px;
+      background: var(--bg-pane-soft);
+      border-bottom: 1px solid var(--divider);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: -0.1px;
+    }
+    .d2h-file-header .d2h-file-name { color: var(--text); }
+
+    .d2h-tag {
+      font-family: var(--font-sans);
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+    }
+    .d2h-changed-tag {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: var(--accent-soft);
+    }
+    .d2h-added-tag {
+      background: var(--add-bg);
+      color: var(--add);
+      border-color: var(--add-line);
+    }
+    .d2h-deleted-tag {
+      background: var(--del-bg);
+      color: var(--del);
+      border-color: var(--del-line);
+    }
+    .d2h-moved-tag {
+      background: var(--chip-bg);
+      color: var(--text-dim);
+      border-color: var(--chip-bd);
+    }
+
+    /* Diff body — table rows */
+    .d2h-diff-table,
+    .d2h-diff-tbody,
+    .d2h-code-wrapper {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--diff-context);
+      background: var(--bg-pane);
+    }
+    .d2h-code-line, .d2h-code-side-line {
+      padding: 0 8px;
+      font-family: var(--font-mono);
+    }
+    .d2h-code-line-prefix { color: var(--diff-gutter); }
+    .d2h-code-line-ctn { color: var(--diff-context); }
+
+    .d2h-code-linenumber,
+    .d2h-code-side-linenumber {
+      background: var(--bg-pane);
+      border-color: var(--divider);
+      color: var(--diff-gutter);
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+    }
+
+    /* Added / deleted blocks */
+    .d2h-ins, .d2h-ins .d2h-code-line,
+    .d2h-ins .d2h-code-side-line {
+      background: var(--add-bg);
+      color: var(--diff-add-fg);
+    }
+    .d2h-del, .d2h-del .d2h-code-line,
+    .d2h-del .d2h-code-side-line {
+      background: var(--del-bg);
+      color: var(--diff-del-fg);
+    }
+    .d2h-ins .d2h-code-linenumber,
+    .d2h-ins .d2h-code-side-linenumber {
+      background: color-mix(in srgb, var(--add) 8%, var(--bg-pane));
+      color: var(--add);
+      border-color: var(--add-line);
+    }
+    .d2h-del .d2h-code-linenumber,
+    .d2h-del .d2h-code-side-linenumber {
+      background: color-mix(in srgb, var(--del) 8%, var(--bg-pane));
+      color: var(--del);
+      border-color: var(--del-line);
+    }
+
+    /* Inline highlight (changed within line) */
+    .d2h-change ins, .d2h-ins-highlight {
+      background: color-mix(in srgb, var(--add) 28%, transparent);
+      text-decoration: none;
+      color: inherit;
+    }
+    .d2h-change del, .d2h-del-highlight {
+      background: color-mix(in srgb, var(--del) 28%, transparent);
+      text-decoration: none;
+      color: inherit;
+    }
+
+    /* Hunk separator + info line */
+    .d2h-info {
+      background: var(--bg-pane-soft);
+      color: var(--text-mute);
+      border-top: 1px solid var(--divider);
+      border-bottom: 1px solid var(--divider);
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+    }
+    .d2h-cntx { color: var(--text-faint); }
+
+    /* "Empty placeholder" cells in side-by-side mode */
+    .d2h-emptyplaceholder {
+      background: var(--bg-pane-soft);
+      border-color: var(--divider);
+    }
+
+    /* Highlight.js readability inside diff cells */
+    .hljs { background: transparent; color: inherit; }
+
+    /* Subtle column divider in side-by-side */
+    .d2h-file-side-diff + .d2h-file-side-diff {
+      border-left: 1px solid var(--divider);
+    }
   </style>
 </head>
-<body>
+<body data-theme="dark">
   <div id="toolbar">
-    <button id="btn-side" class="active">Side-by-side</button>
-    <button id="btn-line">Unified</button>
-    <input id="filter" placeholder="Filter files…" autocomplete="off">
+    <div class="modes">
+      <button id="btn-side" class="active">Side-by-side</button>
+      <button id="btn-line">Unified</button>
+    </div>
+    <input id="filter" placeholder="Filter files…" autocomplete="off" spellcheck="false">
   </div>
   <div id="empty-state">No diff yet.</div>
   <div id="diff-target"></div>
@@ -61,6 +341,8 @@
     // highlight.min.js. We don't render anything until Yggdrasil calls
     // window.yggdrasil.render(diffText, opts).
     (function () {
+      const root       = document.documentElement;
+      const bodyEl     = document.body;
       const targetEl   = document.getElementById('diff-target');
       const emptyEl    = document.getElementById('empty-state');
       const filterEl   = document.getElementById('filter');
@@ -120,6 +402,19 @@
       });
       filterEl.addEventListener('input', applyFilter);
 
+      // Host-controlled theming. The Swift side calls
+      //   window.yggdrasil.setTheme('dark' | 'light')
+      // when the app's appearance changes, so dark/light mode tracks the
+      // user's chosen theme rather than the OS default. Falls back to the
+      // OS preference if Swift never speaks up.
+      function applySystemTheme() {
+        const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        bodyEl.setAttribute('data-theme', dark ? 'dark' : 'light');
+      }
+      applySystemTheme();
+      window.matchMedia('(prefers-color-scheme: dark)')
+            .addEventListener('change', applySystemTheme);
+
       window.yggdrasil = window.yggdrasil || {};
       window.yggdrasil.render = function (diffText) {
         lastDiffText = (diffText || '').toString();
@@ -128,6 +423,11 @@
       window.yggdrasil.clear = function () {
         lastDiffText = '';
         rerender();
+      };
+      window.yggdrasil.setTheme = function (theme) {
+        if (theme === 'dark' || theme === 'light') {
+          bodyEl.setAttribute('data-theme', theme);
+        }
       };
     })();
   </script>

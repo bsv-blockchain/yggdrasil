@@ -55,6 +55,15 @@ struct DiffSubPane: NSViewRepresentable {
 
         @MainActor
         private func computeAndPush(webView: WKWebView) async {
+            // Sync the page's theme to whatever the app is currently set to
+            // — this overrides the page's prefers-color-scheme fallback so
+            // a light-mode app doesn't render the diff in dark colors.
+            let theme = NSApp.effectiveAppearance.bestMatch(
+                from: [.darkAqua, .aqua]
+            ) == .darkAqua ? "dark" : "light"
+            _ = try? await webView.evaluateJavaScript(
+                "window.yggdrasil && window.yggdrasil.setTheme(\"\(theme)\");"
+            )
             do {
                 let baseRef = resolveBaseRef()
                 let diff = try await services.diffEngine.unifiedDiff(
