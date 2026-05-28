@@ -65,6 +65,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // (tmux, mostly) is asking for mouse events. Stays installed for
         // the app's lifetime; a single-monitor cost is negligible.
         TerminalScrollInterceptor.install()
+        // Rewrites Shift+Enter to ESC+CR so Claude Code and similar agents
+        // see "insert newline" instead of "submit".
+        TerminalKeyInterceptor.install()
+        // Holding Option while dragging temporarily disables tmux mouse
+        // reporting so SwiftTerm can do native text selection.
+        TerminalMouseSelectionBypass.install()
 
         // Install the AppKit "Coding" menu after the main menu bar is built.
         // SwiftUI sets up the bar during its own scene init; defer one tick
