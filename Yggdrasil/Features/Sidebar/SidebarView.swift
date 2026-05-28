@@ -10,9 +10,7 @@ import SwiftUI
 struct SidebarView: View {
     let services: AppServices
     let onSelect: (Int64) -> Void
-    @State private var showingNewTabSheet = false
-    @State private var showingAssignedPicker = false
-    @State private var showingIssueDetails = false
+    @Environment(\.openWindow) private var openWindow
     /// Tab ID of the row currently hovered during a drag, used to render
     /// the insertion line so the user knows where the dropped tab will land.
     @State private var dropTargetTabID: Int64?
@@ -72,15 +70,6 @@ struct SidebarView: View {
         }
         .frame(minWidth: 280, idealWidth: 320, maxWidth: 380)
         .background(YggdrasilTheme.bgPane(scheme))
-        .sheet(isPresented: $showingNewTabSheet) {
-            NewTabSheet(services: services)
-        }
-        .sheet(isPresented: $showingAssignedPicker) {
-            AssignedTaskPicker(services: services)
-        }
-        .sheet(isPresented: $showingIssueDetails) {
-            IssueDetailsPicker(services: services)
-        }
         .onChange(of: rawSearchQuery) { _, newValue in
             scheduleDebouncedQueryUpdate(to: newValue)
         }
@@ -203,7 +192,7 @@ struct SidebarView: View {
             }
             Spacer()
             Button {
-                showingIssueDetails = true
+                openWindow(id: AuxiliaryWindowID.issueDetails)
             } label: {
                 Image(systemName: "tablecells")
                     .font(.system(size: 11, weight: .semibold))
@@ -219,7 +208,7 @@ struct SidebarView: View {
             .help("My issues — table view (⌘⇧I)")
             .accessibilityIdentifier("sidebar.issuedetails")
             Button {
-                showingAssignedPicker = true
+                openWindow(id: AuxiliaryWindowID.assignedPicker)
             } label: {
                 Image(systemName: "tray.full")
                     .font(.system(size: 11, weight: .semibold))
@@ -235,7 +224,7 @@ struct SidebarView: View {
             .help("Open assigned issue or PR (⌘O)")
             .accessibilityIdentifier("sidebar.openassigned")
             Button {
-                showingNewTabSheet = true
+                openWindow(id: AuxiliaryWindowID.newTab)
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 11, weight: .semibold))

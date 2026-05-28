@@ -27,6 +27,7 @@
 		1E2A23BCD1C10DB19AAC4ABA /* SessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B95A44765994725D851F56 /* SessionState.swift */; };
 		1F8031DCD2EE5E0F1A4B896A /* FileLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8608519C08339C5FD66181C3 /* FileLock.swift */; };
 		21C09EC0F24D216C1F32BBA4 /* HTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE6616FD3AC11226A29952B6 /* HTTPClient.swift */; };
+		21F45EF708A99658DED84851 /* AuxiliaryWindowScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C60E56FD195FC46D844489D3 /* AuxiliaryWindowScenes.swift */; };
 		261A4E67952D92CEB25FDA6C /* YggdrasilLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 862CFF5B72023650A938BD9B /* YggdrasilLogger.swift */; };
 		262E5BC5016830444B02E304 /* YggdrasilTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC15657DEAE85320ECEE3F22 /* YggdrasilTask.swift */; };
 		27463D437F8C9A2CA8467894 /* TabStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 098B40BE8CE9BD06790CD888 /* TabStatus.swift */; };
@@ -255,6 +256,7 @@
 		C16836AC7DF5CDDCACBDD420 /* BranchSlug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchSlug.swift; sourceTree = "<group>"; };
 		C388E8EEB6766ACD41088087 /* WebViewPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewPool.swift; sourceTree = "<group>"; };
 		C41030D4CF1BD20748F879DB /* AgentPrefsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPrefsPane.swift; sourceTree = "<group>"; };
+		C60E56FD195FC46D844489D3 /* AuxiliaryWindowScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuxiliaryWindowScenes.swift; sourceTree = "<group>"; };
 		C72249D71DE8A1587B435695 /* SidebarActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarActions.swift; sourceTree = "<group>"; };
 		C786A66165F6A0748293063D /* DiffSubPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffSubPane.swift; sourceTree = "<group>"; };
 		CA6EE609F1B67BB1A30B48F9 /* TaskSyncServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskSyncServiceTests.swift; sourceTree = "<group>"; };
@@ -552,6 +554,7 @@
 			children = (
 				3D39743809B1945013F42382 /* AppDelegate.swift */,
 				5D5AF0A53AAFED77992EE2CE /* AppServices.swift */,
+				C60E56FD195FC46D844489D3 /* AuxiliaryWindowScenes.swift */,
 				3B3B12085F0CA95C6A059DCD /* CodingMenuController.swift */,
 				50A21AE81239B21D83CAB04D /* DebugMenu.swift */,
 				9CF3A58689FCE476DAB8A711 /* DebugMenuPrompts.swift */,
@@ -884,6 +887,7 @@
 				02F5CB45EEA735E41E69C914 /* AppearancePrefsPane.swift in Sources */,
 				BA9DF727354E4E9DEF7A7589 /* AssignedTaskPicker.swift in Sources */,
 				3DFBA18B54413CE5F44699B0 /* AuthService.swift in Sources */,
+				21F45EF708A99658DED84851 /* AuxiliaryWindowScenes.swift in Sources */,
 				3E74133E61775C40489FCE29 /* Backoff.swift in Sources */,
 				4216635FCA95CFAB8F12494B /* BackoffRetry.swift in Sources */,
 				80CCB308E5008A1C9456812D /* BranchSlug.swift in Sources */,

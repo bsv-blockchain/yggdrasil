@@ -21,6 +21,13 @@ struct YggdrasilApp: App {
 
         PreferencesScene(appDelegate: appDelegate)
 
+        // Auxiliary tool windows for the four user-triggered pickers. Real
+        // Window scenes (not .sheet) so the user can move + resize each one.
+        NewTabWindowScene(appDelegate: appDelegate)
+        AssignedTaskWindowScene(appDelegate: appDelegate)
+        ReviewPickerWindowScene(appDelegate: appDelegate)
+        IssueDetailsWindowScene(appDelegate: appDelegate)
+
         // Menu bar status item — observes appDelegate.services so the popover
         // content rebinds the moment services is wired.
         MenuBarStatusScene(appDelegate: appDelegate)

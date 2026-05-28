@@ -14,8 +14,8 @@ struct WindowChromeBar: View {
     @Environment(\.colorScheme) private var scheme
 
     @State private var themeOverride: NSAppearance.Name?
-    @State private var showingReviewPicker = false
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
 
     private var selectedTab: YggdrasilTab? {
         guard let id = services.tabs.selectedID else { return nil }
@@ -100,7 +100,7 @@ struct WindowChromeBar: View {
 
             if services.tabs.pendingReviewCount > 0 {
                 Button {
-                    showingReviewPicker = true
+                    openWindow(id: AuxiliaryWindowID.reviewPicker)
                 } label: {
                     Label("\(services.tabs.pendingReviewCount) to review", systemImage: "eye")
                         .labelStyle(.titleAndIcon)
@@ -151,9 +151,6 @@ struct WindowChromeBar: View {
                 .frame(height: 0.5),
             alignment: .bottom
         )
-        .sheet(isPresented: $showingReviewPicker) {
-            AssignedTaskPicker(services: services, mode: .review)
-        }
     }
 
     private var repoFullName: String? {
