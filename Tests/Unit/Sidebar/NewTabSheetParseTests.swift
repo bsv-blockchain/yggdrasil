@@ -13,6 +13,26 @@ final class NewTabSheetParseTests: XCTestCase {
         XCTAssertEqual(NewTabSheet.parsePRNumber("#643"), 643)
     }
 
+    func test_parsePRNumber_handlesSeparatorlessShorthand() {
+        // Legacy tabs created with separator-less branch names ("claude-pr828")
+        // should still link back to their PR task so the sidebar #xxx badge
+        // appears.
+        XCTAssertEqual(NewTabSheet.parsePRNumber("pr828"), 828)
+        XCTAssertEqual(NewTabSheet.parsePRNumber("claude-pr828"), 828)
+        XCTAssertEqual(NewTabSheet.parsePRNumber("issue7"), 7)
+        XCTAssertEqual(NewTabSheet.parsePRNumber("claude-issue7"), 7)
+        XCTAssertEqual(NewTabSheet.parsePRNumber("review-pr828"), 828)
+        XCTAssertEqual(NewTabSheet.parsePRNumber("claude-review-pr828"), 828)
+    }
+
+    func test_parsePRNumber_rejectsPRLikeButNotNumericTails() {
+        // Don't false-match these — they look like PR refs but aren't.
+        XCTAssertNil(NewTabSheet.parsePRNumber("prerelease"))
+        XCTAssertNil(NewTabSheet.parsePRNumber("issuer"))
+        XCTAssertNil(NewTabSheet.parsePRNumber("pr-828-fix"))
+        XCTAssertNil(NewTabSheet.parsePRNumber("claude-prerelease"))
+    }
+
     func test_parsePRNumber_rejectsFreeformBranches() {
         XCTAssertNil(NewTabSheet.parsePRNumber("feat/something"))
         XCTAssertNil(NewTabSheet.parsePRNumber("main"))
@@ -60,5 +80,32 @@ final class NewTabSheetParseTests: XCTestCase {
             NewTabSheet.interpretBranchInput("https://example.com/something").branch,
             "https://example.com/something"
         )
+    }
+
+    // MARK: - Separator-less PR/issue shorthands
+
+    func test_interpret_normalisesSeparatorlessPR() {
+        // "pr828" — no hyphen — should normalise to "pr-828" so the
+        // confirm() flow takes the PR-fetch path instead of branching off
+        // main with the user's literal text. (Bug: a worktree was created
+        // but the PR was never checked out because parsing missed this.)
+        XCTAssertEqual(NewTabSheet.interpretBranchInput("pr828").branch, "pr-828")
+        XCTAssertEqual(NewTabSheet.interpretBranchInput("PR828").branch, "pr-828")
+        XCTAssertEqual(NewTabSheet.interpretBranchInput("issue7").branch, "issue-7")
+        XCTAssertEqual(NewTabSheet.interpretBranchInput("ISSUE7").branch, "issue-7")
+        XCTAssertEqual(NewTabSheet.interpretBranchInput("review-pr12").branch, "review-pr-12")
+        XCTAssertEqual(NewTabSheet.interpretBranchInput("review-issue99").branch, "review-issue-99")
+    }
+
+    func test_interpret_separatorlessShorthandTrimsWhitespace() {
+        XCTAssertEqual(NewTabSheet.interpretBranchInput("  pr828  ").branch, "pr-828")
+    }
+
+    func test_interpret_doesNotMangleFreeFormBranchesThatLookSimilar() {
+        // "prerelease" must not become "pr-erelease" — only literal pr<digits>
+        // and issue<digits> with nothing else after.
+        XCTAssertEqual(NewTabSheet.interpretBranchInput("prerelease").branch, "prerelease")
+        XCTAssertEqual(NewTabSheet.interpretBranchInput("issuer").branch, "issuer")
+        XCTAssertEqual(NewTabSheet.interpretBranchInput("pr-828-fix").branch, "pr-828-fix")
     }
 }

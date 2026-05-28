@@ -364,19 +364,27 @@ struct NewTabSheet: View {
         // tolerates an agent slug at the front (e.g. "claude-pr-643") so
         // parallel-agent worktrees still link back to the right task.
         // Order matters: longer prefixes first so "review-pr-643" doesn't
-        // match "pr-" before the "review-" anchor.
+        // match "pr-" before the "review-" anchor. The trailing separator-
+        // less variants ("pr", "issue") catch legacy branches typed without
+        // the hyphen (e.g. "claude-pr828") so their sidebar #xxx badge
+        // still appears.
         let cores = ["review-pr-", "review-pr/", "review-issue-", "review-issue/",
-                     "pr-", "pr/", "issue-", "issue/"]
+                     "pr-", "pr/", "issue-", "issue/",
+                     "review-pr", "review-issue", "pr", "issue"]
         let lower = trimmed.lowercased()
         for core in cores {
             guard let range = lower.range(of: core) else { continue }
             // Accept only if the match is at the start OR preceded by '-'.
-            if range.lowerBound == lower.startIndex
-                || lower[lower.index(before: range.lowerBound)] == "-" {
-                if let number = Int(lower[range.upperBound...]) {
-                    return number
-                }
-            }
+            guard range.lowerBound == lower.startIndex
+                || lower[lower.index(before: range.lowerBound)] == "-"
+            else { continue }
+            let tail = lower[range.upperBound...]
+            // Must be all digits (separator-less form: "pr828") OR a
+            // separator already consumed by an earlier core. `Int(tail)`
+            // by itself accepts a leading minus, so guard against that.
+            guard !tail.isEmpty, tail.first?.isNumber == true,
+                  let number = Int(tail) else { continue }
+            return number
         }
         return nil
     }
@@ -431,7 +439,33 @@ struct NewTabSheet: View {
             return BranchInterpretation(branch: "pr-\(number)", repoSlug: nil)
         }
 
+        // Separator-less shorthand: "pr828", "issue7", "review-pr12" — insert
+        // the missing hyphen so downstream code (parsePRNumber, the
+        // refs/pull/N/head fetch path in confirm()) treats it as a real PR
+        // reference instead of a free-form branch off `main`.
+        if let normalised = normaliseSeparatorlessShorthand(trimmed) {
+            return BranchInterpretation(branch: normalised, repoSlug: nil)
+        }
+
         return BranchInterpretation(branch: trimmed, repoSlug: nil)
+    }
+
+    /// Insert the missing hyphen in `pr<N>` / `issue<N>` / `review-pr<N>` /
+    /// `review-issue<N>`. Returns nil for anything else (so the original
+    /// string is passed through unchanged). The full-string anchor on the
+    /// regex is what stops `prerelease` or `pr-828-fix` from being mangled.
+    static func normaliseSeparatorlessShorthand(_ input: String) -> String? {
+        let pattern = #"^(pr|issue|review-pr|review-issue)(\d+)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+            return nil
+        }
+        let range = NSRange(input.startIndex..., in: input)
+        guard let match = regex.firstMatch(in: input, range: range),
+              match.numberOfRanges == 3,
+              let kindRange = Range(match.range(at: 1), in: input),
+              let numberRange = Range(match.range(at: 2), in: input)
+        else { return nil }
+        return "\(input[kindRange].lowercased())-\(input[numberRange])"
     }
 
     /// True if the branch was created via the review-picker flow. Looks
