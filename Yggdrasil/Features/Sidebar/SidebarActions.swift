@@ -103,6 +103,23 @@ enum SidebarActions {
             }
         }
 
+        // Optimistic dismissal: if this tab's task was in pr_review_request
+        // (a "PR to review" the user just finished with), drop the
+        // membership locally BEFORE we reload. Without this the count
+        // briefly bounces up to 2 — the tab no longer hides the row, but
+        // the next scheduled sync hasn't yet learned the user submitted
+        // a review — and only settles back to 1 after the sync round-
+        // trip. The next sync will restore the row in the rare case
+        // the user closed without actually approving.
+        if let taskID = services.tabs.tasksByTabID[id]?.id {
+            try? services.database.queue.write { db in
+                try db.execute(
+                    sql: "DELETE FROM pr_review_request WHERE task_id = ?",
+                    arguments: [taskID]
+                )
+            }
+        }
+
         do {
             try services.tabStore.delete(id: id)
         } catch {
