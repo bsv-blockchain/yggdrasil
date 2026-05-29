@@ -7,7 +7,6 @@ import XCTest
 final class StartupValidatorTests: XCTestCase {
     private func allPassValidator(tools: [String] = ["git", "gh"]) -> StartupValidator {
         StartupValidator(
-            tmuxAvailable: true,
             probeLibgit2: { Libgit2Version(major: 1, minor: 9, revision: 4) },
             locateTool: { name in tools.contains(name) ? "/opt/homebrew/bin/\(name)" : nil }
         )
@@ -18,24 +17,8 @@ final class StartupValidatorTests: XCTestCase {
         XCTAssertTrue(failures.isEmpty, "expected no failures, got \(failures)")
     }
 
-    func test_validate_missingTmux_reportsTmux() {
-        let validator = StartupValidator(
-            tmuxAvailable: false,
-            probeLibgit2: { Libgit2Version(major: 1, minor: 9, revision: 4) },
-            locateTool: { _ in "/opt/homebrew/bin/whatever" }
-        )
-        let failures = validator.validate()
-        XCTAssertEqual(failures.count, 1)
-        XCTAssertEqual(failures.first?.tool, "tmux")
-        XCTAssertTrue(
-            failures.first?.message.contains("tmux") ?? false,
-            "failure message should mention tmux"
-        )
-    }
-
     func test_validate_missingGit_reportsGit() {
         let validator = StartupValidator(
-            tmuxAvailable: true,
             probeLibgit2: { Libgit2Version(major: 1, minor: 9, revision: 4) },
             locateTool: { name in name == "git" ? nil : "/opt/homebrew/bin/\(name)" }
         )
@@ -45,7 +28,6 @@ final class StartupValidatorTests: XCTestCase {
 
     func test_validate_missingGh_reportsGh() {
         let validator = StartupValidator(
-            tmuxAvailable: true,
             probeLibgit2: { Libgit2Version(major: 1, minor: 9, revision: 4) },
             locateTool: { name in name == "gh" ? nil : "/opt/homebrew/bin/\(name)" }
         )
@@ -55,7 +37,6 @@ final class StartupValidatorTests: XCTestCase {
 
     func test_validate_libgit2ProbeReturnsNil_reportsLibgit2() {
         let validator = StartupValidator(
-            tmuxAvailable: true,
             probeLibgit2: { nil },
             locateTool: { name in "/opt/homebrew/bin/\(name)" }
         )
@@ -68,7 +49,6 @@ final class StartupValidatorTests: XCTestCase {
         // binary. Treat that as a failure so we don't silently ship a broken
         // dylib bundle.
         let validator = StartupValidator(
-            tmuxAvailable: true,
             probeLibgit2: { Libgit2Version(major: 0, minor: 0, revision: 0) },
             locateTool: { name in "/opt/homebrew/bin/\(name)" }
         )
@@ -78,13 +58,12 @@ final class StartupValidatorTests: XCTestCase {
 
     func test_validate_multipleMissing_reportsAll() {
         let validator = StartupValidator(
-            tmuxAvailable: false,
             probeLibgit2: { Libgit2Version(major: 1, minor: 9, revision: 4) },
             locateTool: { _ in nil }
         )
         let failures = validator.validate()
-        // tmux + git + gh — order doesn't matter, but all three must appear.
-        XCTAssertEqual(Set(failures.map(\.tool)), Set(["tmux", "git", "gh"]))
+        // git + gh — order doesn't matter, but both must appear.
+        XCTAssertEqual(Set(failures.map(\.tool)), Set(["git", "gh"]))
     }
 
     func test_failureMessage_includesInstallHint() {
@@ -92,12 +71,12 @@ final class StartupValidatorTests: XCTestCase {
         // the install hint is present so a future "shorten the message"
         // refactor doesn't regress the UX.
         let validator = StartupValidator(
-            tmuxAvailable: false,
             probeLibgit2: { Libgit2Version(major: 1, minor: 9, revision: 4) },
-            locateTool: { _ in "/opt/homebrew/bin/x" }
+            locateTool: { _ in nil }
         )
         let message = validator.validate().first?.message ?? ""
-        XCTAssertTrue(message.lowercased().contains("brew install"),
-                      "expected `brew install` hint, got: \(message)")
+        XCTAssertTrue(message.lowercased().contains("brew install") ||
+                      message.lowercased().contains("xcode-select"),
+                      "expected install hint, got: \(message)")
     }
 }

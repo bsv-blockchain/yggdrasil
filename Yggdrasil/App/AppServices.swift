@@ -25,7 +25,6 @@ final class AppServices {
     let sessions = SessionsModel()
     let tabs: TabsModel
     let webViewPool: WebViewPool
-    let tmux: TmuxManager
     let tabStatus = TabStatusModel()
     let statusPoller: StatusPoller
     let diffEngine = DiffEngine()
@@ -63,18 +62,6 @@ final class AppServices {
         tabsModel.reload()
         self.tabs = tabsModel
         self.webViewPool = WebViewPool(settingsStore: settingsStore)
-        // Probe once at launch — tmux availability is a property of the
-        // user's PATH, not something that changes during a run.
-        self.tmux = TmuxManager.detect()
-        if self.tmux.tmuxPath == nil {
-            YggdrasilLog.pty.warning(
-                "tmux not found on PATH; agent sessions won't survive app close. Install via `brew install tmux`."
-            )
-        } else {
-            YggdrasilLog.pty.info(
-                "tmux available at \(self.tmux.tmuxPath ?? "?", privacy: .public); agent sessions will survive app close"
-            )
-        }
         self.statusPoller = StatusPoller(
             database: database, tabsModel: tabsModel, model: tabStatus
         )

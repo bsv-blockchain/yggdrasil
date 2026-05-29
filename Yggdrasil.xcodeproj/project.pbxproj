@@ -70,7 +70,6 @@
 		642EF1E587382DB0E8E0E7A2 /* RepoPrefsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6490E802603234C8FD5550F8 /* RepoPrefsPane.swift */; };
 		64BCF660F02BDF04F99AA60F /* GitHubLiveSyncIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68F9552DD7F1AC4861DA2D1E /* GitHubLiveSyncIntegrationTests.swift */; };
 		656DC0CBFCE1CCEA1909C218 /* WorktreeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67CEC205580D915F373EBB2D /* WorktreeManager.swift */; };
-		66F3A087942A639BA2E442B5 /* TmuxManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 278531A25A012A11A6E09539 /* TmuxManager.swift */; };
 		6EE2F76B0DAC9EAB9EF1BA57 /* StartupValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CEA97C97FF4C1D4A2578B1 /* StartupValidator.swift */; };
 		704A55EE84220A6F097E4E7C /* TabRowViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B6047B65F17F43271FFAE3 /* TabRowViewModelTests.swift */; };
 		7425EBE4549F248571D16098 /* TabStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0646F96A4EF7D2E9EB3DA65D /* TabStore.swift */; };
@@ -91,7 +90,6 @@
 		8BF367B656CE845A4550D26D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D39743809B1945013F42382 /* AppDelegate.swift */; };
 		8F9D3350CA9F4B3FD2B4ED81 /* PreferencesScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990F6605EDD80703D108886D /* PreferencesScene.swift */; };
 		8FFB76A19078E2F67E92302D /* highlight-github.min.css in Resources */ = {isa = PBXBuildFile; fileRef = 37C59963B176CA5B2FAFD12C /* highlight-github.min.css */; };
-		90BA6D313648B71023E21E6E /* TmuxManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0576A08A64AFA30521885A /* TmuxManagerTests.swift */; };
 		92674D084D5F2D28EF68B712 /* YggdrasilTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BB47578AF7D4C92F05F460 /* YggdrasilTheme.swift */; };
 		93EAB4D3AE7942134EE7A7EA /* OnboardingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764ADDF37B6C12E98EBD0316 /* OnboardingSheet.swift */; };
 		9428A4D5D1FC751917F0F286 /* GitStateProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E1615B02DDD056B4C259B3D /* GitStateProbeTests.swift */; };
@@ -117,7 +115,6 @@
 		C3BCE9FFB63C0A1C7B4DFF02 /* IntervalSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE9C1B93008E18523A8627A /* IntervalSettings.swift */; };
 		C6D1D2BB56DCCF8F6473CB75 /* GitHubWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B258E487852090EBD0E38E5 /* GitHubWebView.swift */; };
 		C70F98EAECDF5302AF9660F0 /* SyncSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F4BA7A10FE8C1FF1F8D12C5 /* SyncSchedulerTests.swift */; };
-		C852604623C22EAAB86DEFEE /* MenuBarStatusScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC72FCD6F57B00D32DBF9797 /* MenuBarStatusScene.swift */; };
 		C8551A19075A557C6A362A29 /* GitHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42AC4ECC1A08E5604A2057FC /* GitHubStatus.swift */; };
 		CAD0E1F92017BE621AB1E381 /* CodingAgentRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F402C4B789EBF05316BFF0A /* CodingAgentRunnerTests.swift */; };
 		CE86ADE572BB3E89F23D11BF /* MigrationV2Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C6F9E02BB1B5D10BB95BAC /* MigrationV2Tests.swift */; };
@@ -170,7 +167,6 @@
 		1888936578F5B0A836FE6C9E /* YggdrasilDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilDatabase.swift; sourceTree = "<group>"; };
 		191EC5DA5DAE46A27B4DC52F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		19CFB54A8612A50052ABCF48 /* TaskSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskSyncService.swift; sourceTree = "<group>"; };
-		1A0576A08A64AFA30521885A /* TmuxManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TmuxManagerTests.swift; sourceTree = "<group>"; };
 		1B258E487852090EBD0E38E5 /* GitHubWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubWebView.swift; sourceTree = "<group>"; };
 		1B3F430591C26F34BAC35716 /* diff2html.min.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = diff2html.min.css; sourceTree = "<group>"; };
 		1BB21927E81827FA7853D693 /* HTTPClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPClientTests.swift; sourceTree = "<group>"; };
@@ -183,7 +179,6 @@
 		251CFF837211B6BB1AD7F55D /* SidebarGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarGrouping.swift; sourceTree = "<group>"; };
 		252F995BF1A44D1A9207F6B8 /* TabsModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabsModelTests.swift; sourceTree = "<group>"; };
 		2696119602D5B020469CE2E2 /* GitRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRunner.swift; sourceTree = "<group>"; };
-		278531A25A012A11A6E09539 /* TmuxManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TmuxManager.swift; sourceTree = "<group>"; };
 		2A8A112A91F42061FC56C62A /* SessionStateStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStateStoreTests.swift; sourceTree = "<group>"; };
 		2E0E0DC8AEEA33E8ACA1DCB0 /* OutputRingBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputRingBufferTests.swift; sourceTree = "<group>"; };
 		2E1615B02DDD056B4C259B3D /* GitStateProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStateProbeTests.swift; sourceTree = "<group>"; };
@@ -269,7 +264,6 @@
 		CA6EE609F1B67BB1A30B48F9 /* TaskSyncServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskSyncServiceTests.swift; sourceTree = "<group>"; };
 		CC196666CA9FF3A004ACC36C /* NewTabSheetParseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewTabSheetParseTests.swift; sourceTree = "<group>"; };
 		CC4D78DD45A5F9D613077301 /* Migrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Migrations.swift; sourceTree = "<group>"; };
-		CC72FCD6F57B00D32DBF9797 /* MenuBarStatusScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatusScene.swift; sourceTree = "<group>"; };
 		CE4A8D8497EF59E2E426DF74 /* YggdrasilApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilApp.swift; sourceTree = "<group>"; };
 		CEC7E6D5CE1BD6E270E9644E /* YggdrasilTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilTab.swift; sourceTree = "<group>"; };
 		CEF7ECA20BFD0B9110356C0C /* GitRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRunnerTests.swift; sourceTree = "<group>"; };
@@ -437,7 +431,6 @@
 			children = (
 				9FF1032E88424E7D79F33A26 /* CodingAgentRunner.swift */,
 				2190C3BD95D1EAED24B99011 /* OutputRingBuffer.swift */,
-				278531A25A012A11A6E09539 /* TmuxManager.swift */,
 			);
 			path = Terminal;
 			sourceTree = "<group>";
@@ -458,7 +451,6 @@
 				3608459737EDC4326ADCB9DF /* AgentResumeFlagTests.swift */,
 				9F402C4B789EBF05316BFF0A /* CodingAgentRunnerTests.swift */,
 				2E0E0DC8AEEA33E8ACA1DCB0 /* OutputRingBufferTests.swift */,
-				1A0576A08A64AFA30521885A /* TmuxManagerTests.swift */,
 			);
 			path = Terminal;
 			sourceTree = "<group>";
@@ -535,7 +527,6 @@
 			isa = PBXGroup;
 			children = (
 				07BC769BE00DAF7436EE204E /* MainPane */,
-				9E9D8FE35A04DB453DACFAB7 /* MenuBar */,
 				06A79799035EEC527EDF305A /* Onboarding */,
 				7E57DA7E6F1480E404CA7698 /* Preferences */,
 				1A901ED3E542037F7281A086 /* Sidebar */,
@@ -572,14 +563,6 @@
 				CE4A8D8497EF59E2E426DF74 /* YggdrasilApp.swift */,
 			);
 			path = App;
-			sourceTree = "<group>";
-		};
-		9E9D8FE35A04DB453DACFAB7 /* MenuBar */ = {
-			isa = PBXGroup;
-			children = (
-				CC72FCD6F57B00D32DBF9797 /* MenuBarStatusScene.swift */,
-			);
-			path = MenuBar;
 			sourceTree = "<group>";
 		};
 		A99505B623EECCF3BD64DE4A /* Settings */ = {
@@ -891,7 +874,6 @@
 				D7546A140D0F2D32A5C6AF93 /* TabStoreTests.swift in Sources */,
 				8771F772F18DDEEA655CF22F /* TabsModelTests.swift in Sources */,
 				76642A91AD7739574F27C910 /* TaskSyncServiceTests.swift in Sources */,
-				90BA6D313648B71023E21E6E /* TmuxManagerTests.swift in Sources */,
 				4347B49F6CE3B2179629D8AD /* WorktreeManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -941,7 +923,6 @@
 				2985E8F34154CD0C30C6036D /* IssueDetailsPicker.swift in Sources */,
 				A5F84F86044F5A57272B95CA /* KeychainStore.swift in Sources */,
 				C12EAAD3E2067A4D2067CF8B /* MainPaneView.swift in Sources */,
-				C852604623C22EAAB86DEFEE /* MenuBarStatusScene.swift in Sources */,
 				14FBF3ED9C9E52E9ED8611AD /* Migrations.swift in Sources */,
 				B43642C383D9167A73FC6D90 /* NewTabSheet.swift in Sources */,
 				93EAB4D3AE7942134EE7A7EA /* OnboardingSheet.swift in Sources */,
@@ -973,7 +954,6 @@
 				B055134E9EA6FA22DDCB39EB /* TabsModel.swift in Sources */,
 				B462993601A8F39D490C5C94 /* TaskAssignee.swift in Sources */,
 				38E480A5E15DF0B78E0688FC /* TaskSyncService.swift in Sources */,
-				66F3A087942A639BA2E442B5 /* TmuxManager.swift in Sources */,
 				7C7B55E9E25B30F43EE5B22D /* WebViewPool.swift in Sources */,
 				1BCD4BA660EF67BBF384B315 /* WindowChrome.swift in Sources */,
 				9D6D9F28D66D73A2B790E155 /* WorktreeError.swift in Sources */,

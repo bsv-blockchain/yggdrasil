@@ -33,16 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             return
         }
 
-        // Probe tmux now (we'll reuse the result for both AppServices wiring
-        // and the startup validator below).
-        let tmuxManager = TmuxManager.detect()
-
         // Hard-fail on missing dependencies. v0.1.0 shipped with a broken
         // libgit2 bundle and crashed every user at dyld time. The fail-hard
-        // alert ensures any future regression — bundled dylib missing, gh
-        // not installed, tmux gone — surfaces a precise error instead of a
-        // silent crash or degraded mode the user can't diagnose.
-        let validator = StartupValidator.production(tmuxAvailable: tmuxManager.isAvailable)
+        // alert ensures any future regression — bundled dylib missing or
+        // gh not installed — surfaces a precise error instead of a silent
+        // crash or degraded mode the user can't diagnose.
+        let validator = StartupValidator.production()
         let failures = validator.validate()
         if !failures.isEmpty {
             Self.presentStartupFailureAlertAndExit(failures: failures)
@@ -54,6 +50,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             self.services = services
             Diagnostics.ensureCrashFolder()
             AppearancePrefsPane.applyPersisted(services: services)
+            // One-shot cleanup: tear down any leftover yggdrasil-* tmux
+            // sessions from previous versions of the app (we used to back
+            // every tab with a tmux session). Runs best-effort in the
+            // background; harmless if tmux isn't installed.
+            Task.detached(priority: .background) {
+                Self.cleanupLegacyTmuxSessions()
+            }
             Task {
                 await services.startSchedulers()
             }
@@ -61,16 +64,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             YggdrasilLog.ui.error("Failed to build AppServices: \(String(describing: error), privacy: .public)")
         }
 
-        // Forwards scroll-wheel events to the PTY when the embedded program
-        // (tmux, mostly) is asking for mouse events. Stays installed for
-        // the app's lifetime; a single-monitor cost is negligible.
-        TerminalScrollInterceptor.install()
         // Rewrites Shift+Enter to ESC+CR so Claude Code and similar agents
-        // see "insert newline" instead of "submit".
+        // see "insert newline" instead of "submit". This is the only PTY-
+        // input interceptor we keep — scroll-wheel + selection now work
+        // natively via SwiftTerm since we dropped tmux mouse-mode.
         TerminalKeyInterceptor.install()
-        // Holding Option while dragging temporarily disables tmux mouse
-        // reporting so SwiftTerm can do native text selection.
-        TerminalMouseSelectionBypass.install()
 
         // Install the AppKit "Coding" menu after the main menu bar is built.
         // SwiftUI sets up the bar during its own scene init; defer one tick
@@ -84,20 +82,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
-        // Stay alive (menu bar item still visible) as long as there are
-        // background tmux sessions hosting running agents — the user
-        // explicitly chose the "agents survive app close" model so the menu
-        // bar item is the only handle on those sessions until they're done.
-        // When no tmux sessions remain, fall through to the normal
-        // last-window-closed → quit behaviour.
-        let running = services?.tmux.listSessions() ?? []
-        if running.isEmpty {
-            return true
-        }
-        YggdrasilLog.ui.info(
-            "Last window closed but \(running.count, privacy: .public) tmux sessions still alive; keeping app + menu bar alive"
-        )
-        return false
+        // Agents now run as direct children of the app's PTY view — no
+        // background daemon to keep alive — so closing the last window
+        // exits the app immediately.
+        true
     }
 
     func applicationWillTerminate(_: Notification) {
@@ -108,11 +96,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         if let poller = services?.statusPoller {
             Task { await poller.stop() }
         }
-        // Agents are owned by tmux daemons (see TmuxManager); we deliberately
-        // do NOT SIGTERM them here. When this process exits, our PTY masters
-        // close and the tmux *clients* detach, but the tmux server keeps the
-        // session and its agent process alive. The menu bar's
-        // "Close and kill all" button is the explicit teardown path.
+        // Agents are direct children of our PTY masters; closing the
+        // masters as the process exits propagates SIGHUP to them. No
+        // further teardown needed.
+    }
+
+    /// Best-effort tear-down of any leftover `yggdrasil-*` tmux sessions
+    /// from when this app shipped with tmux-backed agent survival. We
+    /// query the legacy `yggdrasil` socket; if the socket isn't there
+    /// (fresh user, tmux uninstalled) every call exits 1 and we move on.
+    /// Runs once at launch and never again — orphans only existed in
+    /// versions ≤ 0.1.1.
+    private static func cleanupLegacyTmuxSessions() {
+        let tmux = "/opt/homebrew/bin/tmux"
+        guard FileManager.default.fileExists(atPath: tmux) else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: tmux)
+        process.arguments = ["-L", "yggdrasil", "kill-server"]
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            // Silently ignore — best-effort cleanup, not a hard dependency.
+        }
     }
 
     /// Show a blocking NSAlert listing every failed startup check and exit

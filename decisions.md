@@ -4,6 +4,62 @@ Design decisions made during the build that weren't in the spec, with rationale 
 
 ---
 
+## 2026-05-29 — Drop tmux; spawn agents directly from the PTY view
+
+**Previous design.** Every tab wrapped its agent in a `tmux` session on a
+private socket (`tmux -L yggdrasil`). The tmux daemon owned the agent
+process, so quitting Yggdrasil left agents running in the background;
+on next launch we `tmux attach`-ed and picked up the same PID,
+scrollback, and in-flight tool calls. Mouse-mode was set to `on` so the
+scroll-wheel could drive tmux's copy-mode; a local-event-monitor
+translator (`TerminalScrollInterceptor`) re-encoded scroll deltas into
+SGR-1006 button events for tmux.
+
+**Problem.** Mouse-mode-on made every native terminal UX feature fight a
+workaround:
+- Text selection required a Shift-bypass that disabled mouse reporting
+  for the duration of a drag.
+- Cmd+click on URLs only worked when SwiftTerm's hover-link detector
+  happened to fire — and the mouse-mode forwarding intercepted clicks
+  before they reached the link layer.
+- File drag-and-drop hit tmux first as a mouse drag.
+
+The bypass + interceptor stack grew across two TerminalKeyInterceptor +
+TerminalScrollInterceptor + TerminalSelectionBypass enums plus a
+TerminalViewRegistry, and the user reported selection *still* didn't
+work in practice.
+
+**Decision.** Drop tmux. Spawn agents as direct children of
+`LocalProcessTerminalView`'s PTY via `view.startProcess(...)`. Mouse-
+mode stays off → SwiftTerm handles selection, scrollback, URL hover/
+click natively. `Coordinator.terminate()` SIGTERMs the PID with a
+5s SIGKILL escalation.
+
+**Rationale.**
+- The terminal *feels* like a terminal: native selection, native scroll,
+  native click-to-open-URL. No hacks.
+- Cuts ~250 LOC across `TmuxManager`, `MenuBarStatusScene`,
+  `TerminalScrollInterceptor`, `TerminalSelectionBypass`,
+  `TerminalViewRegistry` and the assorted tmux branches in
+  `AgentTerminalSurface` / `AppDelegate` / `AppServices` /
+  `StartupValidator` / `SessionsModel`.
+- One less external runtime dependency (`brew install tmux`).
+
+**Trade-offs.**
+- Agents die when the app quits. Claude's `--continue` (auto-applied by
+  `applyResumeFlag` when a JSONL transcript exists) restores
+  conversation history, but in-flight tool calls and the live PID are
+  gone.
+- The "menu bar status item showing live sessions" feature loses its
+  reason for being (no more background agents to surface) — removed.
+- Existing users may have leftover `yggdrasil-*` tmux sessions; a
+  one-shot `tmux -L yggdrasil kill-server` runs at first launch of the
+  new build to clean them up.
+
+**Approval.** User signed off after weighing native-UX-vs-survival.
+
+---
+
 ## 2026-05-26 — Replace SwiftGit2 SwiftPM dep with a local `Clibgit2` system module
 
 **Spec §2 line under review:** *"Git operations | git subprocess for worktrees + status; SwiftGit2/libgit2 for diff computation."*

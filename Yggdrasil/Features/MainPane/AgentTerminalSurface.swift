@@ -21,9 +21,6 @@ struct AgentTerminalSurface: NSViewRepresentable {
     let args: [String]
     let sessionStore: SessionStateStore
     let sessions: SessionsModel?
-    /// When provided and `isAvailable`, spawn is wrapped in a tmux session so
-    /// the agent survives Yggdrasil closing. nil falls back to direct exec.
-    let tmux: TmuxManager?
 
     init(
         tabID: Int64,
@@ -31,8 +28,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
         command: String,
         args: [String],
         sessionStore: SessionStateStore,
-        sessions: SessionsModel? = nil,
-        tmux: TmuxManager? = nil
+        sessions: SessionsModel? = nil
     ) {
         self.tabID = tabID
         self.cwd = cwd
@@ -40,13 +36,12 @@ struct AgentTerminalSurface: NSViewRepresentable {
         self.args = args
         self.sessionStore = sessionStore
         self.sessions = sessions
-        self.tmux = tmux
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             tabID: tabID, cwd: cwd, command: command, args: args,
-            sessionStore: sessionStore, sessions: sessions, tmux: tmux
+            sessionStore: sessionStore, sessions: sessions
         )
     }
 
@@ -63,9 +58,6 @@ struct AgentTerminalSurface: NSViewRepresentable {
         AgentTerminalSurface.applyTheme(to: view)
         view.processDelegate = context.coordinator
         context.coordinator.attach(view: view)
-        // Register for Shift-drag selection bypass — see
-        // TerminalMouseSelectionBypass for context.
-        TerminalViewRegistry.register(view)
         return view
     }
 
@@ -136,7 +128,6 @@ struct AgentTerminalSurface: NSViewRepresentable {
         let command: String
         let args: [String]
         let sessionStore: SessionStateStore
-        let tmux: TmuxManager?
         private weak var sessions: SessionsModel?
         private weak var attachedView: LocalProcessTerminalView?
         private let lock = NSLock()
@@ -147,8 +138,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
 
         init(
             tabID: Int64, cwd: String, command: String, args: [String],
-            sessionStore: SessionStateStore, sessions: SessionsModel?,
-            tmux: TmuxManager?
+            sessionStore: SessionStateStore, sessions: SessionsModel?
         ) {
             self.tabID = tabID
             self.cwd = cwd
@@ -156,7 +146,6 @@ struct AgentTerminalSurface: NSViewRepresentable {
             self.args = args
             self.sessionStore = sessionStore
             self.sessions = sessions
-            self.tmux = tmux
             super.init()
         }
 
@@ -188,20 +177,9 @@ struct AgentTerminalSurface: NSViewRepresentable {
             // shell out of the agent's signal path while still sourcing the
             // user's rc files.
             let userShell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-            let payload: String
-            if let tmux, tmux.isAvailable {
-                // tmux owns the agent process; Yggdrasil's PTY just runs
-                // `tmux attach`. Closing the app detaches the client but the
-                // session stays alive on the tmux daemon.
-                payload = tmux.wrapCommand(
-                    tabID: tabID, cwd: cwd, command: command, args: args,
-                    resumeArgs: resolvedArgs
-                )
-            } else {
-                let quotedCmd = CodingAgentRunner.shellQuote(command)
-                let quotedArgs = resolvedArgs.map(CodingAgentRunner.shellQuote).joined(separator: " ")
-                payload = "exec \(quotedCmd) \(quotedArgs)"
-            }
+            let quotedCmd = CodingAgentRunner.shellQuote(command)
+            let quotedArgs = resolvedArgs.map(CodingAgentRunner.shellQuote).joined(separator: " ")
+            let payload = "exec \(quotedCmd) \(quotedArgs)"
             view.startProcess(
                 executable: userShell,
                 args: ["-l", "-i", "-c", payload],
@@ -215,14 +193,9 @@ struct AgentTerminalSurface: NSViewRepresentable {
         }
 
         func terminate() {
-            // When running under tmux, the local pid is just the `tmux attach`
-            // client — killing it would only detach, leaving the agent alive.
-            // Kill the whole tmux session instead so the agent actually goes
-            // down. Falls back to direct PID kill when tmux is unavailable.
-            if let tmux, tmux.isAvailable {
-                tmux.killSession(forTabID: tabID)
-                return
-            }
+            // Direct SIGTERM the agent PID; SIGKILL after 5s if it hasn't
+            // exited cleanly. Replaces the tmux-killSession path we used
+            // when agent survival was a feature.
             let targetPid = pid
             guard targetPid > 0 else { return }
             kill(targetPid, SIGTERM)

@@ -38,18 +38,16 @@ worktree, with the right agent already running.
 - Right-click → Open in Finder / Open in Terminal.app / Remove (with an
   optional "delete worktree too" dialog).
 
-### Embedded agent terminal — tmux-backed survival
+### Embedded agent terminal
 
 - Every tab spawns the agent (default: `claude --dangerously-skip-permissions`)
-  inside a tmux session named `yggdrasil-tab-<id>` on a private socket
-  (`tmux -L yggdrasil`). The tmux daemon owns the agent process, so closing
-  Yggdrasil — even ⌘Q — leaves agents running in the background.
-- On next launch every existing tab re-attaches: same PID, same scrollback,
-  same in-flight tool calls.
-- Menu bar status item (Yggdrasil tree) lists every running agent and
-  exposes a `Close and kill all` that explicitly tears them down.
-- Mouse-wheel scroll forwards to tmux's copy-mode so you can walk the
-  agent's real history. Text selection emits OSC 52 → macOS pasteboard.
+  as a direct child of the app's PTY view. Closing Yggdrasil terminates
+  the agents; on the next launch Claude resumes the conversation via
+  `--continue` (auto-applied when a transcript exists for the worktree).
+- Native SwiftTerm scrollback + drag-to-select. Shift+Enter inserts a
+  newline into Claude's input (sends `ESC + CR` like iTerm2).
+- ⌘+click on URLs opens them in the default browser. Drag files from
+  Finder onto the terminal to insert their paths.
 - macOS Terminal.app / Warp-style theme: SF Mono 13pt, GitHub Dark-style
   ANSI palette.
 - Per-agent worktree naming (`claude-pr-643`, `codex-pr-643`) lets the same
@@ -76,9 +74,8 @@ worktree, with the right agent already running.
   resizable + sortable; shows Linked PR (heuristic), Milestone, Labels,
   Reviewer state.
 
-### Menu bar + main menus
+### Main menus
 
-- Menu bar status item with a list of every live tmux session.
 - `Coding` top menu (`NSMenu`, not SwiftUI) — Add/Remove Tracked Repo, Force
   Sync Now, Dump Tasks to Log, Add/Remove/Default Agent, + New Session.
   Items survive SwiftUI menu rebuilds via tag-based re-install on
@@ -101,9 +98,6 @@ worktree, with the right agent already running.
 - **Xcode 16+** (project targets Swift 6 / macOS 14 SDK; tested with
   Xcode 26 toolchain)
 - **Homebrew** — install with [brew.sh](https://brew.sh)
-- **`tmux`** on `PATH` — agents survive app close via tmux's daemon. Without
-  it the app still runs but agents die on quit. Install via
-  `brew install tmux`.
 - **`gh` CLI** authenticated as your GitHub user — Yggdrasil shells out to
   `gh auth token` on first request and caches in memory. Run `gh auth login`
   once if you haven't.
@@ -161,9 +155,10 @@ get their proper brand icons automatically).
 
 - Sidebar row drag-and-drop reorder (when not filtered)
 - Sidebar row right-click → context actions
-- Terminal scroll wheel → tmux's copy-mode (scrolls agent history)
-- Terminal drag-select → copy to system clipboard via OSC 52
-- Menu bar status item → list running agents, kill individuals, kill all + quit
+- Terminal scroll wheel → SwiftTerm scrollback
+- Terminal drag-select → SwiftTerm selection (auto-copies via OSC 52)
+- ⌘+click on URLs → opens in default browser
+- Drag files from Finder onto the terminal → inserts quoted paths at the prompt
 
 ### Worktree convention
 
@@ -179,19 +174,18 @@ created ones use the in-repo layout.
 
 ### Resume
 
-When the app re-attaches to an existing tmux session, you pick up where you
-left off — same agent process, same scrollback. When a session is gone (you
-killed it, or a `tmux kill-server` happened out of band) Yggdrasil spawns a
-fresh agent. For Claude specifically, it auto-appends `--continue` when
-there's a transcript at `~/.claude/projects/<encoded-cwd>/*.jsonl`, so
-conversation history is restored.
+Agents are direct children of the app — quitting Yggdrasil terminates them.
+For Claude specifically, the next launch auto-appends `--continue` when
+there's a transcript at `~/.claude/projects/<encoded-cwd>/*.jsonl`, so the
+conversation history is restored (in-flight tool calls are not). Other
+agents start fresh.
 
 ---
 
 ## Architecture
 
-Two-line summary: **SwiftUI app, GRDB SQLite for sync state, tmux for
-agent process survival.** The detailed cut:
+Two-line summary: **SwiftUI app, GRDB SQLite for sync state, direct PTY
+spawn via SwiftTerm.** The detailed cut:
 
 | Layer | What's there |
 |---|---|
@@ -199,13 +193,12 @@ agent process survival.** The detailed cut:
 | `Yggdrasil/Core/Auth` | `AuthService` (shells out to `gh auth token`), `Subprocess` runner |
 | `Yggdrasil/Core/GitHub` | `RESTClient` + `GraphQLClient`, `Endpoints`, `TaskSyncService` (assigned issues + review-requested + authored PRs), `ETagStore`, `BackoffRetry` |
 | `Yggdrasil/Core/Git` | `GitRunner`, `WorktreeManager`, `FileLock` for cross-process serialisation |
-| `Yggdrasil/Core/Terminal` | `CodingAgentRunner` (headless, kept for tests), `TmuxManager`, `OutputRingBuffer` |
+| `Yggdrasil/Core/Terminal` | `CodingAgentRunner` (headless, kept for tests), `OutputRingBuffer` |
 | `Yggdrasil/Core/Storage` | GRDB models: `YggdrasilTask`, `Repo`, `YggdrasilTab`, `CodingAgent`, `SessionState`, `GitHubStatus`, `PRReviewRequest`, `PRAuthored`, `PRAssigned`. Migrations v1–v5 in `Migrations.swift` |
 | `Yggdrasil/Core/Status` | `StatusPoller` aggregates per-tab status (`ClaudeStateDetector`, `GitStateProbe`) |
 | `Yggdrasil/Core/Diff` | `DiffEngine` runs `git diff` and pipes JSON to the bundled diff2html |
 | `Yggdrasil/Features/Sidebar` | `SidebarView`, `TabRow`, `TabsModel`, `NewTabSheet`, `AssignedTaskPicker`, `IssueDetailsPicker`, `SidebarActions` |
-| `Yggdrasil/Features/MainPane` | `MainPaneView` (split-pane layouts), `AgentTerminalSurface`, `GitHubSubPane`, `WebViewPool`, `DiffSubPane`, `WindowChromeBar`, `YggdrasilTerminalView` (scroll-event interceptor) |
-| `Yggdrasil/Features/MenuBar` | `MenuBarStatusScene` — SwiftUI `MenuBarExtra` + popover |
+| `Yggdrasil/Features/MainPane` | `MainPaneView` (split-pane layouts), `AgentTerminalSurface`, `GitHubSubPane`, `WebViewPool`, `DiffSubPane`, `WindowChromeBar`, `YggdrasilTerminalView` (Shift+Enter interceptor + `DroppableTerminalView`) |
 | `Yggdrasil/Features/Preferences` | `PreferencesScene` + `RepoPrefsPane` / `AgentPrefsPane` / `IntervalsPrefsPane` / `AppearancePrefsPane` |
 | `Yggdrasil/UI` | `YggdrasilTheme` design tokens, `AgentIdentity` (per-agent brand mark) |
 | `Vendor/Clibgit2` | SwiftPM system-library wrapper for Homebrew's libgit2 |
@@ -229,8 +222,6 @@ Data on disk:
 | Sidebar is empty after launch | Add tracked repos in Preferences → Repos (or `Coding → Force Sync Now` ⌘⇧S). |
 | Tab opens but terminal shows `command not found: claude` | `claude` isn't in your login shell PATH. Yggdrasil spawns `$SHELL -l -i -c …` so `.zshrc` runs; confirm `which claude` from a fresh login shell. |
 | "Repo not tracked — add it in Preferences → Repos to open as a tab" | The issue's repo isn't tracked. My Issues fetches all your assigned issues from GitHub but only tracked repos have local clones for worktree creation. |
-| Agents die when I close the app | `tmux` isn't installed or isn't on PATH. `brew install tmux`. Survival requires the tmux daemon to outlive Yggdrasil. |
-| Menu bar icon is huge / disappears | The status icon needs an explicit `NSImage.size`; this is the `YggdrasilMenuBarMark` imageset (not `YggdrasilMark`). If the menu bar item disappears entirely SwiftUI rebuilt the menu — `applicationDidBecomeActive` should re-install. |
 | Settings popover stuck on "Preferences load after first launch." | The `Settings` scene reads `AppDelegate.services` via `@ObservedObject`; if you see the stub repeatedly the service graph failed to build — check Console for "Failed to build AppServices". |
 | Stale GitHub login | Delete `~/Library/WebKit/com.bsvassociation.yggdrasil/WebsiteData/`. |
 | Want to inspect everything | `log show --predicate 'subsystem == "com.bsvassociation.yggdrasil"' --last 5m --info` |
@@ -240,9 +231,6 @@ Direct DB peek:
 ```bash
 sqlite3 ~/Library/Application\ Support/Yggdrasil/yggdrasil.sqlite \
     'SELECT id, owner, name, local_main_path FROM repo'
-
-# Active tmux sessions on the Yggdrasil socket
-tmux -L yggdrasil ls
 ```
 
 ---

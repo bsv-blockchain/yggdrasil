@@ -14,9 +14,11 @@ struct YggdrasilApp: App {
             CommandGroup(replacing: .newItem) {}
             TabCommands()
             DiagnosticsCommands()
-            // "Coding" menu lives in AppKit (CodingMenuController) — SwiftUI
-            // CommandMenu stops dispatching once MenuBarExtra joins the
-            // Scene graph, hence the AppKit detour.
+            // "Coding" menu lives in AppKit (CodingMenuController) for
+            // historical reasons (SwiftUI's CommandMenu used to stop
+            // dispatching once MenuBarExtra was in the Scene graph). The
+            // menu bar status item is gone now but the AppKit detour
+            // stays to avoid churn.
         }
 
         PreferencesScene(appDelegate: appDelegate)
@@ -27,10 +29,6 @@ struct YggdrasilApp: App {
         AssignedTaskWindowScene(appDelegate: appDelegate)
         ReviewPickerWindowScene(appDelegate: appDelegate)
         IssueDetailsWindowScene(appDelegate: appDelegate)
-
-        // Menu bar status item — observes appDelegate.services so the popover
-        // content rebinds the moment services is wired.
-        MenuBarStatusScene(appDelegate: appDelegate)
     }
 }
 

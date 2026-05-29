@@ -40,81 +40,14 @@ final class TabsModel {
     func reload() {
         do {
             tabs = try store.list()
-            // Refresh the task index for tabs that shadow a GitHub task.
-            // The `lazyLinks` map captures tabs whose stored `task_id` was
-            // nil but whose branch name now resolves to a real task row —
-            // we persist those after the read transaction so downstream
-            // queries (review-picker exclusion, pendingReviewCount, the
-            // sidebar #xxx badge) all see them as linked.
-            var lazyLinks: [(tabID: Int64, taskID: Int64)] = []
-            let (taskMap, repoMap) = try database.queue.read { db -> ([Int64: YggdrasilTask], [Int64: Repo]) in
-                var tasks: [Int64: YggdrasilTask] = [:]
-                var repos: [Int64: Repo] = [:]
-                let allRepos = try Repo.fetchAll(db)
-                for tab in self.tabs {
-                    guard let tabID = tab.id else { continue }
-                    // Always try to resolve the owning repo from the worktree
-                    // path; the GitHub pane needs it as a fallback when no task
-                    // row exists yet.
-                    if let owning = Self.repoOwning(worktreePath: tab.worktreePath, repos: allRepos) {
-                        repos[tabID] = owning
-                    }
-                    if let taskID = tab.taskID,
-                       let task = try YggdrasilTask.fetchOne(db, key: taskID) {
-                        tasks[tabID] = task
-                        continue
-                    }
-                    // Lazy task link: tab.taskID is nil (the user typed e.g.
-                    // "pr-643" before sync had imported the task). Match by
-                    // branch-name pattern + owning repo. When the next sync
-                    // brings the PR in, this lookup succeeds — and now we
-                    // also write it back to tab.task_id so the review
-                    // picker stops listing the PR (it filters via
-                    // `WHERE task_id IS NOT NULL`).
-                    if let owning = repos[tabID], let repoID = owning.id,
-                       let number = NewTabSheet.parsePRNumber(tab.branchName) {
-                        let match = try YggdrasilTask
-                            .filter(Column("repo_id") == repoID && Column("number") == number)
-                            .fetchOne(db)
-                        if let match, let matchID = match.id {
-                            tasks[tabID] = match
-                            lazyLinks.append((tabID: tabID, taskID: matchID))
-                        }
-                    }
-                }
-                return (tasks, repos)
-            }
-            tasksByTabID = taskMap
-            repoByTabID = repoMap
-            for link in lazyLinks {
+            let result = try resolveTaskAndRepoMaps()
+            tasksByTabID = result.taskMap
+            repoByTabID = result.repoMap
+            for link in result.lazyLinks {
                 try? store.setTaskID(id: link.tabID, taskID: link.taskID)
             }
-            pendingReviewCount = try database.queue.read { db in
-                // Match AssignedTaskPicker(.review) — review-requested ∪
-                // assigned-but-not-authored — minus what's already a tab.
-                try Int.fetchOne(db, sql: """
-                    SELECT COUNT(*) FROM task
-                    WHERE task.type = 'pr'
-                      AND (
-                        task.id IN (SELECT task_id FROM pr_review_request)
-                     OR (task.id IN (SELECT task_id FROM pr_assigned)
-                         AND task.id NOT IN (SELECT task_id FROM pr_authored))
-                      )
-                      AND task.id NOT IN (SELECT task_id FROM tab WHERE task_id IS NOT NULL)
-                    """) ?? 0
-            }
-            // Resolve per-tab agent identity from CodingAgent.command via the
-            // brand heuristic (claude/codex/gemini/copilot/grok).
-            agentByTabID = [:]
-            for tab in tabs {
-                guard let tabID = tab.id else { continue }
-                if let agentID = tab.codingAgentID,
-                   let agent = try agentStore.get(id: agentID) {
-                    agentByTabID[tabID] = AgentIdentity.detect(command: agent.command)
-                } else {
-                    agentByTabID[tabID] = .claude
-                }
-            }
+            pendingReviewCount = try fetchPendingReviewCount()
+            agentByTabID = try resolveAgentIdentities()
             // Drop selection if the row vanished.
             if let selected = selectedID, !tabs.contains(where: { $0.id == selected }) {
                 selectedID = tabs.first?.id
@@ -124,6 +57,81 @@ final class TabsModel {
         } catch {
             YggdrasilLog.ui.error("TabsModel.reload failed: \(String(describing: error), privacy: .public)")
         }
+    }
+
+    /// Reads the task + repo lookups for the currently-loaded `tabs`. Also
+    /// returns the set of (tabID, taskID) pairs whose `task_id` was nil
+    /// but resolved via branch-name parsing — the caller persists those
+    /// back to the DB so downstream `WHERE task_id IS NOT NULL` queries
+    /// see them.
+    private struct ResolveResult {
+        let taskMap: [Int64: YggdrasilTask]
+        let repoMap: [Int64: Repo]
+        let lazyLinks: [(tabID: Int64, taskID: Int64)]
+    }
+
+    private func resolveTaskAndRepoMaps() throws -> ResolveResult {
+        try database.queue.read { db -> ResolveResult in
+            var tasks: [Int64: YggdrasilTask] = [:]
+            var repos: [Int64: Repo] = [:]
+            var lazyLinks: [(tabID: Int64, taskID: Int64)] = []
+            let allRepos = try Repo.fetchAll(db)
+            for tab in self.tabs {
+                guard let tabID = tab.id else { continue }
+                if let owning = Self.repoOwning(worktreePath: tab.worktreePath, repos: allRepos) {
+                    repos[tabID] = owning
+                }
+                if let taskID = tab.taskID,
+                   let task = try YggdrasilTask.fetchOne(db, key: taskID) {
+                    tasks[tabID] = task
+                    continue
+                }
+                // Lazy task link: branch-name matches an imported task row.
+                if let owning = repos[tabID], let repoID = owning.id,
+                   let number = NewTabSheet.parsePRNumber(tab.branchName),
+                   let match = try YggdrasilTask
+                       .filter(Column("repo_id") == repoID && Column("number") == number)
+                       .fetchOne(db),
+                   let matchID = match.id {
+                    tasks[tabID] = match
+                    lazyLinks.append((tabID: tabID, taskID: matchID))
+                }
+            }
+            return ResolveResult(taskMap: tasks, repoMap: repos, lazyLinks: lazyLinks)
+        }
+    }
+
+    private func fetchPendingReviewCount() throws -> Int {
+        try database.queue.read { db in
+            // Match AssignedTaskPicker(.review) — review-requested ∪
+            // assigned-but-not-authored — minus what's already a tab.
+            try Int.fetchOne(db, sql: """
+                SELECT COUNT(*) FROM task
+                WHERE task.type = 'pr'
+                  AND (
+                    task.id IN (SELECT task_id FROM pr_review_request)
+                 OR (task.id IN (SELECT task_id FROM pr_assigned)
+                     AND task.id NOT IN (SELECT task_id FROM pr_authored))
+                  )
+                  AND task.id NOT IN (SELECT task_id FROM tab WHERE task_id IS NOT NULL)
+                """) ?? 0
+        }
+    }
+
+    /// Per-tab agent identity (claude/codex/gemini/copilot/grok) resolved
+    /// from `CodingAgent.command` via the brand heuristic.
+    private func resolveAgentIdentities() throws -> [Int64: AgentIdentity] {
+        var out: [Int64: AgentIdentity] = [:]
+        for tab in tabs {
+            guard let tabID = tab.id else { continue }
+            if let agentID = tab.codingAgentID,
+               let agent = try agentStore.get(id: agentID) {
+                out[tabID] = AgentIdentity.detect(command: agent.command)
+            } else {
+                out[tabID] = .claude
+            }
+        }
+        return out
     }
 
     func select(_ id: Int64) {

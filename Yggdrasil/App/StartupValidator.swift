@@ -18,7 +18,7 @@ struct Libgit2Version: Equatable {
 
 /// Result of a single startup check that did not pass.
 struct StartupCheckFailure: Equatable {
-    /// Stable identifier for the failing dependency (`tmux`, `git`, `gh`,
+    /// Stable identifier for the failing dependency (`git`, `gh`,
     /// `libgit2`). Tests assert on this rather than the message string so
     /// copy edits don't break the suite.
     let tool: String
@@ -35,11 +35,6 @@ struct StartupCheckFailure: Equatable {
 /// The struct is value-type with injected closures so unit tests can drive
 /// every branch without touching the real filesystem or PATH.
 struct StartupValidator {
-    /// True when `TmuxManager.detect()` found tmux. AppDelegate already
-    /// runs that probe to decide whether agents survive across launches —
-    /// we reuse the result here rather than running `which` twice.
-    let tmuxAvailable: Bool
-
     /// Calls `git_libgit2_version` (or a stub in tests). Returning `nil`
     /// represents the unreachable case of "the symbol exists but throws";
     /// returning `Libgit2Version(0,0,0)` represents a bogus dylib that
@@ -53,9 +48,8 @@ struct StartupValidator {
     /// Production constructor — wires up the real probes against the host
     /// environment. AppDelegate calls this on the main thread before any
     /// other startup work.
-    static func production(tmuxAvailable: Bool) -> StartupValidator {
+    static func production() -> StartupValidator {
         StartupValidator(
-            tmuxAvailable: tmuxAvailable,
             probeLibgit2: {
                 var major: Int32 = 0
                 var minor: Int32 = 0
@@ -81,18 +75,6 @@ struct StartupValidator {
                 libgit2 failed to load. The application is missing or has \
                 a damaged bundled libgit2.dylib. Reinstall Yggdrasil from a \
                 fresh DMG.
-                """
-            ))
-        }
-
-        if !tmuxAvailable {
-            failures.append(StartupCheckFailure(
-                tool: "tmux",
-                message: """
-                tmux is required so coding agents survive app close. \
-                Install it with:
-
-                    brew install tmux
                 """
             ))
         }
