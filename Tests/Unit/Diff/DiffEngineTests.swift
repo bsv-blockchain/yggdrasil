@@ -138,6 +138,79 @@ final class DiffEngineTests: XCTestCase {
         XCTAssertTrue(diff.text.contains("+gamma"))
     }
 
+    func testUncommittedScopeShowsOnlyWorkingTreeChanges() async throws {
+        // Commit a file on a branch; modify it without committing.
+        let path = fixture.repoURL.appendingPathComponent("file.txt")
+        try "alpha\n".write(to: path, atomically: true, encoding: .utf8)
+        try await runGit(["add", "file.txt"])
+        try await runGit(["commit", "-m", "add file"])
+        try await runGit(["checkout", "-b", "feat/uncommitted"])
+        // Commit a change that lives on the branch but NOT in the worktree
+        // diff against HEAD.
+        try "alpha\nbravo\n".write(to: path, atomically: true, encoding: .utf8)
+        try await runGit(["add", "file.txt"])
+        try await runGit(["commit", "-m", "branch commit"])
+        // Now make an uncommitted edit on top.
+        try "alpha\nbravo\ncharlie\n".write(to: path, atomically: true, encoding: .utf8)
+
+        let engine = DiffEngine()
+        let uncommitted = try await engine.unifiedDiff(
+            worktreePath: fixture.repoURL.path,
+            baseRef: "main",
+            scope: .uncommitted
+        )
+
+        // Uncommitted scope = `git diff HEAD`: only the staged-or-unstaged
+        // delta should appear. The branch commit ("bravo") is in HEAD, so
+        // it must NOT appear; only the new "charlie" line should.
+        XCTAssertTrue(uncommitted.text.contains("+charlie"),
+                      "uncommitted scope must include the unstaged add")
+        XCTAssertFalse(uncommitted.text.contains("+bravo"),
+                       "uncommitted scope must NOT include branch commits")
+    }
+
+    func testBranchScopeIncludesBothCommittedAndUncommitted() async throws {
+        // Same setup as above but use the default scope.
+        let path = fixture.repoURL.appendingPathComponent("file.txt")
+        try "alpha\n".write(to: path, atomically: true, encoding: .utf8)
+        try await runGit(["add", "file.txt"])
+        try await runGit(["commit", "-m", "add file"])
+        try await runGit(["checkout", "-b", "feat/branch"])
+        try "alpha\nbravo\n".write(to: path, atomically: true, encoding: .utf8)
+        try await runGit(["add", "file.txt"])
+        try await runGit(["commit", "-m", "branch commit"])
+        try "alpha\nbravo\ncharlie\n".write(to: path, atomically: true, encoding: .utf8)
+
+        let engine = DiffEngine()
+        let branch = try await engine.unifiedDiff(
+            worktreePath: fixture.repoURL.path,
+            baseRef: "main",
+            scope: .branchAndUncommitted
+        )
+        XCTAssertTrue(branch.text.contains("+bravo"), "branch scope includes branch commit")
+        XCTAssertTrue(branch.text.contains("+charlie"), "branch scope includes uncommitted edit")
+    }
+
+    func testCurrentBranchReturnsName() async throws {
+        try await runGit(["checkout", "-b", "feat/current"])
+        let engine = DiffEngine()
+        let name = await engine.currentBranch(worktreePath: fixture.repoURL.path)
+        XCTAssertEqual(name, "feat/current")
+    }
+
+    func testCurrentBranchReturnsNilForDetachedHead() async throws {
+        // Make a second commit so we have a SHA to check out.
+        let path = fixture.repoURL.appendingPathComponent("seed.txt")
+        try "x".write(to: path, atomically: true, encoding: .utf8)
+        try await runGit(["add", "seed.txt"])
+        try await runGit(["commit", "-m", "seed"])
+        try await runGit(["checkout", "--detach", "HEAD"])
+
+        let engine = DiffEngine()
+        let name = await engine.currentBranch(worktreePath: fixture.repoURL.path)
+        XCTAssertNil(name)
+    }
+
     func testLargeDiffIsFlaggedTruncated() async throws {
         try await runGit(["checkout", "-b", "feat/huge"])
         // Write a single >5MB file. Repeated short line so the file gets a

@@ -3,13 +3,20 @@ import Foundation
 import SwiftUI
 @preconcurrency import WebKit
 
-/// Diff segment of the main pane. Loads the bundled diff2html shell from
+/// Diff segment of the main pane. Loads the bundled diff renderer from
 /// `Resources/diff2html/index.html`, then asks `DiffEngine` for the unified
 /// diff between the tab's worktree HEAD and a base ref, and pushes the result
 /// into the page via `window.yggdrasil.render(diffText)`.
 ///
-/// Base ref resolution: prefer `origin/<repo.default_branch>` when known; fall
-/// back to bare `<default_branch>`; finally `origin/main`.
+/// Scope toggle: the page's toolbar shows a segmented control with
+/// "Uncommitted" / "Branch". The selection round-trips to Swift via a
+/// `WKScriptMessageHandler` so we can re-run `git diff` with the right
+/// args and push the new payload back. The "Branch" option is hidden
+/// when the worktree is checked out on the repo's default branch
+/// (no merge-base to draw against).
+///
+/// Persistence: the chosen scope is stored per-tab in UserDefaults under
+/// `yggdrasil.diffScope.<tabID>`.
 struct DiffSubPane: NSViewRepresentable {
     let services: AppServices
     let tab: YggdrasilTab
@@ -21,10 +28,12 @@ struct DiffSubPane: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let host = WebViewHost()
         let config = WKWebViewConfiguration()
-        // Local file loads — we serve from the app bundle's Resources/diff2html/.
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
+        // Channel for the JS toolbar to talk back when the user picks a scope.
+        config.userContentController.add(context.coordinator, name: "yggdrasil")
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
+        context.coordinator.webView = webView
         host.attach(webView: webView)
 
         let folderRef = Bundle.main.url(forResource: "diff2html", withExtension: nil)
@@ -40,63 +49,124 @@ struct DiffSubPane: NSViewRepresentable {
 
     func updateNSView(_: NSView, context _: Context) {}
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         let services: AppServices
         let tab: YggdrasilTab
+        weak var webView: WKWebView?
+        private var scope: DiffScope
 
         init(services: AppServices, tab: YggdrasilTab) {
             self.services = services
             self.tab = tab
+            self.scope = Self.loadScope(for: tab)
         }
 
         func webView(_ webView: WKWebView, didFinish _: WKNavigation) {
-            Task { await self.computeAndPush(webView: webView) }
+            Task { await self.applyThemeAndRender() }
+        }
+
+        /// JS → Swift channel. JSON payload: { "type": "scope",
+        /// "value": "uncommitted" | "branch" }.
+        func userContentController(
+            _: WKUserContentController, didReceive message: WKScriptMessage
+        ) {
+            guard let body = message.body as? [String: Any] else { return }
+            switch body["type"] as? String {
+            case "scope":
+                if let raw = body["value"] as? String,
+                   let newScope = Self.parseScope(raw),
+                   newScope != scope {
+                    scope = newScope
+                    Self.persistScope(newScope, for: tab)
+                    Task { await self.applyThemeAndRender() }
+                }
+            default:
+                break
+            }
         }
 
         @MainActor
-        private func computeAndPush(webView: WKWebView) async {
-            // Sync the page's theme to whatever the app is currently set to
-            // — this overrides the page's prefers-color-scheme fallback so
-            // a light-mode app doesn't render the diff in dark colors.
+        private func applyThemeAndRender() async {
+            guard let webView else { return }
             let theme = NSApp.effectiveAppearance.bestMatch(
                 from: [.darkAqua, .aqua]
             ) == .darkAqua ? "dark" : "light"
             _ = try? await webView.evaluateJavaScript(
                 "window.yggdrasil && window.yggdrasil.setTheme(\"\(theme)\");"
             )
+
+            // Decide whether the "Branch" mode is meaningful for this tab.
+            // If the current branch IS the default branch, the merge-base
+            // collapses to HEAD and the comparison is empty/meaningless.
+            let baseRef = resolveBaseRef()
+            let currentBranch = await services.diffEngine.currentBranch(worktreePath: tab.worktreePath)
+            let defaultBranch = resolveDefaultBranch()
+            let onDefault = currentBranch != nil && currentBranch == defaultBranch
+            let scopeForCompute: DiffScope = onDefault ? .uncommitted : scope
+            // If we've been forced to uncommitted because we're on the
+            // default branch, reflect that in the persisted state too so
+            // it doesn't surprise the user when they switch branches.
+            if onDefault, scope != .uncommitted {
+                scope = .uncommitted
+                Self.persistScope(.uncommitted, for: tab)
+            }
+            // Tell the JS toolbar which modes to offer + which one is on.
+            await pushScopeUI(branchEnabled: !onDefault, selected: scopeForCompute, on: webView)
+
             do {
-                let baseRef = resolveBaseRef()
                 let diff = try await services.diffEngine.unifiedDiff(
-                    worktreePath: tab.worktreePath, baseRef: baseRef
+                    worktreePath: tab.worktreePath, baseRef: baseRef, scope: scopeForCompute
                 )
                 let payload = diff.isTruncated ? truncatedPlaceholder(diff: diff) : diff.text
                 let escaped = payload.replacingOccurrences(of: "\\", with: "\\\\")
                     .replacingOccurrences(of: "`", with: "\\`")
                     .replacingOccurrences(of: "$", with: "\\$")
-                let script = "window.yggdrasil && window.yggdrasil.render(`\(escaped)`);"
-                _ = try? await webView.evaluateJavaScript(script)
+                _ = try? await webView.evaluateJavaScript(
+                    "window.yggdrasil && window.yggdrasil.render(`\(escaped)`);"
+                )
             } catch {
                 YggdrasilLog.ui.warning(
                     "Diff compute failed for tab \(self.tab.id ?? 0, privacy: .public): \(String(describing: error), privacy: .public)"
                 )
                 let escapedErr = String(describing: error)
                     .replacingOccurrences(of: "`", with: "'")
-                let script = "window.yggdrasil && window.yggdrasil.render(`# Diff failed\\n\\n\(escapedErr)`);"
-                _ = try? await webView.evaluateJavaScript(script)
+                _ = try? await webView.evaluateJavaScript(
+                    "window.yggdrasil && window.yggdrasil.render(`# Diff failed\\n\\n\(escapedErr)`);"
+                )
             }
         }
 
+        private func pushScopeUI(
+            branchEnabled: Bool, selected: DiffScope, on webView: WKWebView
+        ) async {
+            let selectedStr = Self.scopeRaw(selected)
+            let script = """
+            window.yggdrasil && window.yggdrasil.setScopeOptions \
+            && window.yggdrasil.setScopeOptions(\
+            { branchEnabled: \(branchEnabled), selected: "\(selectedStr)" }\
+            );
+            """
+            _ = try? await webView.evaluateJavaScript(script)
+        }
+
         private func resolveBaseRef() -> String {
-            // Prefer the linked Repo's default_branch when we have it; otherwise
-            // fall back to "origin/main" then "main".
-            if let id = tab.id, let task = services.tabs.tasksByTabID[id] {
-                if let repo = try? services.database.queue.read(
-                    { db in try Repo.fetchOne(db, key: task.repoID) }
-                ) {
-                    return "origin/\(repo.defaultBranch)"
-                }
+            if let id = tab.id, let task = services.tabs.tasksByTabID[id],
+               let repo = try? services.database.queue.read(
+                   { db in try Repo.fetchOne(db, key: task.repoID) }
+               ) {
+                return "origin/\(repo.defaultBranch)"
             }
             return "origin/main"
+        }
+
+        private func resolveDefaultBranch() -> String {
+            if let id = tab.id, let task = services.tabs.tasksByTabID[id],
+               let repo = try? services.database.queue.read(
+                   { db in try Repo.fetchOne(db, key: task.repoID) }
+               ) {
+                return repo.defaultBranch
+            }
+            return "main"
         }
 
         private func truncatedPlaceholder(diff: UnifiedDiff) -> String {
@@ -111,6 +181,36 @@ struct DiffSubPane: NSViewRepresentable {
             +\(diff.files.count) file(s) changed.
             +Use the terminal to inspect: `git diff <base>...HEAD`.
             """
+        }
+
+        // MARK: - Scope persistence
+
+        private static func scopeKey(_ tab: YggdrasilTab) -> String {
+            "yggdrasil.diffScope.\(tab.id.map(String.init) ?? "unknown")"
+        }
+
+        static func loadScope(for tab: YggdrasilTab) -> DiffScope {
+            let raw = UserDefaults.standard.string(forKey: scopeKey(tab))
+            return raw.flatMap(parseScope) ?? .branchAndUncommitted
+        }
+
+        static func persistScope(_ scope: DiffScope, for tab: YggdrasilTab) {
+            UserDefaults.standard.set(scopeRaw(scope), forKey: scopeKey(tab))
+        }
+
+        static func parseScope(_ raw: String) -> DiffScope? {
+            switch raw {
+            case "uncommitted": return .uncommitted
+            case "branch": return .branchAndUncommitted
+            default: return nil
+            }
+        }
+
+        static func scopeRaw(_ scope: DiffScope) -> String {
+            switch scope {
+            case .uncommitted: return "uncommitted"
+            case .branchAndUncommitted: return "branch"
+            }
         }
     }
 }
