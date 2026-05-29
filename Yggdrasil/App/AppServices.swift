@@ -10,14 +10,6 @@ final class AppServices {
     let database: YggdrasilDatabase
     let settingsStore: SettingsStore
     let authService: AuthService
-    /// Persistent OAuth-token store (settings-table backed). Exposed so the
-    /// Account preferences pane can show signed-in state.
-    let oauthStore: SettingsOAuthTokenStore
-    /// Static OAuth App config (client id/secret, scopes, redirect).
-    let oauthConfig: GitHubOAuthConfig
-    /// Drives the ASWebAuthenticationSession login flow (passkeys work in the
-    /// system sheet) and stores the resulting token in `authService`.
-    let oauthLogin: GitHubOAuthLoginService
     let httpClient: URLSessionHTTPClient
     let restClient: RESTClient
     let graphqlClient: GraphQLClient
@@ -52,22 +44,8 @@ final class AppServices {
         // cached. The Keychain detour is gone — ad-hoc-signed local builds
         // change signature on every rebuild, which made the OS prompt for
         // the user's password on every relaunch.
-        let oauthStore = SettingsOAuthTokenStore(settings: settingsStore)
-        self.oauthStore = oauthStore
-        // An OAuth token from the in-app passkey login (if present) takes
-        // precedence over `gh auth token`; AuthService falls back to gh otherwise.
-        let authService = AuthService(gh: GHCLIAuth(), oauthStore: oauthStore)
+        let authService = AuthService(gh: GHCLIAuth())
         self.authService = authService
-
-        let oauthConfig = GitHubOAuthConfig.fromBundle()
-        self.oauthConfig = oauthConfig
-        self.oauthLogin = GitHubOAuthLoginService(
-            config: oauthConfig,
-            presenter: ASWebAuthPresenter(),
-            exchanger: URLSessionTokenExchanger(session: .shared),
-            authService: authService,
-            makeState: { OAuthState.random() }
-        )
 
         let etags = ETagStore(database: database)
         let httpClient = URLSessionHTTPClient(session: .shared, auth: authService, etags: etags)

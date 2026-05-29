@@ -78,51 +78,9 @@ Re-run `make project` so the regenerated `Yggdrasil.xcodeproj` picks these up.
     open, drag into Applications, launch. No quarantine warning. Onboarding
     flows.
 
-## GitHub OAuth login (passkey sign-in)
-
-In-app GitHub sign-in uses an OAuth-App authorization-code flow over
-`ASWebAuthenticationSession`. The system presents a Safari-backed sheet where
-passkeys, security keys, and passwords all work natively — no special browser
-entitlement required (see `decisions.md`, 2026-05-28). The resulting access
-token is preferred over `gh auth token`.
-
-### One-time: register the OAuth App
-
-1. GitHub → Settings → Developer settings → **OAuth Apps** → New OAuth App.
-2. Set **Authorization callback URL** to exactly:
-
-       yggdrasil://oauth-callback
-
-   (matches `GitHubOAuthConfig.defaultRedirectURI` and the `CFBundleURLTypes`
-   scheme `yggdrasil` declared in `project.yml`.)
-3. Note the **Client ID** and generate a **Client secret**.
-
-Requested scopes: `repo`, `read:org` (`GitHubOAuthConfig.defaultScopes`).
-
-### Supplying the credentials
-
-Resolution order is env vars → Info.plist keys → empty (sign-in disabled).
-
-- **Local dev** — export before launching:
-
-      export YGGDRASIL_GH_OAUTH_CLIENT_ID=Iv1_xxx
-      export YGGDRASIL_GH_OAUTH_CLIENT_SECRET=xxxxxxxx
-
-- **Release build** — set the `GitHubOAuthClientID` / `GitHubOAuthClientSecret`
-  Info.plist values (currently empty placeholders in `project.yml` →
-  `targets.Yggdrasil.info.properties`). Inject them at build time rather than
-  committing the secret. Re-run `make project` after editing `project.yml`.
-
-When neither is set, `GitHubOAuthConfig.isConfigured` is false and the Account
-preferences pane shows the Sign-in button disabled with an explanatory note.
-
-### Using it
-
-Preferences → **Account** → *Sign in to GitHub*. Authenticate with a passkey in
-the system sheet; the token is stored and used for REST/GraphQL sync. *Sign Out*
-clears it and falls back to the `gh` CLI token.
-
 ## Passkeys in the embedded panel (managed entitlement)
+
+This is how GitHub passkey login works inside the app's embedded browser panel.
 
 The right-hand GitHub panel is a `WKWebView`. By default WebKit **disables**
 WebAuthn there, so github.com reports *"This browser or device is reporting
@@ -183,14 +141,10 @@ make build
 
 Launch, open the GitHub panel, sign in to github.com. The "partial passkey
 support" banner is gone and passkey login/registration works **inside the
-panel**. This logs the panel's github.com web session in directly (cookies) —
-separate from the OAuth API token below.
+panel** — the panel's github.com web session is logged in directly (cookies),
+independent of the app's `gh` CLI API token used for REST/GraphQL sync.
 
-> Note: this is the in-panel path. The OAuth sign-in below (Account pane) is an
-> independent way to get an API token via passkeys in a system sheet, and needs
-> no entitlement. Keep whichever you want; they don't conflict.
-
-## GitHub OAuth login (passkey sign-in)
+## Sparkle (auto-update) — V2
 
 Sparkle isn't shipped in v0.1. Reserved `Info.plist` keys:
 

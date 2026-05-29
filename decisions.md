@@ -38,15 +38,14 @@ and in the PR description.
 **Trade-offs.** Requires Apple approval (manual, time-unbounded) and moving off
 ad-hoc signing for any build that wants in-panel passkeys.
 
-**Approval.** User chose the entitlement path.
+**Rejected alternative.** An OAuth-App login via `ASWebAuthenticationSession`
+(system sheet; passkeys work there with no entitlement) was prototyped, then
+removed: it logs in *outside* the panel and yields an API token rather than the
+panel's github.com web session, so it doesn't satisfy the in-panel goal. The
+codebase carries only the entitlement path.
 
-> **Also in the codebase, secondary — not the chosen direction.** An earlier
-> exploration added an OAuth-App login via `ASWebAuthenticationSession` (system
-> sheet; passkeys work there with no entitlement) behind the Account preferences
-> pane. It's a *bonus* path that yields an API token (not an in-panel cookie
-> session) and needs no Apple approval. It's kept because it's harmless and
-> useful, but the entitlement path above is the decision for the stated goal.
-> Don't treat the two as competing.
+**Approval.** User chose the entitlement path and asked that the OAuth workaround
+code/docs be removed.
 
 ---
 

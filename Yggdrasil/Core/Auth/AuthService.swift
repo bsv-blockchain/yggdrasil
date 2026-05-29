@@ -17,23 +17,15 @@ import Foundation
 /// fine trade.
 actor AuthService {
     private let gh: GHCLIAuth
-    private let oauthStore: OAuthTokenStore?
     private var cached: String?
 
-    init(gh: GHCLIAuth, oauthStore: OAuthTokenStore? = nil) {
+    init(gh: GHCLIAuth) {
         self.gh = gh
-        self.oauthStore = oauthStore
     }
 
     func currentToken() async throws -> String {
         if let cached {
             return cached
-        }
-        // An OAuth token from the in-app login flow takes precedence over the
-        // gh CLI. Only when none is stored do we shell out to `gh auth token`.
-        if let oauth = oauthStore?.readToken(), !oauth.isEmpty {
-            cached = oauth
-            return oauth
         }
         let token = try await gh.currentToken()
         cached = token
@@ -41,19 +33,6 @@ actor AuthService {
     }
 
     func invalidate() {
-        cached = nil
-    }
-
-    /// Record a freshly obtained OAuth token: persist it and prime the cache.
-    func setOAuthToken(_ token: String) {
-        try? oauthStore?.writeToken(token)
-        cached = token
-    }
-
-    /// Forget the OAuth token (store + cache). The next `currentToken()` falls
-    /// back to the gh CLI.
-    func signOut() {
-        try? oauthStore?.clearToken()
         cached = nil
     }
 }
