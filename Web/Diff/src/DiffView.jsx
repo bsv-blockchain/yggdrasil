@@ -162,52 +162,70 @@ const gutterStyle = {
   borderRight: '0.5px solid var(--border)',
 };
 
-function SideBySideRow({ left, right, lang }) {
-  const cell = (line, side) => {
-    if (!line) {
-      return (
-        <div style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.04)',
-                      borderRight: side === 'left' ? '0.5px solid var(--border)' : 'none' }} />
-      );
-    }
-    const t = line.type;
-    const bg =
-      t === 'add' ? 'var(--add-bg)' :
-      t === 'del' ? 'var(--del-bg)' : 'transparent';
-    const prefix = t === 'add' ? '+' : t === 'del' ? '−' : ' ';
-    const prefixColor =
-      t === 'add' ? 'var(--add)' :
-      t === 'del' ? 'var(--del)' : 'var(--diff-gutter)';
-    const lineNo = t === 'ctx'
-      ? (side === 'left' ? line.oldN : line.n)
-      : line.n;
+/// One cell in a side-by-side column. Renders a single line (or a
+/// blank-placeholder when `line === null`, used when one side has more
+/// adds/dels than the other). Width is content-driven: the parent
+/// SideColumn provides the scrollable container.
+function SideCell({ line, side, lang }) {
+  if (!line) {
     return (
-      <div style={{
-        flex: 1, minWidth: 0, display: 'flex', background: bg,
-        borderRight: side === 'left' ? '0.5px solid var(--border)' : 'none',
-      }}>
-        <div style={gutterStyle}>{lineNo}</div>
-        <div style={{
-          width: 18, textAlign: 'center', color: prefixColor,
-          fontWeight: 600, flexShrink: 0, userSelect: 'none',
-        }}>{prefix}</div>
-        <div style={{
-          // No per-line overflowX — the file card body owns the
-          // horizontal scrollbar, all lines move together.
-          flexShrink: 0, paddingRight: 12, whiteSpace: 'pre',
-          color:
-            t === 'add' ? 'var(--diff-add-fg)' :
-            t === 'del' ? 'var(--diff-del-fg)' : 'var(--diff-context)',
-        }}>
-          <HighlightedLine text={line.text} lang={lang} />
-        </div>
-      </div>
+      <div style={{ minHeight: 20, lineHeight: '20px',
+                    background: 'rgba(0,0,0,0.04)' }} />
     );
-  };
+  }
+  const t = line.type;
+  const bg =
+    t === 'add' ? 'var(--add-bg)' :
+    t === 'del' ? 'var(--del-bg)' : 'transparent';
+  const prefix = t === 'add' ? '+' : t === 'del' ? '−' : ' ';
+  const prefixColor =
+    t === 'add' ? 'var(--add)' :
+    t === 'del' ? 'var(--del)' : 'var(--diff-gutter)';
+  const lineNo = t === 'ctx'
+    ? (side === 'left' ? line.oldN : line.n)
+    : line.n;
   return (
-    <div style={{ display: 'flex', minHeight: 20, lineHeight: '20px' }}>
-      {cell(left, 'left')}
-      {cell(right, 'right')}
+    <div style={{
+      display: 'flex', background: bg,
+      minHeight: 20, lineHeight: '20px',
+    }}>
+      <div style={gutterStyle}>{lineNo}</div>
+      <div style={{
+        width: 18, textAlign: 'center', color: prefixColor,
+        fontWeight: 600, flexShrink: 0, userSelect: 'none',
+      }}>{prefix}</div>
+      <div style={{
+        flexShrink: 0, paddingRight: 12, whiteSpace: 'pre',
+        color:
+          t === 'add' ? 'var(--diff-add-fg)' :
+          t === 'del' ? 'var(--diff-del-fg)' : 'var(--diff-context)',
+      }}>
+        <HighlightedLine text={line.text} lang={lang} />
+      </div>
+    </div>
+  );
+}
+
+/// One scrollable side of a split-mode hunk. The user asked for
+/// "each side 50% wide, scrolls separately" — that's what this
+/// component does: `flex: 1; min-width: 0` gives the 50/50 split,
+/// `overflow-x: auto` makes each side scroll independently.
+function SideColumn({ rows, side, lang }) {
+  return (
+    <div style={{
+      flex: 1, minWidth: 0, overflowX: 'auto',
+      borderRight: side === 'left' ? '0.5px solid var(--border)' : 'none',
+    }}>
+      <div style={{ minWidth: 'max-content' }}>
+        {rows.map((r, i) => (
+          <SideCell
+            key={i}
+            line={side === 'left' ? r.left : r.right}
+            side={side}
+            lang={lang}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -237,6 +255,8 @@ function DiffHunk({ hunk, lang, mode }) {
       </div>
     );
   }
+  // Split mode: hunk header spans the full width; the two sides each
+  // own a horizontal scrollbar so they scroll independently.
   const rows = pairForSplit(hunk.lines);
   return (
     <div>
@@ -245,9 +265,9 @@ function DiffHunk({ hunk, lang, mode }) {
           {hunk.header}
         </span>
       </div>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5 }}>
-        {rows.map((r, i) =>
-          <SideBySideRow key={i} left={r.left} right={r.right} lang={lang} />)}
+      <div style={{ display: 'flex', fontFamily: 'var(--font-mono)', fontSize: 11.5 }}>
+        <SideColumn rows={rows} side="left" lang={lang} />
+        <SideColumn rows={rows} side="right" lang={lang} />
       </div>
     </div>
   );
@@ -319,15 +339,26 @@ function DiffFile({ file, mode, collapsed, onToggle }) {
         </div>
       </div>
       {!collapsed && file.hunks.length > 0 && (
-        // One horizontal scrollbar for the whole file. Inner wrapper has
-        // `min-width: max-content` so all rows extend to the widest
-        // line and their backgrounds fill consistently when scrolled.
-        <div style={{ background: 'var(--bg-pane)', overflowX: 'auto' }}>
-          <div style={{ minWidth: 'max-content' }}>
+        mode === 'unified' ? (
+          // Unified: one horizontal scrollbar for the whole file.
+          // Inner wrapper has `min-width: max-content` so all rows
+          // extend to the widest line and their backgrounds fill
+          // consistently when scrolled.
+          <div style={{ background: 'var(--bg-pane)', overflowX: 'auto' }}>
+            <div style={{ minWidth: 'max-content' }}>
+              {file.hunks.map((h, i) =>
+                <DiffHunk key={i} hunk={h} lang={file.lang} mode={mode} />)}
+            </div>
+          </div>
+        ) : (
+          // Split: each hunk renders its own pair of independent
+          // horizontal scrollbars (see SideColumn). No file-level
+          // horizontal scroll wrapper here.
+          <div style={{ background: 'var(--bg-pane)' }}>
             {file.hunks.map((h, i) =>
               <DiffHunk key={i} hunk={h} lang={file.lang} mode={mode} />)}
           </div>
-        </div>
+        )
       )}
       {!collapsed && file.hunks.length === 0 && (
         <div style={{
