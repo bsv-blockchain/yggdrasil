@@ -122,7 +122,75 @@ Preferences → **Account** → *Sign in to GitHub*. Authenticate with a passkey
 the system sheet; the token is stored and used for REST/GraphQL sync. *Sign Out*
 clears it and falls back to the `gh` CLI token.
 
-## Sparkle (auto-update) — V2
+## Passkeys in the embedded panel (managed entitlement)
+
+The right-hand GitHub panel is a `WKWebView`. By default WebKit **disables**
+WebAuthn there, so github.com reports *"This browser or device is reporting
+partial passkey support."* and passkey login/registration fails. Enabling it
+requires the managed entitlement `com.apple.developer.web-browser.public-key-credential`,
+which Apple grants only on request and which only activates when the app is
+signed with a matching provisioning profile (ad-hoc signing is rejected at
+build time — that's why it isn't in the default `Yggdrasil.entitlements`).
+
+The passkey-enabled entitlements live in `Yggdrasil/Yggdrasil.passkeys.entitlements`
+(base set + the capability). Switching the build over is the last step below.
+
+**Requires a paid Apple Developer account with portal access** (team
+`APPLE_TEAM_ID`). The repo side is done; the steps below need the project owner.
+
+### Step 1 — Request the entitlement from Apple
+
+1. The capability is **not** self-serve in Xcode's Signing & Capabilities list;
+   it must be requested. Submit Apple's request form for the *Web Browser
+   Public Key Credential* / *passkeys-in-WKWebView* entitlement:
+   <https://developer.apple.com/contact/request/> (search "passkey" / "web
+   browser public key credential"). Reference:
+   - Entitlement: `com.apple.developer.web-browser.public-key-credential`
+   - App ID / bundle id: `com.bsvassociation.yggdrasil`
+   - Use case: third-party developer tool embedding a GitHub browser panel.
+2. Wait for Apple approval (manual review). Until approved, nothing below works.
+
+### Step 2 — Enable on the App ID + regenerate the profile
+
+1. Apple → Certificates, Identifiers & Profiles → Identifiers →
+   `com.bsvassociation.yggdrasil`: confirm the capability now appears and is on.
+2. Regenerate the provisioning profile(s) you sign with (a **Development**
+   profile for local testing on registered Macs; a **Developer ID** profile for
+   distribution) so each includes the capability. Download them.
+
+### Step 3 — Point the build at the passkey entitlements
+
+In `project.yml`, under `targets.Yggdrasil.settings.base`, switch signing from
+ad-hoc to the real team + the passkeys entitlements file:
+
+```yaml
+        CODE_SIGN_ENTITLEMENTS: Yggdrasil/Yggdrasil.passkeys.entitlements
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: <YOUR_TEAM_ID>
+        CODE_SIGN_IDENTITY: "Apple Development"        # local test; Developer ID for dist
+        PROVISIONING_PROFILE_SPECIFIER: "<profile name from Step 2>"
+```
+
+Then `make project` to regenerate `Yggdrasil.xcodeproj`. (For the notarised
+release, the same `CODE_SIGN_ENTITLEMENTS` change applies to the `release.yml`
+build step, which already sets `DEVELOPMENT_TEAM` + a Developer ID identity.)
+
+### Step 4 — Build signed + verify
+
+```bash
+make build
+```
+
+Launch, open the GitHub panel, sign in to github.com. The "partial passkey
+support" banner is gone and passkey login/registration works **inside the
+panel**. This logs the panel's github.com web session in directly (cookies) —
+separate from the OAuth API token below.
+
+> Note: this is the in-panel path. The OAuth sign-in below (Account pane) is an
+> independent way to get an API token via passkeys in a system sheet, and needs
+> no entitlement. Keep whichever you want; they don't conflict.
+
+## GitHub OAuth login (passkey sign-in)
 
 Sparkle isn't shipped in v0.1. Reserved `Info.plist` keys:
 

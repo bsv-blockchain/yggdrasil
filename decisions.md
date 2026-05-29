@@ -24,6 +24,43 @@ Design decisions made during the build that weren't in the spec, with rationale 
 
 **Approval.** User chose "ASWebAuthenticationSession OAuth" and "won't request the entitlement, just use the system panel" when asked.
 
+**Superseded 2026-05-28 (see next entry).** Testing showed the embedded panel
+still reports *"partial passkey support"* (expected — WKWebView WebAuthn is
+gated). User reversed course and chose to also pursue the managed entitlement
+for true in-panel passkeys. Both paths now coexist.
+
+---
+
+## 2026-05-28 — Add the managed WKWebView passkey entitlement (in-panel path)
+
+**Reverses the "won't request the entitlement" part of the decision above.**
+
+**Decision.** Add `com.apple.developer.web-browser.public-key-credential` to a
+**separate** entitlements file, `Yggdrasil/Yggdrasil.passkeys.entitlements`,
+rather than the default `Yggdrasil.entitlements`. The default ad-hoc dev build
+is unchanged; the passkey build is opt-in via `CODE_SIGN_ENTITLEMENTS`.
+
+**Why separate file.** Ad-hoc signing (`CODE_SIGN_IDENTITY = "-"`, the local-dev
+default) **fails the build** with the restricted entitlement present:
+*"has entitlements that require signing with a development certificate."* Putting
+it in the base file would break `make build` for everyone without a provisioned
+signing identity. The capability is also inert at runtime unless signed with an
+Apple-approved provisioning profile, so committing it to the default build buys
+nothing and costs a broken build.
+
+**What's left for the project owner** (no portal access here): request the
+entitlement from Apple, enable it on App ID `com.bsvassociation.yggdrasil`,
+regenerate the provisioning profile, then flip `CODE_SIGN_ENTITLEMENTS` to the
+passkeys file with a real team + profile. Full step-by-step in RELEASE.md
+"Passkeys in the embedded panel (managed entitlement)".
+
+**Trade-offs.** Requires Apple approval (manual, time-unbounded) and a move off
+ad-hoc signing for any build that wants in-panel passkeys. The OAuth/system-sheet
+path remains available with no entitlement for anyone who doesn't pursue this.
+
+**Approval.** User chose "Pivot to entitlement path" and asked that the owner-facing
+steps be laid out in the PR (they lack Apple portal access).
+
 ---
 
 ## 2026-05-26 — Replace SwiftGit2 SwiftPM dep with a local `Clibgit2` system module
