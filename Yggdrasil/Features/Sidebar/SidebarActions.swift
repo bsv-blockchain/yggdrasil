@@ -136,6 +136,7 @@ enum SidebarActions {
     }
 
     /// Clear a tab's PR link, reverting it to a plain terminal tab.
+    @MainActor
     static func unlinkPR(id: Int64, services: AppServices) {
         do {
             try services.tabStore.setTaskID(id: id, taskID: nil)
@@ -169,7 +170,7 @@ enum SidebarActions {
             )
             let prefill = suggested.map(String.init) ?? ""
 
-            guard let entered = promptForPRNumber(prefill: prefill) else { return } // cancelled
+            guard let entered = promptForPRNumber(prefill: prefill), !entered.isEmpty else { return }
             let interpreted = NewTabSheet.interpretBranchInput(entered).branch
             guard let number = NewTabSheet.parsePRNumber(interpreted) else {
                 presentInfo(title: "Enter a PR number",
