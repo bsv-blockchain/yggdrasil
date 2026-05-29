@@ -317,6 +317,13 @@ struct DraggableHSplit<Primary: View, Secondary: View>: View {
     let primary: () -> Primary
     let secondary: () -> Secondary
 
+    /// `fraction` value at the start of the current drag. `DragGesture`
+    /// reports a CUMULATIVE translation (distance from drag start, not
+    /// per-event delta), so the new width has to be computed against
+    /// this start value — adding translation to the live `primaryWidth`
+    /// would create a feedback loop that visibly accelerates the drag.
+    @State private var dragStartFraction: Double?
+
     private let minPaneWidth: CGFloat = 200
     private let dividerWidth: CGFloat = 1
     /// Wider invisible hit zone around the 1pt divider so the drag
@@ -344,9 +351,17 @@ struct DraggableHSplit<Primary: View, Secondary: View>: View {
                                 DragGesture(coordinateSpace: .global)
                                     .onChanged { value in
                                         guard total > 0 else { return }
-                                        let newWidth = primaryWidth + value.translation.width
+                                        let start = dragStartFraction ?? fraction
+                                        if dragStartFraction == nil {
+                                            dragStartFraction = start
+                                        }
+                                        let startWidth = (total - dividerWidth) * start
+                                        let newWidth = startWidth + value.translation.width
                                         let newFraction = newWidth / (total - dividerWidth)
                                         fraction = max(minFraction, min(maxFraction, newFraction))
+                                    }
+                                    .onEnded { _ in
+                                        dragStartFraction = nil
                                     }
                             )
                     )
