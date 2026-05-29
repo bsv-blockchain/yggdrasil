@@ -110,6 +110,29 @@ final class AppServices {
         await statusPoller.start(interval: .seconds(intervals.statusProbeSeconds))
     }
 
+    /// Fire-and-forget GitHub sync + tabs reload — call after any user
+    /// action that mutates tab state (open new session, close tab, open
+    /// from picker, etc). Without this the pending-review pill / CI status
+    /// / unread-comment counts lag by up to one scheduler tick (default
+    /// 60s); with this they refresh in the round-trip time of one
+    /// `fullSync()` (~1–3s typically).
+    ///
+    /// Errors are logged but not propagated — the visible side-effect is
+    /// just "the pill takes a moment longer to settle". Safe to call
+    /// repeatedly; concurrent syncs are bounded by the API and tolerated.
+    func triggerSyncNow() {
+        Task { [syncService, tabs] in
+            do {
+                try await syncService.fullSync()
+            } catch {
+                YggdrasilLog.sync.warning(
+                    "triggerSyncNow fullSync failed: \(String(describing: error), privacy: .public)"
+                )
+            }
+            await MainActor.run { tabs.reload() }
+        }
+    }
+
     private static func makeScheduler(
         intervalSeconds: Int,
         syncService: TaskSyncService,

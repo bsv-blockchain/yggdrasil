@@ -333,6 +333,7 @@ struct NewTabSheet: View {
                     )
                 )
             }
+            services.triggerSyncNow()
             dismiss()
         } catch {
             self.error = String(describing: error)

@@ -416,6 +416,7 @@ struct IssueDetailsPicker: View {
                     )
                 )
             }
+            services.triggerSyncNow()
             dismiss()
         } catch {
             self.error = String(describing: error)

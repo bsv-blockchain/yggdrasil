@@ -111,5 +111,10 @@ enum SidebarActions {
             )
         }
         services.tabs.reload()
+        // GitHub-side state (pr_review_request, CI status) may have changed
+        // while this tab was open (user approved, status flipped). Sync
+        // now so the review pill + per-tab status catch up immediately
+        // instead of waiting for the next scheduled tick.
+        Task { @MainActor in services.triggerSyncNow() }
     }
 }

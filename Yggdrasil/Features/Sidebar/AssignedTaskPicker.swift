@@ -327,6 +327,10 @@ struct AssignedTaskPicker: View {
                     )
                 )
             }
+            // Refresh GitHub-side state so the pending-review pill + CI
+            // badges catch up immediately rather than waiting for the
+            // next scheduled tick.
+            services.triggerSyncNow()
             dismiss()
         } catch {
             self.error = String(describing: error)
