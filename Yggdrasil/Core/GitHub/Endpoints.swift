@@ -65,6 +65,16 @@ enum Endpoints {
         return components.url!
     }
 
+    /// `/repos/{owner}/{repo}/pulls/{number}` — a single pull request.
+    static func pullRequest(owner: String, repo: String, number: Int) -> URL {
+        restBase
+            .appendingPathComponent("repos")
+            .appendingPathComponent(owner)
+            .appendingPathComponent(repo)
+            .appendingPathComponent("pulls")
+            .appendingPathComponent(String(number))
+    }
+
     /// `/repos/{owner}/{repo}/pulls?state=open&per_page=100`
     static func openPullRequests(owner: String, repo: String, perPage: Int = 100) -> URL {
         var components = URLComponents(

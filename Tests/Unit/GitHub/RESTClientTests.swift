@@ -161,6 +161,35 @@ final class RESTClientTests: XCTestCase {
         XCTAssertEqual(url.path, "/repos/bsv-blockchain/teranode/pulls")
     }
 
+    func test_pullRequest_decodesHeadRef() async throws {
+        let json = """
+        {
+          "url": "https://api.github.com/repos/o/r/pulls/828",
+          "html_url": "https://github.com/o/r/pull/828",
+          "number": 828,
+          "title": "Add bulk utxos",
+          "user": { "login": "siggi" },
+          "state": "open",
+          "body": null,
+          "created_at": "2026-05-29T10:00:00Z",
+          "updated_at": "2026-05-29T11:00:00Z",
+          "assignees": [],
+          "draft": false,
+          "merged_at": null,
+          "head": { "ref": "feat/bulk-utxos" }
+        }
+        """
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data(json.utf8), etag: nil, rateLimitRemaining: nil)
+        ])
+        let rest = RESTClient(http: http)
+        let raw = try await rest.pullRequest(owner: "o", name: "r", number: 828)
+        XCTAssertEqual(raw.number, 828)
+        XCTAssertEqual(raw.type, .pullRequest)
+        XCTAssertEqual(raw.headRef, "feat/bulk-utxos")
+        XCTAssertEqual(http.calledURLs.first?.path, "/repos/o/r/pulls/828")
+    }
+
     func testDecodingErrorSurfacesAsGitHubError() async {
         let http = CannedHTTPClient(responses: [
             HTTPResult(status: 200, body: Data("not json".utf8),

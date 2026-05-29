@@ -93,6 +93,24 @@ struct RESTClient {
         return .modified(dtos.map { RawTask(pullRequest: $0, owner: owner, name: name) })
     }
 
+    /// Fetch a single PR by number. Works for any state (open / closed /
+    /// merged), unlike the open-PRs list. Used by the "Link PR" flow to
+    /// import a PR on demand.
+    func pullRequest(owner: String, name: String, number: Int) async throws -> RawTask {
+        let url = Endpoints.pullRequest(owner: owner, repo: name, number: number)
+        let result = try await http.get(url: url, accept: "application/vnd.github+json")
+        guard let body = result.body else {
+            throw GitHubError.requestFailed(.badServerResponse)
+        }
+        let dto: RESTPRDTO
+        do {
+            dto = try Self.decoder.decode(RESTPRDTO.self, from: body)
+        } catch {
+            throw GitHubError.decodingFailed(String(describing: error))
+        }
+        return RawTask(pullRequest: dto, owner: owner, name: name)
+    }
+
     /// Reusable decoder configured for GitHub's ISO-8601 date format.
     static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
