@@ -91,9 +91,15 @@ actor TaskSyncService {
     /// it on demand rather than waiting for the next fullSync.
     ///
     /// Known limitation: a PR the user didn't author and isn't
-    /// assigned/review-requested on will be pruned by the next fullSync's
-    /// deleteStaleTasks, unlinking the tab. The common case (your own PR)
-    /// appears in author:@me and survives.
+    /// assigned/review-requested on is NOT a member of any synced list, so
+    /// `deleteStaleTasks` prunes it and `tab.task_id` reverts to NULL
+    /// (ON DELETE SET NULL). Because the Link PR action calls
+    /// `triggerSyncNow()` right after linking, that prune happens almost
+    /// immediately (~1–3s), not on the next 60s tick — such a link
+    /// effectively won't stick. The common case (your own PR) appears in
+    /// `author:@me` and survives indefinitely. To make non-authored links
+    /// stick, the follow-up is to have `deleteStaleTasks` skip tasks
+    /// referenced by a live `tab.task_id`.
     func importPR(owner: String, name: String, number: Int) async throws -> Int64 {
         let repoID = try await database.queue.read { db -> Int64 in
             guard let id = try Int64.fetchOne(
