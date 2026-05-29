@@ -49,7 +49,7 @@ final class WorktreeWatcher {
             UInt32(kFSEventStreamCreateFlagFileEvents)
             | UInt32(kFSEventStreamCreateFlagIgnoreSelf)
             | UInt32(kFSEventStreamCreateFlagNoDefer)
-        guard let s = FSEventStreamCreate(
+        guard let eventStream = FSEventStreamCreate(
             nil, callback, &context,
             [path] as CFArray,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
@@ -61,9 +61,9 @@ final class WorktreeWatcher {
             )
             return
         }
-        FSEventStreamSetDispatchQueue(s, DispatchQueue.main)
-        FSEventStreamStart(s)
-        stream = s
+        FSEventStreamSetDispatchQueue(eventStream, DispatchQueue.main)
+        FSEventStreamStart(eventStream)
+        stream = eventStream
     }
 
     func stop() {
@@ -73,10 +73,10 @@ final class WorktreeWatcher {
     /// Same as `stop()` but safe from `deinit` (no Swift concurrency
     /// hops). The FSEventStream API is not actor-isolated.
     private func stopUnsafe() {
-        if let s = stream {
-            FSEventStreamStop(s)
-            FSEventStreamInvalidate(s)
-            FSEventStreamRelease(s)
+        if let eventStream = stream {
+            FSEventStreamStop(eventStream)
+            FSEventStreamInvalidate(eventStream)
+            FSEventStreamRelease(eventStream)
             stream = nil
         }
         pendingTask?.cancel()
@@ -87,11 +87,11 @@ final class WorktreeWatcher {
     private func scheduleFire() {
         pendingTask?.cancel()
         let delay = debounceMs
-        let cb = onChange
+        let fire = onChange
         pendingTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(delay))
             guard !Task.isCancelled else { return }
-            cb()
+            fire()
         }
     }
 }

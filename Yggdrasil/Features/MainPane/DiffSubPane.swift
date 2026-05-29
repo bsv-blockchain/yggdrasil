@@ -91,18 +91,18 @@ struct DiffSubPane: NSViewRepresentable {
         func setActive(_ active: Bool) {
             if active {
                 if watcher == nil {
-                    let w = WorktreeWatcher(path: tab.worktreePath) { [weak self] in
+                    let newWatcher = WorktreeWatcher(path: tab.worktreePath) { [weak self] in
                         guard let self else { return }
                         Task { await self.applyThemeAndRender() }
                     }
-                    w.start()
-                    watcher = w
+                    newWatcher.start()
+                    watcher = newWatcher
                     // Also re-render now in case files changed while we
                     // weren't watching.
                     Task { await self.applyThemeAndRender() }
                 }
-            } else if let w = watcher {
-                w.stop()
+            } else if let activeWatcher = watcher {
+                activeWatcher.stop()
                 watcher = nil
             }
         }

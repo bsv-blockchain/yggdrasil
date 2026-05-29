@@ -285,9 +285,9 @@ final class TaskSyncServiceTests: XCTestCase {
         let taskID = try await sync.importPR(owner: "o", name: "r", number: 828)
 
         let (count, savedNumber): (Int, Int?) = try await db.queue.read { dbR in
-            let c = try Int.fetchOne(dbR, sql: "SELECT COUNT(*) FROM task WHERE id = ?", arguments: [taskID]) ?? 0
-            let n = try Int.fetchOne(dbR, sql: "SELECT number FROM task WHERE id = ?", arguments: [taskID])
-            return (c, n)
+            let rowCount = try Int.fetchOne(dbR, sql: "SELECT COUNT(*) FROM task WHERE id = ?", arguments: [taskID]) ?? 0
+            let number = try Int.fetchOne(dbR, sql: "SELECT number FROM task WHERE id = ?", arguments: [taskID])
+            return (rowCount, number)
         }
         XCTAssertEqual(count, 1)
         XCTAssertEqual(savedNumber, 828)
