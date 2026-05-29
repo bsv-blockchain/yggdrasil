@@ -85,6 +85,44 @@ actor TaskSyncService {
         YggdrasilLog.sync.info("Full sync complete")
     }
 
+    /// Fetch one PR by number, upsert it into the task table (+ github_status
+    /// from a GraphQL detail), and return its task id. Powers "Link PR" — a
+    /// PR the user just opened may not be in any synced list yet, so we fetch
+    /// it on demand rather than waiting for the next fullSync.
+    ///
+    /// Known limitation: a PR the user didn't author and isn't
+    /// assigned/review-requested on will be pruned by the next fullSync's
+    /// deleteStaleTasks, unlinking the tab. The common case (your own PR)
+    /// appears in author:@me and survives.
+    func importPR(owner: String, name: String, number: Int) async throws -> Int64 {
+        let repoID = try await database.queue.read { db -> Int64 in
+            guard let id = try Int64.fetchOne(
+                db,
+                sql: "SELECT id FROM repo WHERE owner = ? AND name = ?",
+                arguments: [owner, name]
+            ) else {
+                throw GitHubError.decodingFailed("importPR: repo \(owner)/\(name) not tracked")
+            }
+            return id
+        }
+        let raw = try await rest.pullRequest(owner: owner, name: name, number: number)
+        let detail = try? await graphql.prDetail(owner: owner, repo: name, number: number)
+        let now = Date()
+        return try await database.queue.write { db in
+            try TaskSyncWrites.upsertSingleTask(
+                db: db, raw: raw, repoID: repoID, detail: detail, now: now
+            )
+        }
+    }
+
+    /// Among the repo's open PRs, the number whose head branch equals
+    /// `branch`, else nil. Used to pre-fill the Link PR dialog from the
+    /// tab's worktree branch.
+    func linkablePRNumber(forBranch branch: String, owner: String, name: String) async throws -> Int? {
+        let openPRs = try await rest.openPRs(forOwner: owner, name: name)
+        return openPRs.first(where: { $0.headRef == branch })?.number
+    }
+
     static func compositeKey(owner: String, name: String, number: Int) -> String {
         "\(owner)/\(name)#\(number)"
     }
