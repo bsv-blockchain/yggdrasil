@@ -36,7 +36,10 @@ final class WebViewPool {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = dataStore
         let webView = WKWebView(frame: .zero, configuration: config)
-        webView.customUserAgent = "Yggdrasil/0.1 (macOS) WebKit"
+        // Leave the user agent at WebKit's default (Safari-family). A custom UA
+        // makes github.com's WebAuthn capability detection serve the degraded
+        // "partial passkey support" path; the stock UA is what unlocks full
+        // passkey login in-panel once the web-browser entitlement is signed in.
         live[tabID] = webView
         return webView
     }

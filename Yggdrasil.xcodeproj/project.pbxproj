@@ -221,6 +221,7 @@
 		8A30B4717CB6A068A8F5793F /* GHCLIAuthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GHCLIAuthTests.swift; sourceTree = "<group>"; };
 		8AA0C8DF1A89028303D8C6F5 /* WorktreeWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeWatcher.swift; sourceTree = "<group>"; };
 		8AE9C1B93008E18523A8627A /* IntervalSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntervalSettings.swift; sourceTree = "<group>"; };
+		8BABEA231A739777A41BB8B0 /* Yggdrasil.passkeys.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Yggdrasil.passkeys.entitlements; sourceTree = "<group>"; };
 		8D87FE2B8D82A2E53D859AC1 /* YggdrasilTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilTerminalView.swift; sourceTree = "<group>"; };
 		8E8F555D658DE195C8390B80 /* SyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncScheduler.swift; sourceTree = "<group>"; };
 		918445015D120B181B68D47B /* TaskAssignee.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskAssignee.swift; sourceTree = "<group>"; };
@@ -368,6 +369,7 @@
 			children = (
 				EF224817FACE506642F5FA5C /* Info.plist */,
 				F536F49306D06FB2EC7D0FE7 /* Yggdrasil.entitlements */,
+				8BABEA231A739777A41BB8B0 /* Yggdrasil.passkeys.entitlements */,
 				9DFABB38ADD15E545767EF61 /* App */,
 				DE1A8C2D614C8FF969A30704 /* Core */,
 				92A44919051109075FD4F36F /* Features */,
