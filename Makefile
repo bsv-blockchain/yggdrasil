@@ -11,7 +11,7 @@ PROJECT      := Yggdrasil.xcodeproj
 SCHEME       := Yggdrasil
 DESTINATION  := platform=macOS
 
-.PHONY: all build test lint format project clean help install-tools
+.PHONY: all build test lint format project js clean help install-tools
 
 all: build
 
@@ -22,11 +22,15 @@ help:
 	@echo "  lint           - swiftlint --strict over Yggdrasil/ and Tests/"
 	@echo "  format         - swiftformat in-place over Yggdrasil/ and Tests/"
 	@echo "  project        - regenerate Yggdrasil.xcodeproj from project.yml"
+	@echo "  js             - rebuild Web/Diff React bundle → Resources/diff2html/index.js"
 	@echo "  install-tools  - brew-install required dev tooling"
 	@echo "  clean          - xcodebuild clean + remove build/"
 
 project:
 	xcodegen generate
+
+js:
+	cd Web/Diff && npm install --silent && npm run build
 
 # Pipe xcodebuild through xcbeautify when present; otherwise raw output.
 XCB := $(shell command -v xcbeautify 2>/dev/null)
