@@ -58,6 +58,12 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+/* Without an explicit height on #app, React's mount node sizes to its
+ * content — the inner `height: 100%` on DiffView collapses to 0 and
+ * the per-pane `overflow-y: auto` containers can't bound the scroll,
+ * so the whole document scrolls (sidebar + diff together) instead.
+ * Fixing the cascade lets each pane scroll independently. */
+#app { height: 100%; }
 body {
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "ss02", "cv11";

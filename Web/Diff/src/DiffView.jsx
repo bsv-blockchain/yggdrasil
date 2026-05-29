@@ -140,11 +140,14 @@ function DiffRow({ line, lang }) {
         fontWeight: 600, flexShrink: 0, userSelect: 'none',
       }}>{prefix}</div>
       <div style={{
-        flex: 1, paddingRight: 12, whiteSpace: 'pre',
+        // No per-line overflowX — the file card scrolls horizontally as
+        // a single unit (see DiffFile). flex-shrink: 0 + white-space: pre
+        // lets the content size to its natural width, and the row
+        // (display:flex) extends with it.
+        flexShrink: 0, paddingRight: 12, whiteSpace: 'pre',
         color:
           line.type === 'add' ? 'var(--diff-add-fg)' :
           line.type === 'del' ? 'var(--diff-del-fg)' : 'var(--diff-context)',
-        overflowX: 'auto',
       }}>
         <HighlightedLine text={line.text} lang={lang} />
       </div>
@@ -163,7 +166,7 @@ function SideBySideRow({ left, right, lang }) {
   const cell = (line, side) => {
     if (!line) {
       return (
-        <div style={{ flex: 1, background: 'rgba(0,0,0,0.04)',
+        <div style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.04)',
                       borderRight: side === 'left' ? '0.5px solid var(--border)' : 'none' }} />
       );
     }
@@ -180,7 +183,7 @@ function SideBySideRow({ left, right, lang }) {
       : line.n;
     return (
       <div style={{
-        flex: 1, display: 'flex', background: bg, minWidth: 0,
+        flex: 1, minWidth: 0, display: 'flex', background: bg,
         borderRight: side === 'left' ? '0.5px solid var(--border)' : 'none',
       }}>
         <div style={gutterStyle}>{lineNo}</div>
@@ -189,11 +192,12 @@ function SideBySideRow({ left, right, lang }) {
           fontWeight: 600, flexShrink: 0, userSelect: 'none',
         }}>{prefix}</div>
         <div style={{
-          flex: 1, paddingRight: 12, whiteSpace: 'pre',
+          // No per-line overflowX — the file card body owns the
+          // horizontal scrollbar, all lines move together.
+          flexShrink: 0, paddingRight: 12, whiteSpace: 'pre',
           color:
             t === 'add' ? 'var(--diff-add-fg)' :
             t === 'del' ? 'var(--diff-del-fg)' : 'var(--diff-context)',
-          overflowX: 'auto', minWidth: 0,
         }}>
           <HighlightedLine text={line.text} lang={lang} />
         </div>
@@ -315,9 +319,14 @@ function DiffFile({ file, mode, collapsed, onToggle }) {
         </div>
       </div>
       {!collapsed && file.hunks.length > 0 && (
-        <div style={{ background: 'var(--bg-pane)' }}>
-          {file.hunks.map((h, i) =>
-            <DiffHunk key={i} hunk={h} lang={file.lang} mode={mode} />)}
+        // One horizontal scrollbar for the whole file. Inner wrapper has
+        // `min-width: max-content` so all rows extend to the widest
+        // line and their backgrounds fill consistently when scrolled.
+        <div style={{ background: 'var(--bg-pane)', overflowX: 'auto' }}>
+          <div style={{ minWidth: 'max-content' }}>
+            {file.hunks.map((h, i) =>
+              <DiffHunk key={i} hunk={h} lang={file.lang} mode={mode} />)}
+          </div>
         </div>
       )}
       {!collapsed && file.hunks.length === 0 && (
