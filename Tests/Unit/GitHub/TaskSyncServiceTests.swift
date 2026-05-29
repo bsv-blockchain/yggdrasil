@@ -255,8 +255,7 @@ final class TaskSyncServiceTests: XCTestCase {
 
     func test_importPR_insertsTaskAndReturnsID() async throws {
         let db = try YggdrasilDatabase.inMemory()
-        let repoID = try insertRepo(db, owner: "o", name: "r")
-        _ = repoID
+        _ = try insertRepo(db, owner: "o", name: "r")
 
         let prJSON = """
         {
@@ -292,6 +291,11 @@ final class TaskSyncServiceTests: XCTestCase {
         }
         XCTAssertEqual(count, 1)
         XCTAssertEqual(savedNumber, 828)
+
+        let statusCount: Int = try await db.queue.read { dbR in
+            try Int.fetchOne(dbR, sql: "SELECT COUNT(*) FROM github_status WHERE task_id = ?", arguments: [taskID]) ?? 0
+        }
+        XCTAssertEqual(statusCount, 1, "importPR should write a github_status row from the GraphQL detail")
     }
 
     func test_linkablePRNumber_matchesHeadBranch() async throws {
