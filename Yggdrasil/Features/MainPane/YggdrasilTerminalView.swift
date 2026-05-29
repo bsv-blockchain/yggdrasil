@@ -60,12 +60,62 @@ enum TerminalKeyInterceptor {
     }
 }
 
-/// `LocalProcessTerminalView` subclass that accepts file drops. When the
-/// user drags one or more files from Finder (or any source that publishes
-/// file URLs) onto the terminal pane, the paths are inserted at the prompt
-/// as a space-separated, shell-quoted list. Matches iTerm2/Warp/Terminal.app.
+/// Tracks whether a user-input event is currently being dispatched.
+/// Used by `DroppableTerminalView` to distinguish a `scrollTo` triggered
+/// by the user (wheel scroll, keypress → ensureCaretIsVisible) from an
+/// auto-snap-to-bottom triggered by the terminal's `scroll()` on output.
+@MainActor
+enum TerminalUserInputTracker {
+    private static var monitor: Any?
+    /// True during the dispatch of one user input event (set inside the
+    /// `addLocalMonitorForEvents` block, cleared on the next runloop tick
+    /// via `DispatchQueue.main.async`). NSEvent monitors fire before the
+    /// responder chain receives the event, so the flag is set BEFORE
+    /// SwiftTerm's view handler runs and stays set throughout — any
+    /// `scrolled` callback during that dispatch sees `true`.
+    private(set) static var dispatching = false
+
+    static func install() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.scrollWheel, .keyDown]
+        ) { event in
+            dispatching = true
+            DispatchQueue.main.async { dispatching = false }
+            return event
+        }
+    }
+}
+
+/// `LocalProcessTerminalView` subclass with two enhancements:
+///
+/// 1. **File drag-and-drop** — paths from Finder are shell-quoted and sent
+///    to the PTY at the prompt. Matches iTerm2/Warp/Terminal.app.
+///
+/// 2. **Don't snap to bottom on output while the user is reading
+///    history.** SwiftTerm's `Terminal.scroll()` snaps the viewport to
+///    `yBase` whenever new output arrives unless its internal
+///    `userScrolling` flag is set — but that flag is only wired for
+///    slider-drag input, not for wheel scrolling. Without a fix,
+///    reading scrollback while Claude writes means the view jumps to
+///    the bottom on every new line.
+///
+///    The override watches the `scrolled` delegate callback. When the
+///    callback fires AND we're scrolled up AND no user input event is
+///    currently being dispatched, the viewport just got auto-snapped by
+///    output — we restore it. User-driven scrolls (wheel, drag, or the
+///    "ensureCaretIsVisible" path that runs on keypress) update the
+///    freeze state directly without ever triggering an undo.
 @MainActor
 final class DroppableTerminalView: LocalProcessTerminalView {
+    /// nil = follow tail; Double in [0, 1) = the position the user pinned
+    /// the viewport at while reading history. Stored as a fractional
+    /// position rather than a row index so it survives scrollback trim.
+    private var userFrozenAtPosition: Double?
+    /// Re-entrance guard: our own `scroll(toPosition:)` triggers `scrolled`
+    /// again.
+    private var inRestore = false
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         registerForDraggedTypes([.fileURL])
@@ -75,6 +125,32 @@ final class DroppableTerminalView: LocalProcessTerminalView {
         super.init(coder: coder)
         registerForDraggedTypes([.fileURL])
     }
+
+    // MARK: - Scroll follow
+
+    override func scrolled(source terminal: Terminal, yDisp: Int) {
+        super.scrolled(source: terminal, yDisp: yDisp)
+        guard !inRestore else { return }
+        let pos = scrollPosition
+
+        if TerminalUserInputTracker.dispatching {
+            // User-driven scroll (wheel, or scroll-to-cursor from a
+            // keystroke). Take the resulting position as their intent.
+            userFrozenAtPosition = pos >= 1.0 ? nil : pos
+            return
+        }
+
+        // No user input currently dispatching — any `scrolled` notification
+        // is system-driven (output advancing yBase + auto-snap). If we
+        // were pinned and the snap landed at the bottom, undo.
+        if let frozen = userFrozenAtPosition, pos >= 1.0 {
+            inRestore = true
+            scroll(toPosition: frozen)
+            inRestore = false
+        }
+    }
+
+    // MARK: - File drag-and-drop
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: nil)
