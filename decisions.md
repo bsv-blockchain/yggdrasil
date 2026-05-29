@@ -4,6 +4,51 @@ Design decisions made during the build that weren't in the spec, with rationale 
 
 ---
 
+## 2026-05-28 — Passkeys in the embedded panel via the managed WKWebView entitlement
+
+**Goal:** *"add passkey support within the embedded browser panel so that github login via passkey works."*
+
+**Decision (final).** Enable passkeys **inside the embedded `WKWebView` panel**
+by adopting the managed entitlement `com.apple.developer.web-browser.public-key-credential`.
+This is the chosen direction. It ships in a **separate** entitlements file,
+`Yggdrasil/Yggdrasil.passkeys.entitlements`, switched on via `CODE_SIGN_ENTITLEMENTS`
+once the capability is approved and provisioned.
+
+**Why.** The panel is a `WKWebView`, and WebKit gates WebAuthn there behind this
+exact entitlement — without it github.com reports *"partial passkey support"* and
+passkey login fails. The entitlement is the only way to get passkeys working
+in-panel; associated-domains (`webcredentials:github.com`) can't help because
+GitHub's AASA file doesn't list our app.
+
+**Why a separate entitlements file (not the default).** Ad-hoc signing
+(`CODE_SIGN_IDENTITY = "-"`, the local-dev default) **fails the build** with the
+entitlement present: *"has entitlements that require signing with a development
+certificate."* Adding it to the default `Yggdrasil.entitlements` would break
+`make build` for anyone without a provisioned identity. It's therefore opt-in:
+the default ad-hoc build is untouched; the passkey build points
+`CODE_SIGN_ENTITLEMENTS` at the passkeys file.
+
+**Project-owner steps** (portal access required — not available to the
+implementer): request the entitlement from Apple, enable it on App ID
+`com.bsvassociation.yggdrasil`, regenerate the provisioning profile, then flip
+`CODE_SIGN_ENTITLEMENTS` to the passkeys file with a real team + profile. Full
+step-by-step in RELEASE.md "Passkeys in the embedded panel (managed entitlement)"
+and in the PR description.
+
+**Trade-offs.** Requires Apple approval (manual, time-unbounded) and moving off
+ad-hoc signing for any build that wants in-panel passkeys.
+
+**Rejected alternative.** An OAuth-App login via `ASWebAuthenticationSession`
+(system sheet; passkeys work there with no entitlement) was prototyped, then
+removed: it logs in *outside* the panel and yields an API token rather than the
+panel's github.com web session, so it doesn't satisfy the in-panel goal. The
+codebase carries only the entitlement path.
+
+**Approval.** User chose the entitlement path and asked that the OAuth workaround
+code/docs be removed.
+
+---
+
 ## 2026-05-26 — Replace SwiftGit2 SwiftPM dep with a local `Clibgit2` system module
 
 **Spec §2 line under review:** *"Git operations | git subprocess for worktrees + status; SwiftGit2/libgit2 for diff computation."*
