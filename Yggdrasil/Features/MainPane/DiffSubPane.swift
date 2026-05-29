@@ -20,6 +20,12 @@ import SwiftUI
 struct DiffSubPane: NSViewRepresentable {
     let services: AppServices
     let tab: YggdrasilTab
+    /// True when this pane belongs to the currently-selected tab. Drives
+    /// the FSEventStream watcher — we only spend a kernel watcher on
+    /// the pane the user is actually looking at (the parent layout
+    /// mounts every tab at opacity 0 for instant switching, so without
+    /// this every diff pane would maintain its own stream).
+    let isActive: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(services: services, tab: tab)
@@ -47,13 +53,19 @@ struct DiffSubPane: NSViewRepresentable {
         return host
     }
 
-    func updateNSView(_: NSView, context _: Context) {}
+    func updateNSView(_: NSView, context: Context) {
+        // Propagate active-state into the coordinator on every layout
+        // pass so the watcher starts when the user selects this tab and
+        // stops when they switch away.
+        context.coordinator.setActive(isActive)
+    }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         let services: AppServices
         let tab: YggdrasilTab
         weak var webView: WKWebView?
         private var scope: DiffScope
+        private var watcher: WorktreeWatcher?
 
         init(services: AppServices, tab: YggdrasilTab) {
             self.services = services
@@ -61,8 +73,38 @@ struct DiffSubPane: NSViewRepresentable {
             self.scope = Self.loadScope(for: tab)
         }
 
+        deinit {
+            watcher?.stop()
+        }
+
         func webView(_ webView: WKWebView, didFinish _: WKNavigation) {
             Task { await self.applyThemeAndRender() }
+        }
+
+        /// Called from `updateNSView` with the current selection state.
+        /// When the user switches to this tab we register an
+        /// FSEventStream on the worktree so saves / git operations
+        /// re-render the diff automatically. When they switch away the
+        /// stream is invalidated so the kernel isn't watching 20
+        /// directories for 20 background tabs.
+        @MainActor
+        func setActive(_ active: Bool) {
+            if active {
+                if watcher == nil {
+                    let w = WorktreeWatcher(path: tab.worktreePath) { [weak self] in
+                        guard let self else { return }
+                        Task { await self.applyThemeAndRender() }
+                    }
+                    w.start()
+                    watcher = w
+                    // Also re-render now in case files changed while we
+                    // weren't watching.
+                    Task { await self.applyThemeAndRender() }
+                }
+            } else if let w = watcher {
+                w.stop()
+                watcher = nil
+            }
         }
 
         /// JS → Swift channel. JSON payload: { "type": "scope",

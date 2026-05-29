@@ -83,7 +83,15 @@ struct MainPaneView: View {
         switch segment {
         case .agent: agentSurface
         case .github: GitHubSubPane(services: services, tab: selectedTab)
-        case .diff: DiffSubPane(services: services, tab: selectedTab)
+        case .diff:
+            DiffSubPane(
+                services: services,
+                tab: selectedTab,
+                // Only the foregrounded tab's diff pane runs an
+                // FSEventStream. Background tabs' panes are mounted but
+                // dormant — no watcher, no work.
+                isActive: services.tabs.selectedID == selectedTab.id
+            )
         }
     }
 
