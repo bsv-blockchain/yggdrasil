@@ -90,16 +90,11 @@ actor TaskSyncService {
     /// PR the user just opened may not be in any synced list yet, so we fetch
     /// it on demand rather than waiting for the next fullSync.
     ///
-    /// Known limitation: a PR the user didn't author and isn't
-    /// assigned/review-requested on is NOT a member of any synced list, so
-    /// `deleteStaleTasks` prunes it and `tab.task_id` reverts to NULL
-    /// (ON DELETE SET NULL). Because the Link PR action calls
-    /// `triggerSyncNow()` right after linking, that prune happens almost
-    /// immediately (~1–3s), not on the next 60s tick — such a link
-    /// effectively won't stick. The common case (your own PR) appears in
-    /// `author:@me` and survives indefinitely. To make non-authored links
-    /// stick, the follow-up is to have `deleteStaleTasks` skip tasks
-    /// referenced by a live `tab.task_id`.
+    /// A linked PR survives sync even when it isn't in any synced list
+    /// (e.g. one the user didn't author and isn't assigned/review-requested
+    /// on): `deleteStaleTasks` skips any task referenced by a live
+    /// `tab.task_id`. The link persists for as long as the tab exists; once
+    /// the tab is removed the task becomes prunable again on the next sync.
     func importPR(owner: String, name: String, number: Int) async throws -> Int64 {
         let repoID = try await database.queue.read { db -> Int64 in
             guard let id = try Int64.fetchOne(
@@ -318,6 +313,14 @@ enum TaskSyncWrites {
     }
 
     static func deleteStaleTasks(db: Database, repos: [Repo], fetched: [RawTask]) throws {
+        // Task ids referenced by a live tab are never pruned, even when they
+        // drop out of (or never appeared in) the synced lists. This is what
+        // lets a manually-linked PR — including one the user didn't author
+        // and isn't assigned/review-requested on — survive the sync that
+        // `importPR` triggers. See `importPR`.
+        let linkedTaskIDs = try Int64.fetchSet(
+            db, sql: "SELECT task_id FROM tab WHERE task_id IS NOT NULL"
+        )
         var keptByRepoID: [Int64: Set<String>] = [:]
         for raw in fetched {
             guard let repoRow = repos.first(where: {
@@ -332,6 +335,7 @@ enum TaskSyncWrites {
                 db, sql: "SELECT * FROM task WHERE repo_id = ?", arguments: [repoID]
             )
             for existing in allForRepo where !kept.contains("\(existing.type.rawValue)#\(existing.number)") {
+                if let id = existing.id, linkedTaskIDs.contains(id) { continue }
                 try existing.delete(db)
             }
         }
