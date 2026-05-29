@@ -99,7 +99,7 @@ struct RESTClient {
     func pullRequest(owner: String, name: String, number: Int) async throws -> RawTask {
         let url = Endpoints.pullRequest(owner: owner, repo: name, number: number)
         let result = try await http.get(url: url, accept: "application/vnd.github+json")
-        guard let body = result.body else {
+        guard result.status == 200, let body = result.body else {
             throw GitHubError.requestFailed(.badServerResponse)
         }
         let dto: RESTPRDTO

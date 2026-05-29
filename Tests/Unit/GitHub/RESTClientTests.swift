@@ -161,7 +161,7 @@ final class RESTClientTests: XCTestCase {
         XCTAssertEqual(url.path, "/repos/bsv-blockchain/teranode/pulls")
     }
 
-    func test_pullRequest_decodesHeadRef() async throws {
+    func testPullRequestDecodesHeadRef() async throws {
         let json = """
         {
           "url": "https://api.github.com/repos/o/r/pulls/828",
