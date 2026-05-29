@@ -11,12 +11,17 @@ struct MainPaneView: View {
     let selectedTab: YggdrasilTab
 
     @State private var layout: PaneLayout
+    /// 0.0 .. 1.0 — fraction of the available width given to the primary
+    /// pane in a `.split` layout. Persisted per-tab so each session
+    /// remembers its own divider position.
+    @State private var dividerFraction: Double
     @Environment(\.colorScheme) private var scheme
 
     init(services: AppServices, selectedTab: YggdrasilTab) {
         self.services = services
         self.selectedTab = selectedTab
         _layout = State(initialValue: PaneLayout.load(for: selectedTab))
+        _dividerFraction = State(initialValue: PaneLayout.loadDivider(for: selectedTab))
     }
 
     var body: some View {
@@ -34,6 +39,9 @@ struct MainPaneView: View {
             newValue.persist(for: selectedTab)
             persistPrimary(newValue.primarySegment)
         }
+        .onChange(of: dividerFraction) { _, newValue in
+            PaneLayout.persistDivider(newValue, for: selectedTab)
+        }
     }
 
     // MARK: - Layout
@@ -43,8 +51,9 @@ struct MainPaneView: View {
         primary: PaneSegment, secondary: PaneSegment?
     ) -> some View {
         if let secondary {
-            HSplitView {
+            DraggableHSplit(fraction: $dividerFraction) {
                 pane(primary)
+            } secondary: {
                 pane(secondary)
             }
         } else {
@@ -172,7 +181,10 @@ enum PaneSegment: Hashable {
     }
 }
 
-/// One of six layouts: 3 solo + 3 split. Persisted per-app in `setting.layout`.
+/// One of six layouts: 3 solo + 3 split. Persisted per-tab in UserDefaults
+/// under `yggdrasil.paneLayout.<tabID>`, with a fallback to the global
+/// `yggdrasil.paneLayout` key (used as the seed when a tab is first
+/// opened, so the user's overall preference still wins on first show).
 enum PaneLayout: Hashable {
     case solo(PaneSegment)
     case split(PaneSegment, PaneSegment)
@@ -209,18 +221,58 @@ enum PaneLayout: Hashable {
         }
     }
 
-    /// Default per the design's `YGGDRASIL_DEFAULTS` ("terminal+diff"), with the
-    /// per-tab `last_main_view` as a fallback when no global override is set.
+    private static let globalKey = "yggdrasil.paneLayout"
+    private static func perTabKey(_ tab: YggdrasilTab) -> String {
+        "yggdrasil.paneLayout.\(tab.id.map(String.init) ?? "unknown")"
+    }
+    private static let globalDividerKey = "yggdrasil.paneDivider"
+    private static func perTabDividerKey(_ tab: YggdrasilTab) -> String {
+        "yggdrasil.paneDivider.\(tab.id.map(String.init) ?? "unknown")"
+    }
+    static let defaultDividerFraction: Double = 0.5
+
+    /// Layout for `tab`: prefers a saved per-tab choice, falls back to the
+    /// last globally-used layout, finally the agent+diff default.
     static func load(for tab: YggdrasilTab) -> PaneLayout {
-        if let raw = UserDefaults.standard.string(forKey: "yggdrasil.paneLayout"),
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: perTabKey(tab)),
+           let parsed = PaneLayout(rawValue: raw) {
+            return parsed
+        }
+        if let raw = defaults.string(forKey: globalKey),
            let parsed = PaneLayout(rawValue: raw) {
             return parsed
         }
         return .split(.agent, .diff)
     }
 
+    /// Persist `self` as the layout for `tab`. Also writes the same value
+    /// to the global key so a freshly-opened tab inherits the user's most
+    /// recent layout choice.
     func persist(for tab: YggdrasilTab) {
-        UserDefaults.standard.set(rawValue, forKey: "yggdrasil.paneLayout")
+        let defaults = UserDefaults.standard
+        defaults.set(rawValue, forKey: Self.perTabKey(tab))
+        defaults.set(rawValue, forKey: Self.globalKey)
+    }
+
+    /// Per-tab divider fraction (primary pane width / total width) for
+    /// split layouts. 0.5 default seeds a 50/50 split when nothing is
+    /// saved.
+    static func loadDivider(for tab: YggdrasilTab) -> Double {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: perTabDividerKey(tab)) != nil {
+            return defaults.double(forKey: perTabDividerKey(tab))
+        }
+        if defaults.object(forKey: globalDividerKey) != nil {
+            return defaults.double(forKey: globalDividerKey)
+        }
+        return defaultDividerFraction
+    }
+
+    static func persistDivider(_ fraction: Double, for tab: YggdrasilTab) {
+        let defaults = UserDefaults.standard
+        defaults.set(fraction, forKey: perTabDividerKey(tab))
+        defaults.set(fraction, forKey: globalDividerKey)
     }
 
     func with(primary: PaneSegment) -> PaneLayout {
@@ -243,6 +295,72 @@ enum PaneLayout: Hashable {
     var isSplit: Bool {
         if case .split = self { return true }
         return false
+    }
+}
+
+// MARK: - DraggableHSplit
+
+/// Two-pane horizontal splitter that exposes its divider position as a
+/// `@Binding<Double>` so callers can persist it (per-tab, in our case).
+///
+/// SwiftUI's `HSplitView` doesn't expose its divider state — width is
+/// negotiated entirely by the OS NSSplitView under the hood, and nothing
+/// reaches Swift code. This view replaces it with a deterministic
+/// fraction-of-width split + a drag handle on the divider.
+///
+/// Minimum widths: each pane is held at a floor of 200pt so the user
+/// can't drag a pane closed accidentally. Clamping is also applied on
+/// load so a previously-persisted out-of-range fraction lands inside
+/// `[minPaneWidth/total, 1 - minPaneWidth/total]`.
+struct DraggableHSplit<Primary: View, Secondary: View>: View {
+    @Binding var fraction: Double
+    let primary: () -> Primary
+    let secondary: () -> Secondary
+
+    private let minPaneWidth: CGFloat = 200
+    private let dividerWidth: CGFloat = 1
+    /// Wider invisible hit zone around the 1pt divider so the drag
+    /// handle is comfortably grabbable.
+    private let dividerHitZone: CGFloat = 8
+
+    var body: some View {
+        GeometryReader { geom in
+            let total = geom.size.width
+            let minFraction = total > 0 ? minPaneWidth / total : 0
+            let maxFraction = 1 - minFraction
+            let clamped = max(minFraction, min(maxFraction, fraction))
+            let primaryWidth = (total - dividerWidth) * clamped
+            HStack(spacing: 0) {
+                primary()
+                    .frame(width: primaryWidth)
+                Rectangle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: dividerWidth)
+                    .overlay(
+                        Color.clear
+                            .frame(width: dividerHitZone)
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture(coordinateSpace: .global)
+                                    .onChanged { value in
+                                        guard total > 0 else { return }
+                                        let newWidth = primaryWidth + value.translation.width
+                                        let newFraction = newWidth / (total - dividerWidth)
+                                        fraction = max(minFraction, min(maxFraction, newFraction))
+                                    }
+                            )
+                    )
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.resizeLeftRight.push()
+                        } else {
+                            NSCursor.pop()
+                        }
+                    }
+                secondary()
+                    .frame(maxWidth: .infinity)
+            }
+        }
     }
 }
 
