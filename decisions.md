@@ -4,62 +4,49 @@ Design decisions made during the build that weren't in the spec, with rationale 
 
 ---
 
-## 2026-05-28 — GitHub passkey login via ASWebAuthenticationSession (not WKWebView)
+## 2026-05-28 — Passkeys in the embedded panel via the managed WKWebView entitlement
 
-**Goal under review:** *"add passkey support within the embedded browser panel so that github login via passkey works."*
+**Goal:** *"add passkey support within the embedded browser panel so that github login via passkey works."*
 
-**Problem.** Passkeys (WebAuthn) inside the embedded `WKWebView` do **not** work for a relying party we don't own (github.com). WebKit gates WebAuthn in `WKWebView` behind the restricted entitlement `com.apple.developer.web-browser.public-key-credential`; without it GitHub's passkey prompt fails with `ASAuthorizationError 1004`. Associated-domains (`webcredentials:github.com`) can't help — GitHub's AASA file doesn't list our app, so it never validates. The entitlement is a managed capability requiring an Apple-portal request + approval + a provisioning profile, and is incompatible with ad-hoc local signing.
+**Decision (final).** Enable passkeys **inside the embedded `WKWebView` panel**
+by adopting the managed entitlement `com.apple.developer.web-browser.public-key-credential`.
+This is the chosen direction. It ships in a **separate** entitlements file,
+`Yggdrasil/Yggdrasil.passkeys.entitlements`, switched on via `CODE_SIGN_ENTITLEMENTS`
+once the capability is approved and provisioned.
 
-**Decision.** Don't pursue the restricted entitlement. Implement GitHub login as an OAuth-App authorization-code flow driven by `ASWebAuthenticationSession`. The system presents a Safari-backed sheet where **passkeys work natively with no special entitlement**; the sheet redirects to `yggdrasil://oauth-callback`, we exchange the code for an access token, and store it. `AuthService` prefers this OAuth token over `gh auth token`.
+**Why.** The panel is a `WKWebView`, and WebKit gates WebAuthn there behind this
+exact entitlement — without it github.com reports *"partial passkey support"* and
+passkey login fails. The entitlement is the only way to get passkeys working
+in-panel; associated-domains (`webcredentials:github.com`) can't help because
+GitHub's AASA file doesn't list our app.
 
-**Rationale.**
-- Achieves passkey login today, no Apple approval / paid-capability dependency.
-- Reuses the existing `AuthService` token abstraction; gh CLI remains the fallback.
-- Login UX is a standard system sheet rather than in-panel, accepted by the user when choosing this path.
+**Why a separate entitlements file (not the default).** Ad-hoc signing
+(`CODE_SIGN_IDENTITY = "-"`, the local-dev default) **fails the build** with the
+entitlement present: *"has entitlements that require signing with a development
+certificate."* Adding it to the default `Yggdrasil.entitlements` would break
+`make build` for anyone without a provisioned identity. It's therefore opt-in:
+the default ad-hoc build is untouched; the passkey build points
+`CODE_SIGN_ENTITLEMENTS` at the passkeys file.
 
-**Trade-offs.**
-- Login happens in a system sheet, not inside the embedded panel. The panel's own github.com session (cookies) is unaffected; this flow yields an API token, not a webview cookie session.
-- GitHub OAuth Apps don't support PKCE, so the token exchange needs the client secret. For a distributed desktop client the secret isn't truly confidential — an accepted property of the OAuth-App flow for native apps. Credentials come from env vars (dev) or Info.plist (release); see RELEASE.md.
-- OAuth token is stored in the GRDB `setting` table (plaintext), consistent with the existing no-Keychain posture for ad-hoc builds (the gh token already lives plaintext in `hosts.yml`).
+**Project-owner steps** (portal access required — not available to the
+implementer): request the entitlement from Apple, enable it on App ID
+`com.bsvassociation.yggdrasil`, regenerate the provisioning profile, then flip
+`CODE_SIGN_ENTITLEMENTS` to the passkeys file with a real team + profile. Full
+step-by-step in RELEASE.md "Passkeys in the embedded panel (managed entitlement)"
+and in the PR description.
 
-**Approval.** User chose "ASWebAuthenticationSession OAuth" and "won't request the entitlement, just use the system panel" when asked.
+**Trade-offs.** Requires Apple approval (manual, time-unbounded) and moving off
+ad-hoc signing for any build that wants in-panel passkeys.
 
-**Superseded 2026-05-28 (see next entry).** Testing showed the embedded panel
-still reports *"partial passkey support"* (expected — WKWebView WebAuthn is
-gated). User reversed course and chose to also pursue the managed entitlement
-for true in-panel passkeys. Both paths now coexist.
+**Approval.** User chose the entitlement path.
 
----
-
-## 2026-05-28 — Add the managed WKWebView passkey entitlement (in-panel path)
-
-**Reverses the "won't request the entitlement" part of the decision above.**
-
-**Decision.** Add `com.apple.developer.web-browser.public-key-credential` to a
-**separate** entitlements file, `Yggdrasil/Yggdrasil.passkeys.entitlements`,
-rather than the default `Yggdrasil.entitlements`. The default ad-hoc dev build
-is unchanged; the passkey build is opt-in via `CODE_SIGN_ENTITLEMENTS`.
-
-**Why separate file.** Ad-hoc signing (`CODE_SIGN_IDENTITY = "-"`, the local-dev
-default) **fails the build** with the restricted entitlement present:
-*"has entitlements that require signing with a development certificate."* Putting
-it in the base file would break `make build` for everyone without a provisioned
-signing identity. The capability is also inert at runtime unless signed with an
-Apple-approved provisioning profile, so committing it to the default build buys
-nothing and costs a broken build.
-
-**What's left for the project owner** (no portal access here): request the
-entitlement from Apple, enable it on App ID `com.bsvassociation.yggdrasil`,
-regenerate the provisioning profile, then flip `CODE_SIGN_ENTITLEMENTS` to the
-passkeys file with a real team + profile. Full step-by-step in RELEASE.md
-"Passkeys in the embedded panel (managed entitlement)".
-
-**Trade-offs.** Requires Apple approval (manual, time-unbounded) and a move off
-ad-hoc signing for any build that wants in-panel passkeys. The OAuth/system-sheet
-path remains available with no entitlement for anyone who doesn't pursue this.
-
-**Approval.** User chose "Pivot to entitlement path" and asked that the owner-facing
-steps be laid out in the PR (they lack Apple portal access).
+> **Also in the codebase, secondary — not the chosen direction.** An earlier
+> exploration added an OAuth-App login via `ASWebAuthenticationSession` (system
+> sheet; passkeys work there with no entitlement) behind the Account preferences
+> pane. It's a *bonus* path that yields an API token (not an in-panel cookie
+> session) and needs no Apple approval. It's kept because it's harmless and
+> useful, but the entitlement path above is the decision for the stated goal.
+> Don't treat the two as competing.
 
 ---
 
