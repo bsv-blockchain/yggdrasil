@@ -21,6 +21,10 @@ struct AgentTerminalSurface: NSViewRepresentable {
     let args: [String]
     let sessionStore: SessionStateStore
     let sessions: SessionsModel?
+    /// True when this surface belongs to the currently-selected tab.
+    /// Drives auto-focus of the terminal on activation so a tab switch
+    /// goes straight from sidebar click → typing into the agent.
+    let isActive: Bool
 
     init(
         tabID: Int64,
@@ -28,7 +32,8 @@ struct AgentTerminalSurface: NSViewRepresentable {
         command: String,
         args: [String],
         sessionStore: SessionStateStore,
-        sessions: SessionsModel? = nil
+        sessions: SessionsModel? = nil,
+        isActive: Bool = false
     ) {
         self.tabID = tabID
         self.cwd = cwd
@@ -36,6 +41,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
         self.args = args
         self.sessionStore = sessionStore
         self.sessions = sessions
+        self.isActive = isActive
     }
 
     func makeCoordinator() -> Coordinator {
@@ -112,8 +118,14 @@ struct AgentTerminalSurface: NSViewRepresentable {
         }
     }()
 
-    func updateNSView(_: LocalProcessTerminalView, context _: Context) {
-        // Static for now — Phase 4+ will plumb resize/font changes here.
+    func updateNSView(_ view: LocalProcessTerminalView, context: Context) {
+        // Propagate selected/active state so a tab switch grabs keyboard
+        // focus for the newly-foregrounded terminal. The coordinator
+        // tracks the previous value and only fires `makeFirstResponder`
+        // on a false→true transition, so background tabs don't yank
+        // focus while the user is editing the sidebar search field or
+        // similar.
+        context.coordinator.setActive(isActive, on: view)
     }
 
     static func dismantleNSView(_: LocalProcessTerminalView, coordinator: Coordinator) {
@@ -135,6 +147,9 @@ struct AgentTerminalSurface: NSViewRepresentable {
         private var lastExitCode: Int32?
         private var didStart = false
         private var pid: pid_t = 0
+        /// Tracked across `setActive` calls so we only steal keyboard
+        /// focus on a false→true transition. Nil before the first call.
+        private var lastActive: Bool?
 
         init(
             tabID: Int64, cwd: String, command: String, args: [String],
@@ -147,6 +162,23 @@ struct AgentTerminalSurface: NSViewRepresentable {
             self.sessionStore = sessionStore
             self.sessions = sessions
             super.init()
+        }
+
+        /// Called from `updateNSView` on every layout pass with the
+        /// owning tab's selected-state. On a false→true transition (and
+        /// on the very first activation) we make the terminal view the
+        /// window's first responder so the user can type immediately.
+        @MainActor
+        func setActive(_ active: Bool, on view: LocalProcessTerminalView) {
+            defer { lastActive = active }
+            guard active, lastActive != true else { return }
+            // Defer one runloop tick so SwiftUI/AppKit has finished any
+            // pending layout — without this the makeFirstResponder call
+            // can land on a view whose window is still nil.
+            DispatchQueue.main.async { [weak view] in
+                guard let view, let window = view.window else { return }
+                window.makeFirstResponder(view)
+            }
         }
 
         func attach(view: LocalProcessTerminalView) {

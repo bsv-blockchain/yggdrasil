@@ -106,7 +106,11 @@ struct MainPaneView: View {
                 command: session.command,
                 args: session.args,
                 sessionStore: services.sessionStore,
-                sessions: services.sessions
+                sessions: services.sessions,
+                // Auto-focus the terminal when this tab becomes the
+                // selected one. Background tabs (opacity 0) don't grab
+                // keyboard focus.
+                isActive: services.tabs.selectedID == selectedTab.id
             )
         } else {
             ZStack {
