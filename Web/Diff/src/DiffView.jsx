@@ -357,21 +357,7 @@ export function DiffView({ files, mode, setMode, scopeOptions, onScopeChange }) 
     if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }, []);
 
-  if (files.length === 0) {
-    return (
-      <div style={{ display: 'flex', height: '100%', flexDirection: 'column',
-                    background: 'var(--bg-pane)' }}>
-        <Toolbar mode={mode} setMode={setMode}
-                 scopeOptions={scopeOptions} onScopeChange={onScopeChange} />
-        <div style={{
-          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: 'var(--text-mute)', fontSize: 13,
-        }}>
-          No diff yet.
-        </div>
-      </div>
-    );
-  }
+  const isEmpty = files.length === 0;
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden',
@@ -399,7 +385,16 @@ export function DiffView({ files, mode, setMode, scopeOptions, onScopeChange }) 
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
-          <FileTreeNode node={tree} selectedPath={selectedPath} onSelect={onPickFile} />
+          {isEmpty ? (
+            <div style={{
+              padding: '14px 14px', color: 'var(--text-faint)', fontSize: 11.5,
+              fontFamily: 'var(--font-sans)',
+            }}>
+              No changes.
+            </div>
+          ) : (
+            <FileTreeNode node={tree} selectedPath={selectedPath} onSelect={onPickFile} />
+          )}
         </div>
       </aside>
 
@@ -407,7 +402,14 @@ export function DiffView({ files, mode, setMode, scopeOptions, onScopeChange }) 
         <Toolbar mode={mode} setMode={setMode}
                  scopeOptions={scopeOptions} onScopeChange={onScopeChange} />
         <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
-          {files.map(file => (
+          {isEmpty ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              height: '100%', color: 'var(--text-mute)', fontSize: 13,
+            }}>
+              No diff yet.
+            </div>
+          ) : files.map(file => (
             <div key={file.path}
                  ref={el => { fileRefs.current[file.path] = el; }}>
               <DiffFile
