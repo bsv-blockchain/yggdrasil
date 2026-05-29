@@ -109,6 +109,33 @@ enum TaskSyncWrites {
         }
     }
 
+    /// Upsert a single task row (+ github_status when a PRDetail is given)
+    /// and return its id. Reuses the same `upsertTask` write path as the
+    /// full sync so a linked PR is indistinguishable from a synced one.
+    static func upsertSingleTask(
+        db: Database,
+        raw: RawTask,
+        repoID: Int64,
+        detail: PRDetail?,
+        now: Date
+    ) throws -> Int64 {
+        var prDetails: [String: PRDetail] = [:]
+        if let detail {
+            prDetails[TaskSyncService.compositeKey(
+                owner: raw.repoOwner, name: raw.repoName, number: raw.number
+            )] = detail
+        }
+        try upsertTask(db: db, raw: raw, repoID: repoID, now: now, prDetails: prDetails)
+        guard let id = try Int64.fetchOne(
+            db,
+            sql: "SELECT id FROM task WHERE repo_id = ? AND type = ? AND number = ?",
+            arguments: [repoID, raw.type.rawValue, raw.number]
+        ) else {
+            throw GitHubError.decodingFailed("upsertSingleTask: task row not found after upsert")
+        }
+        return id
+    }
+
     private static func upsertTask(
         db: Database,
         raw: RawTask,
