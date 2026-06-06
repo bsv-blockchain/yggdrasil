@@ -19,6 +19,7 @@ struct OpenSession: Identifiable, Hashable {
 final class SessionsModel {
     var sessions: [OpenSession] = []
     var selectedID: Int64?
+    var exitedTabs: [Int64: Int32] = [:]
 
     /// `AgentTerminalSurface.Coordinator` registers its PID here so app-quit
     /// can iterate and SIGTERM every live agent. YggdrasilTab id → PID.
@@ -35,6 +36,14 @@ final class SessionsModel {
         if selectedID == id {
             selectedID = sessions.first?.id
         }
+    }
+
+    func markExited(tabID: Int64, exitCode: Int32) {
+        exitedTabs[tabID] = exitCode
+    }
+
+    func clearExited(tabID: Int64) {
+        exitedTabs.removeValue(forKey: tabID)
     }
 
     func registerLivePID(_ pid: pid_t, for tabID: Int64) {
