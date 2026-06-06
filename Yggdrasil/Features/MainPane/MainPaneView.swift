@@ -35,7 +35,10 @@ struct MainPaneView: View {
             }
         }
         .id(selectedTab.id)
-        .onAppear { ensureSessionForSelectedTab() }
+        .onAppear {
+            ensureSessionForSelectedTab()
+            autoResumeIfExited()
+        }
         .onChange(of: layout) { _, newValue in
             newValue.persist(for: selectedTab)
             persistPrimary(newValue.primarySegment)
@@ -127,6 +130,13 @@ struct MainPaneView: View {
                 }
             }
         }
+    }
+
+    private func autoResumeIfExited() {
+        guard let tabID = selectedTab.id,
+              services.sessions.exitedTabs[tabID] != nil
+        else { return }
+        SidebarActions.restartAgent(tabID: tabID, services: services)
     }
 
     // MARK: - Auto-spawn on selection (preserved from Phase 5)
