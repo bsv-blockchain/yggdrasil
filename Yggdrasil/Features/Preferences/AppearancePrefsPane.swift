@@ -36,10 +36,24 @@ struct AppearancePrefsPane: View {
         }
     }
 
+    enum TerminalTheme: String, CaseIterable, Identifiable {
+        case auto, light, dark
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .auto: "Match system"
+            case .light: "Light"
+            case .dark: "Dark"
+            }
+        }
+    }
+
     static let settingKey = "appearance"
     static let groupByRepoKey = "sidebar.groupByRepo"
+    static let terminalThemeKey = "yggdrasil.terminalTheme"
 
     @State private var selection: Mode = .auto
+    @State private var terminalTheme: TerminalTheme = .auto
     @State private var groupByRepo: Bool = false
 
     var body: some View {
@@ -54,6 +68,16 @@ struct AppearancePrefsPane: View {
             .pickerStyle(.radioGroup)
             .onChange(of: selection) { _, newMode in
                 apply(mode: newMode)
+            }
+
+            Picker("Terminal", selection: $terminalTheme) {
+                ForEach(TerminalTheme.allCases) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            .pickerStyle(.radioGroup)
+            .onChange(of: terminalTheme) { _, newMode in
+                UserDefaults.standard.set(newMode.rawValue, forKey: Self.terminalThemeKey)
             }
 
             Divider()
@@ -73,6 +97,10 @@ struct AppearancePrefsPane: View {
         if let raw = try? store.get(forKey: Self.settingKey),
            let mode = Mode(rawValue: raw) {
             selection = mode
+        }
+        if let raw = UserDefaults.standard.string(forKey: Self.terminalThemeKey),
+           let mode = TerminalTheme(rawValue: raw) {
+            terminalTheme = mode
         }
         groupByRepo = Self.readGroupByRepo(services: services)
     }

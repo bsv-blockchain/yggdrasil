@@ -14,6 +14,7 @@ import SwiftUI
 /// the same `SessionStateStore` and share the `/bin/sh -c 'cd && exec`
 /// invocation pattern (no interactive shell).
 struct AgentTerminalSurface: NSViewRepresentable {
+
     let tabID: Int64
     let cwd: String
     let command: String
@@ -24,6 +25,16 @@ struct AgentTerminalSurface: NSViewRepresentable {
     /// Drives auto-focus of the terminal on activation so a tab switch
     /// goes straight from sidebar click → typing into the agent.
     let isActive: Bool
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("yggdrasil.terminalTheme") private var terminalThemeRaw = "auto"
+
+    private var effectiveScheme: ColorScheme {
+        switch terminalThemeRaw {
+        case "light": .light
+        case "dark": .dark
+        default: colorScheme
+        }
+    }
 
     init(
         tabID: Int64,
@@ -56,74 +67,62 @@ struct AgentTerminalSurface: NSViewRepresentable {
     /// after creation has been observed to leave the cell grid mis-sized,
     /// which is what makes claude render as if the pane were larger than
     /// it actually is.
-    static let cellFont: NSFont = .monospacedSystemFont(ofSize: 13, weight: .regular)
+    static let cellFont: NSFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
 
     func makeNSView(context: Context) -> LocalProcessTerminalView {
         let view = DroppableTerminalView(frame: .zero)
-        AgentTerminalSurface.applyTheme(to: view)
+        AgentTerminalSurface.applyTheme(to: view, scheme: effectiveScheme)
         view.processDelegate = context.coordinator
-        context.coordinator.attach(view: view)
+        context.coordinator.attach(view: view, scheme: effectiveScheme)
         return view
     }
 
-    /// Apply a Terminal.app / Warp-style theme so the embedded PTY matches what
-    /// the user is used to in their normal shell:
-    /// - SF Mono 13pt — same as macOS Terminal.app and modern Warp defaults.
-    ///   Set BEFORE colours so SwiftTerm computes cell metrics from the
-    ///   final font; setting font later still calls `resetFont()` but the
-    ///   cell-grid → frame ratio can be temporarily off if the process is
-    ///   already running.
-    /// - Dark background, off-white foreground, balanced ANSI 16 palette
-    ///   modeled on GitHub's dark theme so syntax-coloured output (claude
-    ///   transcripts, git log, etc.) renders close to Warp.
-    static func applyTheme(to view: LocalProcessTerminalView) {
-        view.font = cellFont
-        view.nativeBackgroundColor = NSColor(red: 13.0 / 255, green: 14.0 / 255, blue: 17.0 / 255, alpha: 1)
-        view.nativeForegroundColor = NSColor(red: 232.0 / 255, green: 234.0 / 255, blue: 239.0 / 255, alpha: 1)
-        view.caretColor = NSColor(red: 70.0 / 255, green: 112.0 / 255, blue: 255.0 / 255, alpha: 1)
-        view.selectedTextBackgroundColor = NSColor(white: 1, alpha: 0.18)
-        view.useBrightColors = true
-        view.installColors(ansiPalette)
+    static func applyTheme(to view: LocalProcessTerminalView, scheme: ColorScheme) {
+        view.font = Self.cellFont
+        applyColors(to: view, scheme: scheme)
     }
 
-    /// ANSI 16-colour palette (8 normal + 8 bright). GitHub Dark-style — works
-    /// well with claude transcripts, git log/diff, and the syntax highlighting
-    /// most agent CLIs emit. SwiftTerm's `Color` wants 16-bit channels
-    /// (0...65535), so each 8-bit hex byte is multiplied by 0x101.
-    private static let ansiPalette: [SwiftTerm.Color] = {
-        let rgb: [UInt32] = [
-            0x0D0E11, // black
-            0xFF7B72, // red
-            0x7EE787, // green
-            0xD29922, // yellow
-            0x58A6FF, // blue
-            0xBC8CFF, // magenta
-            0x39C5CF, // cyan
-            0xB1BAC4, // white
-            0x6E7681, // bright black
-            0xFFA198, // bright red
-            0x56D364, // bright green
-            0xE3B341, // bright yellow
-            0x79C0FF, // bright blue
-            0xD2A8FF, // bright magenta
-            0x56D4DD, // bright cyan
-            0xF0F6FC // bright white
-        ]
-        return rgb.map { hex in
-            let red = UInt16((hex >> 16) & 0xFF) &* 0x101
-            let green = UInt16((hex >> 8) & 0xFF) &* 0x101
-            let blue = UInt16(hex & 0xFF) &* 0x101
+    static func applyColors(to view: LocalProcessTerminalView, scheme: ColorScheme) {
+        if scheme == .dark {
+            view.nativeBackgroundColor = NSColor(red: 13.0 / 255, green: 14.0 / 255, blue: 17.0 / 255, alpha: 1)
+            view.nativeForegroundColor = NSColor(red: 232.0 / 255, green: 234.0 / 255, blue: 239.0 / 255, alpha: 1)
+            view.selectedTextBackgroundColor = NSColor(white: 1, alpha: 0.18)
+            view.installColors(Self.darkPalette)
+        } else {
+            view.nativeBackgroundColor = NSColor(red: 251.0 / 255, green: 248.0 / 255, blue: 242.0 / 255, alpha: 1)
+            view.nativeForegroundColor = NSColor(red: 26.0 / 255, green: 24.0 / 255, blue: 20.0 / 255, alpha: 1)
+            view.selectedTextBackgroundColor = NSColor(white: 0, alpha: 0.12)
+            view.installColors(Self.lightPalette)
+        }
+        view.caretColor = NSColor(red: 70.0 / 255, green: 112.0 / 255, blue: 255.0 / 255, alpha: 1)
+        view.useBrightColors = true
+    }
+
+    private static func palette(from rgb: [UInt32]) -> [SwiftTerm.Color] {
+        rgb.map { hex in
+            let red = UInt16((hex >> 16) & 0xff) &* 0x101
+            let green = UInt16((hex >> 8) & 0xff) &* 0x101
+            let blue = UInt16(hex & 0xff) &* 0x101
             return SwiftTerm.Color(red: red, green: green, blue: blue)
         }
-    }()
+    }
+
+    static let darkPalette: [SwiftTerm.Color] = palette(from: [
+        0x0d0e11, 0xff7b72, 0x7ee787, 0xd29922,
+        0x58a6ff, 0xbc8cff, 0x39c5cf, 0xb1bac4,
+        0x6e7681, 0xffa198, 0x56d364, 0xe3b341,
+        0x79c0ff, 0xd2a8ff, 0x56d4dd, 0xf0f6fc,
+    ])
+
+    static let lightPalette: [SwiftTerm.Color] = palette(from: [
+        0x24292f, 0xcf222e, 0x116329, 0x9a6700,
+        0x0550ae, 0x8250df, 0x1b7c83, 0x6e7781,
+        0x57606a, 0xa40e26, 0x1a7f37, 0xbf8700,
+        0x0969da, 0x6639ba, 0x3192aa, 0x8c959f,
+    ])
 
     func updateNSView(_ view: LocalProcessTerminalView, context: Context) {
-        // Propagate selected/active state so a tab switch grabs keyboard
-        // focus for the newly-foregrounded terminal. The coordinator
-        // tracks the previous value and only fires `makeFirstResponder`
-        // on a false→true transition, so background tabs don't yank
-        // focus while the user is editing the sidebar search field or
-        // similar.
+        context.coordinator.updateSchemeIfNeeded(effectiveScheme, on: view)
         context.coordinator.setActive(isActive, on: view)
     }
 
@@ -149,6 +148,8 @@ struct AgentTerminalSurface: NSViewRepresentable {
         /// Tracked across `setActive` calls so we only steal keyboard
         /// focus on a false→true transition. Nil before the first call.
         private var lastActive: Bool?
+        private var lastScheme: ColorScheme?
+        private var initialScheme: ColorScheme = .dark
 
         init(
             tabID: Int64, cwd: String, command: String, args: [String],
@@ -180,8 +181,16 @@ struct AgentTerminalSurface: NSViewRepresentable {
             }
         }
 
-        func attach(view: LocalProcessTerminalView) {
+        @MainActor
+        func updateSchemeIfNeeded(_ scheme: ColorScheme, on view: LocalProcessTerminalView) {
+            guard scheme != lastScheme else { return }
+            lastScheme = scheme
+            AgentTerminalSurface.applyColors(to: view, scheme: scheme)
+        }
+
+        func attach(view: LocalProcessTerminalView, scheme: ColorScheme) {
             attachedView = view
+            initialScheme = scheme
             startIfNeeded(in: view)
         }
 
@@ -198,8 +207,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
             do {
                 _ = try sessionStore.start(tabID: tabID, cwd: cwd, command: command, args: resolvedArgs)
             } catch {
-                YggdrasilLog.pty
-                    .error("Failed to write session_state.start: \(String(describing: error), privacy: .public)")
+                YggdrasilLog.pty.error("Failed to write session_state.start: \(String(describing: error), privacy: .public)")
             }
             // Spawn through the user's login + interactive shell so .zprofile AND
             // .zshrc both run, picking up PATH edits and `eval $(brew shellenv)`
@@ -211,7 +219,8 @@ struct AgentTerminalSurface: NSViewRepresentable {
             let userShell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
             let quotedCmd = CodingAgentRunner.shellQuote(command)
             let quotedArgs = resolvedArgs.map(CodingAgentRunner.shellQuote).joined(separator: " ")
-            let payload = "exec \(quotedCmd) \(quotedArgs)"
+            let colorfgbg = initialScheme == .light ? "0;15" : "15;0"
+            let payload = "export COLORFGBG='\(colorfgbg)'; exec \(quotedCmd) \(quotedArgs)"
             view.startProcess(
                 executable: userShell,
                 args: ["-l", "-i", "-c", payload],
@@ -221,8 +230,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
             )
             pid = view.process.shellPid
             sessions?.registerLivePID(pid, for: tabID)
-            YggdrasilLog.pty
-                .info("Spawned agent pid=\(self.pid, privacy: .public) command=\(self.command, privacy: .public)")
+            YggdrasilLog.pty.info("Spawned agent pid=\(self.pid, privacy: .public) command=\(self.command, privacy: .public)")
         }
 
         func terminate() {
@@ -258,8 +266,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
             do {
                 try sessionStore.end(tabID: tabID, exitCode: resolved)
             } catch {
-                YggdrasilLog.pty
-                    .error("Failed to write session_state.end: \(String(describing: error), privacy: .public)")
+                YggdrasilLog.pty.error("Failed to write session_state.end: \(String(describing: error), privacy: .public)")
             }
             sessions?.unregisterLivePID(for: tabID)
             YggdrasilLog.pty.info("Agent pid=\(self.pid, privacy: .public) exited code=\(resolved, privacy: .public)")
