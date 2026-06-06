@@ -265,15 +265,70 @@ struct NewTabSheet: View {
 
         guard let repoID = selectedRepoID,
               let agent = agents.first(where: { $0.id == selectedAgentID }),
-              let repo = repos.first(where: { $0.id == repoID })
+              var repo = repos.first(where: { $0.id == repoID })
         else { return }
 
         inProgress = true
         error = nil
         defer { inProgress = false }
 
+        if repo.localMainPath == nil || !RepoPrefsPane.isValidGitRepo(repo.localMainPath ?? "") {
+            let parentDir = Self.inferCloneParent(from: repos)
+            let defaultTarget = (parentDir as NSString).appendingPathComponent(repo.name)
+            let alert = NSAlert()
+            alert.messageText = "\"\(repo.fullName)\" is not cloned locally."
+            alert.informativeText = "Clone it to \(defaultTarget)?"
+            alert.addButton(withTitle: "Clone")
+            alert.addButton(withTitle: "Choose Folder…")
+            alert.addButton(withTitle: "Cancel")
+            let response = alert.runModal()
+            guard response != .alertThirdButtonReturn else { return }
+
+            var cloneTarget = defaultTarget
+            if response == .alertSecondButtonReturn {
+                let panel = NSOpenPanel()
+                panel.canChooseFiles = false
+                panel.canChooseDirectories = true
+                panel.allowsMultipleSelection = false
+                panel.message = "Choose a folder to clone \(repo.fullName) into. A \"\(repo.name)\" subfolder will be created."
+                panel.prompt = "Clone Here"
+                panel.directoryURL = URL(fileURLWithPath: parentDir, isDirectory: true)
+                guard panel.runModal() == .OK, let pickedURL = panel.url else { return }
+                cloneTarget = pickedURL.appendingPathComponent(repo.name).path
+            }
+
+            if RepoPrefsPane.isValidGitRepo(cloneTarget) {
+                try? await services.database.queue.write { db in
+                    try db.execute(
+                        sql: "UPDATE repo SET local_main_path = ? WHERE id = ?",
+                        arguments: [cloneTarget, repo.id ?? 0]
+                    )
+                }
+                repos = (try? await services.database.queue.read { db in try Repo.fetchAll(db) }) ?? repos
+            } else if FileManager.default.fileExists(atPath: cloneTarget) {
+                self.error = "\(cloneTarget) already exists but is not a git repository. Remove it or set the path manually in Settings > Repos."
+                return
+            } else {
+                let gitURL = "https://github.com/\(repo.owner)/\(repo.name).git"
+                do {
+                    try await GitRunner().run(args: ["clone", gitURL, cloneTarget], cwd: nil)
+                    try await services.database.queue.write { db in
+                        try db.execute(
+                            sql: "UPDATE repo SET local_main_path = ? WHERE id = ?",
+                            arguments: [cloneTarget, repo.id ?? 0]
+                        )
+                    }
+                    repos = try await services.database.queue.read { db in try Repo.fetchAll(db) }
+                } catch {
+                    self.error = "Could not clone \(repo.fullName). Check your network connection and try again."
+                    return
+                }
+            }
+        }
+
+        if let updated = repos.first(where: { $0.id == repoID }) { repo = updated }
         guard repo.localMainPath != nil else {
-            error = "Repo \(repo.fullName) has no local clone path on disk; set it in Preferences → Repos."
+            error = "Repo \(repo.fullName) has no local clone path on disk; set it in Settings > Repos."
             return
         }
 
@@ -394,6 +449,16 @@ struct NewTabSheet: View {
             return number
         }
         return nil
+    }
+
+    static func inferCloneParent(from repos: [Repo]) -> String {
+        let parents = repos.compactMap { $0.localMainPath }
+            .map { ($0 as NSString).deletingLastPathComponent }
+        let counts = Dictionary(grouping: parents, by: { $0 }).mapValues(\.count)
+        if let mostCommon = counts.max(by: { $0.value < $1.value })?.key {
+            return mostCommon
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.path
     }
 
     /// Result of interpreting whatever the user typed in the New Session
