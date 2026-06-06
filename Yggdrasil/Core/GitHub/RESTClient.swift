@@ -93,6 +93,14 @@ struct RESTClient {
         return .modified(dtos.map { RawTask(pullRequest: $0, owner: owner, name: name) })
     }
 
+    func defaultBranch(owner: String, name: String) async throws -> String {
+        let url = Endpoints.repoInfo(owner: owner, repo: name)
+        let result = try await http.get(url: url, accept: "application/vnd.github+json")
+        let body = result.body ?? Data()
+        struct RepoDTO: Decodable { let default_branch: String }
+        return try Self.decoder.decode(RepoDTO.self, from: body).default_branch
+    }
+
     /// Reusable decoder configured for GitHub's ISO-8601 date format.
     static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()

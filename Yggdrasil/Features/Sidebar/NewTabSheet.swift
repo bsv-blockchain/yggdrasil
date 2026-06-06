@@ -67,6 +67,9 @@ struct NewTabSheet: View {
         )
         .background(YggdrasilTheme.bgPane(scheme))
         .onAppear(perform: load)
+        .onChange(of: selectedRepoID) { _, _ in
+            baseBranch = selectedRepo?.defaultBranch ?? ""
+        }
         .accessibilityIdentifier("sidebar.newtab.sheet")
     }
 
@@ -196,12 +199,10 @@ struct NewTabSheet: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 7))
 
-                Text(
-                    "The commit the new branch starts from. Defaults to the repo's default branch (\(defaultBranchPlaceholder))."
-                )
-                .font(.system(size: 10))
-                .foregroundStyle(YggdrasilTheme.textMute(scheme))
-                .fixedSize(horizontal: false, vertical: true)
+                Text("The commit the new branch starts from. Default branch: \(defaultBranchPlaceholder) (from GitHub).")
+                    .font(.system(size: 10))
+                    .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -243,9 +244,6 @@ struct NewTabSheet: View {
             agents = try services.agentStore.list()
             selectedRepoID = repos.first?.id
             selectedAgentID = (try? services.agentStore.getDefault()?.id) ?? agents.first?.id
-            // Seed the base-branch field with the picked repo's default
-            // branch so the common case (cut a new branch off main) needs
-            // zero typing.
             baseBranch = selectedRepo?.defaultBranch ?? ""
         } catch {
             self.error = "Failed to load: \(error.localizedDescription)"

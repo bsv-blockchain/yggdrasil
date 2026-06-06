@@ -113,17 +113,20 @@ struct RepoPrefsPane: View {
 
     private func addRepo() {
         guard let (owner, name) = DebugMenu.promptForOwnerAndName() else { return }
-        do {
-            try services.database.queue.write { db in
-                var repo = Repo(
-                    id: nil, owner: owner, name: name,
-                    defaultBranch: "main", localMainPath: nil, addedAt: Date()
-                )
-                try repo.insert(db)
+        Task {
+            let branch = (try? await services.restClient.defaultBranch(owner: owner, name: name)) ?? "main"
+            do {
+                try await services.database.queue.write { db in
+                    var repo = Repo(
+                        id: nil, owner: owner, name: name,
+                        defaultBranch: branch, localMainPath: nil, addedAt: Date()
+                    )
+                    try repo.insert(db)
+                }
+                await MainActor.run { reload() }
+            } catch {
+                NSAlert.show("Add repo failed", message: String(describing: error))
             }
-            reload()
-        } catch {
-            NSAlert.show("Add repo failed", message: String(describing: error))
         }
     }
 

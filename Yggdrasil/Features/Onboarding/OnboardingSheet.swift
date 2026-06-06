@@ -207,19 +207,25 @@ struct OnboardingSheet: View {
             NSAlert.show("Bad repo name", message: "Use owner/name.")
             return
         }
-        do {
-            try services.database.queue.write { db in
-                var repo = Repo(
-                    id: nil, owner: parts[0], name: parts[1],
-                    defaultBranch: "main",
-                    localMainPath: localPath.isEmpty ? nil : localPath,
-                    addedAt: Date()
-                )
-                try repo.insert(db)
+        let owner = parts[0]
+        let name = parts[1]
+        let path = localPath.isEmpty ? nil : localPath
+        Task {
+            let branch = (try? await services.restClient.defaultBranch(owner: owner, name: name)) ?? "main"
+            do {
+                try await services.database.queue.write { db in
+                    var repo = Repo(
+                        id: nil, owner: owner, name: name,
+                        defaultBranch: branch,
+                        localMainPath: path,
+                        addedAt: Date()
+                    )
+                    try repo.insert(db)
+                }
+                await MainActor.run { step = .done }
+            } catch {
+                NSAlert.show("Add repo failed", message: String(describing: error))
             }
-            step = .done
-        } catch {
-            NSAlert.show("Add repo failed", message: String(describing: error))
         }
     }
 
