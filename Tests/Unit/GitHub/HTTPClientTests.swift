@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 /// URLProtocol stub: per-host queues of canned responses. Set responses BEFORE the
 /// request fires; `start()` returns them in FIFO order.

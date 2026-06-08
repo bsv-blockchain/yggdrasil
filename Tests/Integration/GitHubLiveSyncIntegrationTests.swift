@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 /// Hits the real GitHub API. Guarded by YGGDRASIL_TEST_GITHUB_TOKEN — runs only when the
 /// env var is set. CI feeds it from a repo secret; local devs can `export` their own

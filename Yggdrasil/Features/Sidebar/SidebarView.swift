@@ -21,14 +21,18 @@ struct SidebarView: View {
     @State private var groupByRepo: Bool = false
     @Environment(\.colorScheme) private var scheme
 
-    private var tabsModel: TabsModel { services.tabs }
+    private var tabsModel: TabsModel {
+        services.tabs
+    }
 
     enum Filter: String, CaseIterable, Identifiable {
         case all = "All"
         case active = "Active"
         case prs = "PRs"
         case issues = "Issues"
-        var id: String { rawValue }
+        var id: String {
+            rawValue
+        }
     }
 
     private var filteredTabs: [YggdrasilTab] {
@@ -446,6 +450,7 @@ struct SidebarView: View {
         }
     }
 }
+
 // swiftlint:enable type_body_length
 
 /// Yggdrasil mark — the product logo (a tree silhouette). Backed by the

@@ -1,6 +1,6 @@
 import GRDB
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class SettingsStoreTests: XCTestCase {
     private var db: YggdrasilDatabase!

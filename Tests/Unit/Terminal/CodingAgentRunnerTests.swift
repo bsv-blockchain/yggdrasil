@@ -1,8 +1,7 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class CodingAgentRunnerTests: XCTestCase {
-
     private var db: YggdrasilDatabase!
     private var sessionStore: SessionStateStore!
     private var tabID: Int64!

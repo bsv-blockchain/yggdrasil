@@ -164,10 +164,12 @@ struct NewTabSheet: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 7))
 
-                Text("Yggdrasil will create this branch in a new worktree under \(repoMainPath ?? "<repo>")/.worktrees/. Type `pr-N` or `issue-N` to auto-link to an existing GitHub task.")
-                    .font(.system(size: 10))
-                    .foregroundStyle(YggdrasilTheme.textMute(scheme))
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "Yggdrasil will create this branch in a new worktree under \(repoMainPath ?? "<repo>")/.worktrees/. Type `pr-N` or `issue-N` to auto-link to an existing GitHub task."
+                )
+                .font(.system(size: 10))
+                .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -194,10 +196,12 @@ struct NewTabSheet: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 7))
 
-                Text("The commit the new branch starts from. Defaults to the repo's default branch (\(defaultBranchPlaceholder)).")
-                    .font(.system(size: 10))
-                    .foregroundStyle(YggdrasilTheme.textMute(scheme))
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "The commit the new branch starts from. Defaults to the repo's default branch (\(defaultBranchPlaceholder))."
+                )
+                .font(.system(size: 10))
+                .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -206,7 +210,9 @@ struct NewTabSheet: View {
         selectedRepo?.defaultBranch ?? "main"
     }
 
-    private var repoMainPath: String? { selectedRepo?.localMainPath }
+    private var repoMainPath: String? {
+        selectedRepo?.localMainPath
+    }
 
     private var selectedRepo: Repo? {
         repos.first { $0.id == selectedRepoID }
@@ -546,4 +552,5 @@ private struct AgentCard: View {
         )
     }
 }
+
 // swiftlint:enable file_length type_body_length

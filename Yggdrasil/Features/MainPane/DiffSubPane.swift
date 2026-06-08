@@ -77,7 +77,7 @@ struct DiffSubPane: NSViewRepresentable {
             watcher?.stop()
         }
 
-        func webView(_ webView: WKWebView, didFinish _: WKNavigation) {
+        func webView(_: WKWebView, didFinish _: WKNavigation) {
             Task { await self.applyThemeAndRender() }
         }
 
@@ -242,16 +242,16 @@ struct DiffSubPane: NSViewRepresentable {
 
         static func parseScope(_ raw: String) -> DiffScope? {
             switch raw {
-            case "uncommitted": return .uncommitted
-            case "branch": return .branchAndUncommitted
-            default: return nil
+            case "uncommitted": .uncommitted
+            case "branch": .branchAndUncommitted
+            default: nil
             }
         }
 
         static func scopeRaw(_ scope: DiffScope) -> String {
             switch scope {
-            case .uncommitted: return "uncommitted"
-            case .branchAndUncommitted: return "branch"
+            case .uncommitted: "uncommitted"
+            case .branchAndUncommitted: "branch"
             }
         }
     }

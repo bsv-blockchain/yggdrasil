@@ -1,8 +1,7 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class GitStateProbeTests: XCTestCase {
-
     func testParsePorcelainEmptyMeansClean() {
         XCTAssertFalse(GitStateProbe.parseDirty(porcelain: ""))
         XCTAssertFalse(GitStateProbe.parseDirty(porcelain: "\n"))

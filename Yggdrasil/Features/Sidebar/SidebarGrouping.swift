@@ -10,16 +10,16 @@ enum SidebarGrouping {
 
         var title: String {
             switch self {
-            case .repo(let repo): return repo.fullName
-            case .other: return "Other"
+            case let .repo(repo): repo.fullName
+            case .other: "Other"
             }
         }
 
         /// Stable identifier for SwiftUI `ForEach`.
         var id: String {
             switch self {
-            case .repo(let repo): return "repo:\(repo.id.map(String.init) ?? repo.fullName)"
-            case .other: return "other"
+            case let .repo(repo): "repo:\(repo.id.map(String.init) ?? repo.fullName)"
+            case .other: "other"
             }
         }
     }
@@ -27,8 +27,13 @@ enum SidebarGrouping {
     struct Group: Identifiable {
         let key: GroupKey
         let tabs: [YggdrasilTab]
-        var id: String { key.id }
-        var title: String { key.title }
+        var id: String {
+            key.id
+        }
+
+        var title: String {
+            key.title
+        }
     }
 
     /// Partition `tabs` into ordered groups by owning repo. Group order is

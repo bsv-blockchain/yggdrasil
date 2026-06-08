@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class ETagStoreTests: XCTestCase {
     private var db: YggdrasilDatabase!

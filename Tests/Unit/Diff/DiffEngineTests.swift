@@ -1,9 +1,8 @@
 import Foundation
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class DiffEngineTests: XCTestCase {
-
     private var fixture: FixtureGitRepo!
 
     override func setUp() async throws {

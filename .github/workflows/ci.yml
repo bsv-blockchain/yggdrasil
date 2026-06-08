@@ -55,28 +55,19 @@ jobs:
       - name: Generate Xcode project
         run: make project
 
-      - name: SwiftFormat diagnose + capture patch
+      - name: SwiftFormat lint
+        # Pin to a downloaded SwiftFormat release binary. The runner image's
+        # bundled swiftformat drifts (newer versions enable more default rules),
+        # so an unpinned `brew install` makes the check non-deterministic. A
+        # fixed binary + explicit config + fresh cache keeps it reproducible.
         run: |
           SWIFTFORMAT_VERSION=0.60.1
           curl -fsSL -o "$RUNNER_TEMP/swiftformat.zip" \
             "https://github.com/nicklockwood/SwiftFormat/releases/download/${SWIFTFORMAT_VERSION}/swiftformat.zip"
           unzip -oq "$RUNNER_TEMP/swiftformat.zip" -d "$RUNNER_TEMP/swiftformat-bin"
-          SF="$RUNNER_TEMP/swiftformat-bin/swiftformat"
-          echo "===== version ====="; "$SF" --version
-          echo "===== git autocrlf / eol ====="; git config --get core.autocrlf || echo "(unset)"; git config --get core.eol || echo "(unset)"
-          echo "===== sample file CRLF check ====="; file Yggdrasil/UI/YggdrasilTheme.swift; cat -A Yggdrasil/UI/YggdrasilTheme.swift | sed -n '13p'
-          echo "===== format IN PLACE with config ====="
-          "$SF" . --config "$GITHUB_WORKSPACE/.swiftformat" --cache ignore || true
-          echo "===== diff stat ====="; git diff --stat | tail -30
-          git diff > "$RUNNER_TEMP/format.patch" || true
-          echo "patch bytes: $(wc -c < "$RUNNER_TEMP/format.patch")"
-
-      - name: Upload format patch
-        uses: actions/upload-artifact@v4
-        with:
-          name: format-patch
-          path: ${{ runner.temp }}/format.patch
-          if-no-files-found: warn
+          "$RUNNER_TEMP/swiftformat-bin/swiftformat" . --lint \
+            --config "$GITHUB_WORKSPACE/.swiftformat" \
+            --cache "$RUNNER_TEMP/swiftformat.cache"
 
       - name: SwiftLint
         run: make lint

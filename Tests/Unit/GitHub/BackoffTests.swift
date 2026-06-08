@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class BackoffTests: XCTestCase {
     func testFirstAttemptIsOneSecond() {

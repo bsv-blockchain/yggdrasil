@@ -33,11 +33,11 @@ enum AgentIdentity: String, CaseIterable {
     /// — Copilot violet. grok #e8e8e8 — xAI light.
     var color: Color {
         switch self {
-        case .claude: Color(hex: 0xd97757)
-        case .codex: Color(hex: 0x19c37d)
-        case .gemini: Color(hex: 0x4670ff)
-        case .copilot: Color(hex: 0x9d8df1)
-        case .grok: Color(hex: 0xe8e8e8)
+        case .claude: Color(hex: 0xD97757)
+        case .codex: Color(hex: 0x19C37D)
+        case .gemini: Color(hex: 0x4670FF)
+        case .copilot: Color(hex: 0x9D8DF1)
+        case .grok: Color(hex: 0xE8E8E8)
         }
     }
 }
@@ -50,7 +50,6 @@ struct AgentMark: View {
     let agent: AgentIdentity
     let size: CGFloat
 
-    @ViewBuilder
     var body: some View {
         if let asset = Self.assetName(for: agent) {
             Image(asset)
@@ -183,7 +182,7 @@ struct AgentBadge: View {
                     LinearGradient(
                         colors: [
                             agent.color.opacity(0.22),
-                            agent.color.opacity(0.08),
+                            agent.color.opacity(0.08)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -216,7 +215,7 @@ struct AgentBadge: View {
     private func showsPip(for icon: TabStatus.Icon) -> Bool {
         switch icon {
         case .idle, .running, .awaitingInput, .errored, .ciFailing, .dirty, .unread:
-            return true
+            true
         }
     }
 

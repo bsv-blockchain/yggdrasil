@@ -25,7 +25,9 @@ struct OutputRingBuffer {
         OutputRingBuffer(capacity: 4096)
     }
 
-    var count: Int { storage.count }
+    var count: Int {
+        storage.count
+    }
 
     mutating func append(_ data: Data) {
         guard capacity > 0, !data.isEmpty else { return }

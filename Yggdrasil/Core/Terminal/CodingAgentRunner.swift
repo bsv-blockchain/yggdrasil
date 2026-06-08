@@ -14,7 +14,6 @@ import SwiftTerm
 /// - Persist `session_state` rows: a row at start, exit code + ptyEndedAt at end.
 /// - Clean shutdown via `terminate(graceful:)` — SIGTERM, then SIGKILL after 5s.
 final class CodingAgentRunner: NSObject, @unchecked Sendable {
-
     let tabID: Int64
     let cwd: String
     let command: String
@@ -121,12 +120,14 @@ final class CodingAgentRunner: NSObject, @unchecked Sendable {
     // MARK: - Captured output (Phase 6 fallback status detection)
 
     func capturedOutput() -> Data {
-        stateLock.lock(); defer { stateLock.unlock() }
+        stateLock.lock()
+        defer { stateLock.unlock() }
         return ring.contents()
     }
 
     var lastExitCode: Int32? {
-        stateLock.lock(); defer { stateLock.unlock() }
+        stateLock.lock()
+        defer { stateLock.unlock() }
         return exitCode
     }
 
@@ -151,7 +152,9 @@ final class CodingAgentRunner: NSObject, @unchecked Sendable {
         exitWaiters = []
         stateLock.unlock()
 
-        for waiter in waiters { waiter.resume() }
+        for waiter in waiters {
+            waiter.resume()
+        }
         try? sessionStore.end(tabID: tabID, exitCode: resolvedCode)
     }
 

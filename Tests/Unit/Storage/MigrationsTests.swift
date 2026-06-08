@@ -1,6 +1,6 @@
 import GRDB
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class MigrationsTests: XCTestCase {
     func testV1CreatesAllRequiredTables() throws {

@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class AuthServiceTests: XCTestCase {
     /// First call shells out to `gh auth token` and caches the result.

@@ -13,8 +13,10 @@ struct IntervalsPrefsPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Refresh Intervals").font(.title3).bold()
-            Text("How often Yggdrasil polls GitHub + the worktree. Lower = fresher pills, higher = lighter on API quota.")
-                .font(.callout).foregroundStyle(.secondary)
+            Text(
+                "How often Yggdrasil polls GitHub + the worktree. Lower = fresher pills, higher = lighter on API quota."
+            )
+            .font(.callout).foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 14) {
                 intervalRow(

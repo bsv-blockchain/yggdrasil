@@ -142,17 +142,17 @@ struct OnboardingSheet: View {
     private var primaryButton: some View {
         switch step {
         case .welcome:
-            return AnyView(Button("Continue") { step = .ghCheck }
+            AnyView(Button("Continue") { step = .ghCheck }
                 .keyboardShortcut(.defaultAction))
         case .ghCheck:
-            return AnyView(Button("Continue") { step = .firstRepo }
+            AnyView(Button("Continue") { step = .firstRepo }
                 .keyboardShortcut(.defaultAction))
         case .firstRepo:
-            return AnyView(Button("Add Repo & Finish") { addRepoAndFinish() }
+            AnyView(Button("Add Repo & Finish") { addRepoAndFinish() }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canAddRepo))
         case .done:
-            return AnyView(Button("Close") { finish() }
+            AnyView(Button("Close") { finish() }
                 .keyboardShortcut(.defaultAction))
         }
     }

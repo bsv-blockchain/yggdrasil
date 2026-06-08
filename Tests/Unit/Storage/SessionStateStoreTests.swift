@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class SessionStateStoreTests: XCTestCase {
     private var db: YggdrasilDatabase!
@@ -65,7 +65,7 @@ final class SessionStateStoreTests: XCTestCase {
         let after = try XCTUnwrap(try store.get(tabID: tabID))
         XCTAssertEqual(after.lastKnownExitCode, 0)
         XCTAssertNotNil(after.ptyEndedAt)
-        XCTAssertGreaterThan(after.ptyEndedAt!, started.ptyStartedAt)
+        XCTAssertGreaterThan(try XCTUnwrap(after.ptyEndedAt), started.ptyStartedAt)
     }
 
     func testEndOnMissingRowIsNoOp() throws {

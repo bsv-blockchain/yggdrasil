@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 /// Captures the recorded invocation passed into a stub `SubprocessRunner`.
 struct StubRunCall: Equatable {

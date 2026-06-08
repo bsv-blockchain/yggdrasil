@@ -15,7 +15,10 @@ struct AppearancePrefsPane: View {
 
     enum Mode: String, CaseIterable, Identifiable {
         case auto, light, dark
-        var id: String { rawValue }
+        var id: String {
+            rawValue
+        }
+
         var label: String {
             switch self {
             case .auto: "Match system"
@@ -23,6 +26,7 @@ struct AppearancePrefsPane: View {
             case .dark: "Dark"
             }
         }
+
         var appearance: NSAppearance? {
             switch self {
             case .auto: nil

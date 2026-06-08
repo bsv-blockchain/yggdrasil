@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 /// Helper: insert a tracked Repo row and return its id.
 private func insertRepo(_ db: YggdrasilDatabase, owner: String, name: String) throws -> Int64 {

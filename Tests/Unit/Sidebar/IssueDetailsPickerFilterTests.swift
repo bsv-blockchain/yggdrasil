@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 /// Pure-logic tests for IssueDetailsPicker's filter helper. Search +
 /// tracked-only filtering both live in `filter(rows:search:trackedRepoKeys:

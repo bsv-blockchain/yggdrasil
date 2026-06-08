@@ -1,6 +1,6 @@
 import GRDB
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class MigrationV2Tests: XCTestCase {
     func testV2AddsCodingAgentTabAndSessionStateTables() throws {

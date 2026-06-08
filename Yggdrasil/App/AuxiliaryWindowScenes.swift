@@ -1,14 +1,14 @@
 import SwiftUI
 
-/// Auxiliary tool windows for the four user-triggered pickers. These used to
-/// be `.sheet`s, but macOS sheets are pinned to the parent window's titlebar
-/// — the user can't move or resize them. Real `Window` scenes give a free-
-/// floating, resizable, movable window, which is the behaviour the user asked
-/// for ("all popup windows should be resizable and be able to move around").
-///
-/// One `Window` (singleton) per id rather than `WindowGroup` (multi-instance)
-/// because opening "My Issues" twice doesn't make sense — `openWindow(id:)`
-/// brings the existing instance to the front instead of stacking duplicates.
+// Auxiliary tool windows for the four user-triggered pickers. These used to
+// be `.sheet`s, but macOS sheets are pinned to the parent window's titlebar
+// — the user can't move or resize them. Real `Window` scenes give a free-
+// floating, resizable, movable window, which is the behaviour the user asked
+// for ("all popup windows should be resizable and be able to move around").
+//
+// One `Window` (singleton) per id rather than `WindowGroup` (multi-instance)
+// because opening "My Issues" twice doesn't make sense — `openWindow(id:)`
+// brings the existing instance to the front instead of stacking duplicates.
 
 /// Stable window-id strings. Call sites import these to avoid a typo
 /// silently routing `openWindow(id:)` to a non-existent scene.

@@ -52,7 +52,9 @@ struct IssueDetailsPicker: View {
         let updatedAtDisplay: String
         let htmlURL: String
 
-        var repoFull: String { "\(owner)/\(repoName)" }
+        var repoFull: String {
+            "\(owner)/\(repoName)"
+        }
 
         struct LabelChipData: Hashable {
             let name: String
@@ -455,6 +457,7 @@ struct IssueDetailsPicker: View {
         return formatter
     }()
 }
+
 // swiftlint:enable type_body_length
 
 /// Coloured chip for a single GitHub label. Background uses the label's hex
@@ -485,9 +488,9 @@ struct LabelChip: View {
     private var parsedColor: Color {
         var hex: UInt64 = 0
         Scanner(string: data.color).scanHexInt64(&hex)
-        let red = Double((hex >> 16) & 0xff) / 255.0
-        let green = Double((hex >> 8) & 0xff) / 255.0
-        let blue = Double(hex & 0xff) / 255.0
+        let red = Double((hex >> 16) & 0xFF) / 255.0
+        let green = Double((hex >> 8) & 0xFF) / 255.0
+        let blue = Double(hex & 0xFF) / 255.0
         return Color(red: red, green: green, blue: blue)
     }
 

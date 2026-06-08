@@ -162,7 +162,9 @@ private struct EditableField: View {
                 .font(.system(size: 11, design: .monospaced))
         }
         .onAppear {
-            if !loaded { draft = value; loaded = true }
+            if !loaded { draft = value
+                loaded = true
+            }
         }
         .onChange(of: value) { _, newValue in
             draft = newValue

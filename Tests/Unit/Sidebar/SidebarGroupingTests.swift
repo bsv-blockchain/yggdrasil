@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class SidebarGroupingTests: XCTestCase {
     private func makeTab(id: Int64, branch: String) -> YggdrasilTab {

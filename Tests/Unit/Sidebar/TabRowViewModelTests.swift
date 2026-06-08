@@ -1,9 +1,8 @@
 import Foundation
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class TabRowViewModelTests: XCTestCase {
-
     private let now = Date(timeIntervalSince1970: 1_700_000_000)
 
     private func makeTab(

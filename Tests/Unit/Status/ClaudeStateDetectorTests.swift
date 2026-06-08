@@ -1,8 +1,7 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class ClaudeStateDetectorTests: XCTestCase {
-
     private let now = Date(timeIntervalSince1970: 1_700_000_000)
 
     func testNoRecordsReturnsUnknown() {
