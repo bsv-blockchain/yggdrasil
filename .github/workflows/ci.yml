@@ -55,24 +55,28 @@ jobs:
       - name: Generate Xcode project
         run: make project
 
-      - name: SwiftFormat lint
-        # Pin to a known-good SwiftFormat. The GitHub runner image's brew
-        # swiftformat (0.61.x) enables newer default rules (numberFormatting,
-        # docComments, …) the repo isn't formatted for, so `brew install`'s
-        # version would fail on unchanged code. Use a fixed release binary so
-        # CI is deterministic regardless of the runner image's bundled version.
+      - name: SwiftFormat diagnose + capture patch
         run: |
           SWIFTFORMAT_VERSION=0.60.1
           curl -fsSL -o "$RUNNER_TEMP/swiftformat.zip" \
             "https://github.com/nicklockwood/SwiftFormat/releases/download/${SWIFTFORMAT_VERSION}/swiftformat.zip"
           unzip -oq "$RUNNER_TEMP/swiftformat.zip" -d "$RUNNER_TEMP/swiftformat-bin"
-          # Force the repo config explicitly and use a fresh cache file:
-          # without an explicit --config the runner applies default rules to
-          # nested files (firing numberFormatting/docComments/… the repo
-          # doesn't opt into), and a stale shared cache can mis-report files.
-          "$RUNNER_TEMP/swiftformat-bin/swiftformat" . --lint \
-            --config "$GITHUB_WORKSPACE/.swiftformat" \
-            --cache "$RUNNER_TEMP/swiftformat.cache"
+          SF="$RUNNER_TEMP/swiftformat-bin/swiftformat"
+          echo "===== version ====="; "$SF" --version
+          echo "===== git autocrlf / eol ====="; git config --get core.autocrlf || echo "(unset)"; git config --get core.eol || echo "(unset)"
+          echo "===== sample file CRLF check ====="; file Yggdrasil/UI/YggdrasilTheme.swift; cat -A Yggdrasil/UI/YggdrasilTheme.swift | sed -n '13p'
+          echo "===== format IN PLACE with config ====="
+          "$SF" . --config "$GITHUB_WORKSPACE/.swiftformat" --cache ignore || true
+          echo "===== diff stat ====="; git diff --stat | tail -30
+          git diff > "$RUNNER_TEMP/format.patch" || true
+          echo "patch bytes: $(wc -c < "$RUNNER_TEMP/format.patch")"
+
+      - name: Upload format patch
+        uses: actions/upload-artifact@v4
+        with:
+          name: format-patch
+          path: ${{ runner.temp }}/format.patch
+          if-no-files-found: warn
 
       - name: SwiftLint
         run: make lint
