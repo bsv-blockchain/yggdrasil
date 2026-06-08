@@ -66,9 +66,13 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/swiftformat.zip" \
             "https://github.com/nicklockwood/SwiftFormat/releases/download/${SWIFTFORMAT_VERSION}/swiftformat.zip"
           unzip -oq "$RUNNER_TEMP/swiftformat.zip" -d "$RUNNER_TEMP/swiftformat-bin"
-          # Use a fresh cache file (not the shared default) so a stale runner
-          # cache can't report unchanged files as needing formatting.
-          "$RUNNER_TEMP/swiftformat-bin/swiftformat" . --lint --cache "$RUNNER_TEMP/swiftformat.cache"
+          # Force the repo config explicitly and use a fresh cache file:
+          # without an explicit --config the runner applies default rules to
+          # nested files (firing numberFormatting/docComments/… the repo
+          # doesn't opt into), and a stale shared cache can mis-report files.
+          "$RUNNER_TEMP/swiftformat-bin/swiftformat" . --lint \
+            --config "$GITHUB_WORKSPACE/.swiftformat" \
+            --cache "$RUNNER_TEMP/swiftformat.cache"
 
       - name: SwiftLint
         run: make lint
