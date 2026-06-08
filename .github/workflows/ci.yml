@@ -56,7 +56,19 @@ jobs:
         run: make project
 
       - name: SwiftFormat lint
-        run: swiftformat . --lint
+        # Pin to a known-good SwiftFormat. The GitHub runner image's brew
+        # swiftformat (0.61.x) enables newer default rules (numberFormatting,
+        # docComments, …) the repo isn't formatted for, so `brew install`'s
+        # version would fail on unchanged code. Use a fixed release binary so
+        # CI is deterministic regardless of the runner image's bundled version.
+        run: |
+          SWIFTFORMAT_VERSION=0.60.1
+          curl -fsSL -o "$RUNNER_TEMP/swiftformat.zip" \
+            "https://github.com/nicklockwood/SwiftFormat/releases/download/${SWIFTFORMAT_VERSION}/swiftformat.zip"
+          unzip -oq "$RUNNER_TEMP/swiftformat.zip" -d "$RUNNER_TEMP/swiftformat-bin"
+          # Use a fresh cache file (not the shared default) so a stale runner
+          # cache can't report unchanged files as needing formatting.
+          "$RUNNER_TEMP/swiftformat-bin/swiftformat" . --lint --cache "$RUNNER_TEMP/swiftformat.cache"
 
       - name: SwiftLint
         run: make lint
