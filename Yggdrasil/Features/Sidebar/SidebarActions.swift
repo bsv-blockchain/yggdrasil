@@ -41,6 +41,9 @@ enum SidebarActions {
         else { return }
         services.sessions.clearExited(tabID: tabID)
         services.sessions.terminate(tabID: tabID)
+        // Defer the re-add one runloop tick so SwiftUI can dismantle the old
+        // AgentTerminalSurface (and its dead PTY) before the replacement row
+        // mounts a fresh one.
         DispatchQueue.main.async {
             services.sessions.add(OpenSession(
                 id: tabID,
@@ -59,6 +62,9 @@ enum SidebarActions {
         services.sessions.clearExited(tabID: tabID)
         services.sessions.terminate(tabID: tabID)
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        // Defer the re-add one runloop tick so SwiftUI can dismantle the old
+        // AgentTerminalSurface (and its dead PTY) before the replacement row
+        // mounts a fresh one.
         DispatchQueue.main.async {
             services.sessions.add(OpenSession(
                 id: tabID,

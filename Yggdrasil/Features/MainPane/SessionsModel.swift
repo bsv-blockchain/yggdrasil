@@ -26,7 +26,15 @@ final class SessionsModel {
     private var livePIDs: [Int64: pid_t] = [:]
 
     func add(_ session: OpenSession) {
-        sessions.append(session)
+        // Replace-or-append by id: re-adding the same tab (e.g. Resume Session
+        // after an agent exit) swaps the row in place rather than creating a
+        // duplicate, so `restartAgent` doesn't depend on `terminate` having
+        // already removed the old row.
+        if let idx = sessions.firstIndex(where: { $0.id == session.id }) {
+            sessions[idx] = session
+        } else {
+            sessions.append(session)
+        }
         selectedID = session.id
     }
 
