@@ -1,5 +1,6 @@
 import SwiftUI
 
+// swiftlint:disable file_length
 /// Right-hand pane of the main window. Per `Yggdrasil.html` the layout is a
 /// **preset** chosen in Tweaks: Agent+Diff (default), Agent+GitHub, Diff+GitHub,
 /// or any of the three solo. Each visible pane gets its own segmented header
