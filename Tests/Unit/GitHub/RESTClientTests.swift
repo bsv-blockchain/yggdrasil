@@ -176,4 +176,41 @@ final class RESTClientTests: XCTestCase {
             XCTFail("expected .decodingFailed, got \(error)")
         }
     }
+
+    func testDefaultBranchDecodesBody() async throws {
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data("{\"default_branch\":\"master\"}".utf8),
+                       etag: nil, rateLimitRemaining: 4999)
+        ])
+        let client = RESTClient(http: http)
+        let branch = try await client.defaultBranch(owner: "o", name: "r")
+        XCTAssertEqual(branch, "master")
+        XCTAssertEqual(http.calledURLs.first?.path, "/repos/o/r")
+    }
+
+    func testDefaultBranchThrowsOnEmptyBody() async {
+        // 304/empty body must throw so callers fall back to "main".
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: nil, etag: nil, rateLimitRemaining: 4999)
+        ])
+        let client = RESTClient(http: http)
+        do {
+            _ = try await client.defaultBranch(owner: "o", name: "r")
+            XCTFail("expected to throw on empty body")
+        } catch {
+            // expected — caller uses try? and falls back to "main"
+        }
+    }
+
+    func testDefaultBranchThrowsOnFailedRequest() async {
+        // No queued response → CannedHTTPClient throws (offline-style failure).
+        let http = CannedHTTPClient(responses: [])
+        let client = RESTClient(http: http)
+        do {
+            _ = try await client.defaultBranch(owner: "o", name: "r")
+            XCTFail("expected to throw on failed request")
+        } catch {
+            // expected
+        }
+    }
 }
