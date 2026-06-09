@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 /// Covers the session-bookkeeping the terminal exit/resume flow relies on:
 /// exit tracking (`markExited`/`clearExited`) and the replace-or-append
