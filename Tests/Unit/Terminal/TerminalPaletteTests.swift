@@ -1,6 +1,6 @@
 import SwiftTerm
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 /// Verifies the ANSI palette construction for the light/dark terminal themes.
 /// Each palette must hold the full 16-colour set, and the 8-bit→16-bit channel

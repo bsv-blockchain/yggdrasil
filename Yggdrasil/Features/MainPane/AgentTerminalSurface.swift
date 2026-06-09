@@ -14,7 +14,6 @@ import SwiftUI
 /// the same `SessionStateStore` and share the `/bin/sh -c 'cd && exec`
 /// invocation pattern (no interactive shell).
 struct AgentTerminalSurface: NSViewRepresentable {
-
     let tabID: Int64
     let cwd: String
     let command: String
@@ -67,7 +66,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
     /// after creation has been observed to leave the cell grid mis-sized,
     /// which is what makes claude render as if the pane were larger than
     /// it actually is.
-    static let cellFont: NSFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+    static let cellFont: NSFont = .monospacedSystemFont(ofSize: 13, weight: .regular)
 
     func makeNSView(context: Context) -> LocalProcessTerminalView {
         let view = DroppableTerminalView(frame: .zero)
@@ -78,7 +77,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
     }
 
     static func applyTheme(to view: LocalProcessTerminalView, scheme: ColorScheme) {
-        view.font = Self.cellFont
+        view.font = cellFont
         applyColors(to: view, scheme: scheme)
     }
 
@@ -87,12 +86,12 @@ struct AgentTerminalSurface: NSViewRepresentable {
             view.nativeBackgroundColor = NSColor(red: 13.0 / 255, green: 14.0 / 255, blue: 17.0 / 255, alpha: 1)
             view.nativeForegroundColor = NSColor(red: 232.0 / 255, green: 234.0 / 255, blue: 239.0 / 255, alpha: 1)
             view.selectedTextBackgroundColor = NSColor(white: 1, alpha: 0.18)
-            view.installColors(Self.darkPalette)
+            view.installColors(darkPalette)
         } else {
             view.nativeBackgroundColor = NSColor(red: 251.0 / 255, green: 248.0 / 255, blue: 242.0 / 255, alpha: 1)
             view.nativeForegroundColor = NSColor(red: 26.0 / 255, green: 24.0 / 255, blue: 20.0 / 255, alpha: 1)
             view.selectedTextBackgroundColor = NSColor(white: 0, alpha: 0.12)
-            view.installColors(Self.lightPalette)
+            view.installColors(lightPalette)
         }
         view.caretColor = NSColor(red: 70.0 / 255, green: 112.0 / 255, blue: 255.0 / 255, alpha: 1)
         view.useBrightColors = true
@@ -100,25 +99,25 @@ struct AgentTerminalSurface: NSViewRepresentable {
 
     private static func palette(from rgb: [UInt32]) -> [SwiftTerm.Color] {
         rgb.map { hex in
-            let red = UInt16((hex >> 16) & 0xff) &* 0x101
-            let green = UInt16((hex >> 8) & 0xff) &* 0x101
-            let blue = UInt16(hex & 0xff) &* 0x101
+            let red = UInt16((hex >> 16) & 0xFF) &* 0x101
+            let green = UInt16((hex >> 8) & 0xFF) &* 0x101
+            let blue = UInt16(hex & 0xFF) &* 0x101
             return SwiftTerm.Color(red: red, green: green, blue: blue)
         }
     }
 
     static let darkPalette: [SwiftTerm.Color] = palette(from: [
-        0x0d0e11, 0xff7b72, 0x7ee787, 0xd29922,
-        0x58a6ff, 0xbc8cff, 0x39c5cf, 0xb1bac4,
-        0x6e7681, 0xffa198, 0x56d364, 0xe3b341,
-        0x79c0ff, 0xd2a8ff, 0x56d4dd, 0xf0f6fc,
+        0x0D0E11, 0xFF7B72, 0x7EE787, 0xD29922,
+        0x58A6FF, 0xBC8CFF, 0x39C5CF, 0xB1BAC4,
+        0x6E7681, 0xFFA198, 0x56D364, 0xE3B341,
+        0x79C0FF, 0xD2A8FF, 0x56D4DD, 0xF0F6FC
     ])
 
     static let lightPalette: [SwiftTerm.Color] = palette(from: [
-        0x24292f, 0xcf222e, 0x116329, 0x9a6700,
-        0x0550ae, 0x8250df, 0x1b7c83, 0x6e7781,
-        0x57606a, 0xa40e26, 0x1a7f37, 0xbf8700,
-        0x0969da, 0x6639ba, 0x3192aa, 0x8c959f,
+        0x24292F, 0xCF222E, 0x116329, 0x9A6700,
+        0x0550AE, 0x8250DF, 0x1B7C83, 0x6E7781,
+        0x57606A, 0xA40E26, 0x1A7F37, 0xBF8700,
+        0x0969DA, 0x6639BA, 0x3192AA, 0x8C959F
     ])
 
     func updateNSView(_ view: LocalProcessTerminalView, context: Context) {
@@ -207,7 +206,8 @@ struct AgentTerminalSurface: NSViewRepresentable {
             do {
                 _ = try sessionStore.start(tabID: tabID, cwd: cwd, command: command, args: resolvedArgs)
             } catch {
-                YggdrasilLog.pty.error("Failed to write session_state.start: \(String(describing: error), privacy: .public)")
+                YggdrasilLog.pty
+                    .error("Failed to write session_state.start: \(String(describing: error), privacy: .public)")
             }
             // Spawn through the user's login + interactive shell so .zprofile AND
             // .zshrc both run, picking up PATH edits and `eval $(brew shellenv)`
@@ -230,7 +230,8 @@ struct AgentTerminalSurface: NSViewRepresentable {
             )
             pid = view.process.shellPid
             sessions?.registerLivePID(pid, for: tabID)
-            YggdrasilLog.pty.info("Spawned agent pid=\(self.pid, privacy: .public) command=\(self.command, privacy: .public)")
+            YggdrasilLog.pty
+                .info("Spawned agent pid=\(self.pid, privacy: .public) command=\(self.command, privacy: .public)")
         }
 
         func terminate() {
@@ -266,7 +267,8 @@ struct AgentTerminalSurface: NSViewRepresentable {
             do {
                 try sessionStore.end(tabID: tabID, exitCode: resolved)
             } catch {
-                YggdrasilLog.pty.error("Failed to write session_state.end: \(String(describing: error), privacy: .public)")
+                YggdrasilLog.pty
+                    .error("Failed to write session_state.end: \(String(describing: error), privacy: .public)")
             }
             sessions?.unregisterLivePID(for: tabID)
             YggdrasilLog.pty.info("Agent pid=\(self.pid, privacy: .public) exited code=\(resolved, privacy: .public)")

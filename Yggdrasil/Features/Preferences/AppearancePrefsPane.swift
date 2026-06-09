@@ -38,7 +38,10 @@ struct AppearancePrefsPane: View {
 
     enum TerminalTheme: String, CaseIterable, Identifiable {
         case auto, light, dark
-        var id: String { rawValue }
+        var id: String {
+            rawValue
+        }
+
         var label: String {
             switch self {
             case .auto: "Match system"
