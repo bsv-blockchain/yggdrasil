@@ -29,10 +29,13 @@ jobs:
           swift --version
           sw_vers
 
-      - name: Install Homebrew deps (xcodegen, swiftlint, swiftformat, libgit2)
+      # SwiftFormat + SwiftLint are NOT installed here — they're pinned and
+      # downloaded by the Makefile (see SWIFTFORMAT_VERSION / SWIFTLINT_VERSION),
+      # so CI and local dev use identical versions regardless of the runner image.
+      - name: Install Homebrew deps (xcodegen, libgit2)
         run: |
           brew update
-          brew install xcodegen swiftlint swiftformat libgit2
+          brew install xcodegen libgit2
 
       - name: Xcode first-launch
         run: |
@@ -55,19 +58,11 @@ jobs:
       - name: Generate Xcode project
         run: make project
 
+      # SwiftFormat + SwiftLint run pinned, downloaded binaries via the Makefile
+      # (versions live in the Makefile — single source of truth shared with local
+      # dev). The runner image's bundled tools drift, so we deliberately avoid them.
       - name: SwiftFormat lint
-        # Pin to a downloaded SwiftFormat release binary. The runner image's
-        # bundled swiftformat drifts (newer versions enable more default rules),
-        # so an unpinned `brew install` makes the check non-deterministic. A
-        # fixed binary + explicit config + fresh cache keeps it reproducible.
-        run: |
-          SWIFTFORMAT_VERSION=0.60.1
-          curl -fsSL -o "$RUNNER_TEMP/swiftformat.zip" \
-            "https://github.com/nicklockwood/SwiftFormat/releases/download/${SWIFTFORMAT_VERSION}/swiftformat.zip"
-          unzip -oq "$RUNNER_TEMP/swiftformat.zip" -d "$RUNNER_TEMP/swiftformat-bin"
-          "$RUNNER_TEMP/swiftformat-bin/swiftformat" . --lint \
-            --config "$GITHUB_WORKSPACE/.swiftformat" \
-            --cache "$RUNNER_TEMP/swiftformat.cache"
+        run: make format-lint
 
       - name: SwiftLint
         run: make lint
