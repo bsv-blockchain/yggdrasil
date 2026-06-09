@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class CodingAgentStoreTests: XCTestCase {
     private var db: YggdrasilDatabase!
@@ -49,7 +49,7 @@ final class CodingAgentStoreTests: XCTestCase {
 
     func testRemoveById() throws {
         let codex = try store.add(name: "Codex", command: "codex", args: [])
-        try store.remove(id: codex.id!)
+        try store.remove(id: XCTUnwrap(codex.id))
         let names = try store.list().map(\.name)
         XCTAssertEqual(names, ["Claude"])
     }
@@ -59,13 +59,13 @@ final class CodingAgentStoreTests: XCTestCase {
         // menu) is responsible for picking a new default if it wants one.
         _ = try store.add(name: "Codex", command: "codex", args: [])
         let claude = try XCTUnwrap(try store.getDefault())
-        try store.remove(id: claude.id!)
+        try store.remove(id: XCTUnwrap(claude.id))
         XCTAssertNil(try store.getDefault())
     }
 
     func testSetDefaultClearsPreviousDefault() throws {
         let codex = try store.add(name: "Codex", command: "codex", args: [])
-        try store.setDefault(id: codex.id!)
+        try store.setDefault(id: XCTUnwrap(codex.id))
 
         let defaultAgent = try XCTUnwrap(try store.getDefault())
         XCTAssertEqual(defaultAgent.name, "Codex")
@@ -87,7 +87,7 @@ final class CodingAgentStoreTests: XCTestCase {
         // Sleep a hair so updatedAt definitely advances.
         Thread.sleep(forTimeInterval: 0.01)
 
-        try store.update(id: original.id!, name: "Claude", command: "claude-beta", args: ["--v2"])
+        try store.update(id: XCTUnwrap(original.id), name: "Claude", command: "claude-beta", args: ["--v2"])
         let after = try XCTUnwrap(try store.list().first { $0.name == "Claude" })
 
         XCTAssertEqual(after.command, "claude-beta")

@@ -25,7 +25,8 @@ actor SyncScheduler {
                 } catch is CancellationError {
                     return
                 } catch {
-                    YggdrasilLog.sync.error("SyncScheduler action threw: \(String(describing: error), privacy: .public)")
+                    YggdrasilLog.sync
+                        .error("SyncScheduler action threw: \(String(describing: error), privacy: .public)")
                 }
                 do {
                     try await Task.sleep(for: interval)

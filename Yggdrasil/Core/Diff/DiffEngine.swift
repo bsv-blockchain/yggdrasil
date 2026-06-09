@@ -18,7 +18,7 @@ enum DiffEngineError: Error, Equatable {
 }
 
 /// Which slice of "what changed" the user wants to see.
-enum DiffScope: String, Sendable, Equatable {
+enum DiffScope: String, Equatable {
     /// Working tree + index, relative to HEAD. "Everything not committed
     /// yet." Equivalent to `git diff HEAD`.
     case uncommitted
@@ -80,7 +80,7 @@ struct DiffEngine {
                 args: [
                     "diff", "--no-color", "--no-ext-diff",
                     "--find-renames",
-                    diffArg,
+                    diffArg
                 ],
                 cwd: cwd
             )

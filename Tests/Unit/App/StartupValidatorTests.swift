@@ -76,7 +76,7 @@ final class StartupValidatorTests: XCTestCase {
         )
         let message = validator.validate().first?.message ?? ""
         XCTAssertTrue(message.lowercased().contains("brew install") ||
-                      message.lowercased().contains("xcode-select"),
-                      "expected install hint, got: \(message)")
+            message.lowercased().contains("xcode-select"),
+            "expected install hint, got: \(message)")
     }
 }

@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class TabsModelTests: XCTestCase {
     private var db: YggdrasilDatabase!
@@ -36,7 +36,7 @@ final class TabsModelTests: XCTestCase {
         _ = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
         model.reload()
-        model.select(second.id!)
+        try model.select(XCTUnwrap(second.id))
         model.reload()
         XCTAssertEqual(model.selectedID, second.id)
     }
@@ -45,8 +45,8 @@ final class TabsModelTests: XCTestCase {
         let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
         model.reload()
-        model.select(first.id!)
-        try store.delete(id: first.id!)
+        try model.select(XCTUnwrap(first.id))
+        try store.delete(id: XCTUnwrap(first.id))
         model.reload()
         XCTAssertEqual(model.selectedID, second.id, "selection falls back to the first remaining tab")
     }
@@ -55,7 +55,7 @@ final class TabsModelTests: XCTestCase {
         let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
         model.reload()
-        model.select(first.id!)
+        try model.select(XCTUnwrap(first.id))
         model.moveSelection(by: 1)
         XCTAssertEqual(model.selectedID, second.id)
     }
@@ -64,7 +64,7 @@ final class TabsModelTests: XCTestCase {
         let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         _ = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
         model.reload()
-        model.select(first.id!)
+        try model.select(XCTUnwrap(first.id))
         model.moveSelection(by: -1)
         XCTAssertEqual(model.selectedID, first.id, "moveSelection clamps; can't go above the top")
     }

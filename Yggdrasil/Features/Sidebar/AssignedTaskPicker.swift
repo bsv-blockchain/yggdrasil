@@ -38,12 +38,11 @@ enum TaskPickerMode {
     /// without a schema change.
     func branchName(for task: YggdrasilTask, agentName: String) -> String {
         let prefix = TaskPickerMode.agentSlug(agentName)
-        let base: String
-        switch self {
+        let base: String = switch self {
         case .assigned:
-            base = task.type == .pullRequest ? "pr-\(task.number)" : "issue-\(task.number)"
+            task.type == .pullRequest ? "pr-\(task.number)" : "issue-\(task.number)"
         case .review:
-            base = "review-pr-\(task.number)"
+            "review-pr-\(task.number)"
         }
         return prefix.isEmpty ? base : "\(prefix)-\(base)"
     }
@@ -91,7 +90,9 @@ struct AssignedTaskPicker: View {
     struct Row: Identifiable {
         let task: YggdrasilTask
         let repo: Repo
-        var id: Int64 { task.id ?? 0 }
+        var id: Int64 {
+            task.id ?? 0
+        }
     }
 
     var body: some View {
@@ -226,13 +227,12 @@ struct AssignedTaskPicker: View {
                 let openedTaskIDs = try Int64.fetchSet(
                     db, sql: "SELECT task_id FROM tab WHERE task_id IS NOT NULL"
                 )
-                let candidateTasks: [YggdrasilTask]
-                switch mode {
+                let candidateTasks: [YggdrasilTask] = switch mode {
                 case .assigned:
                     // Issues assigned to me + PRs I authored. The task table
                     // holds all assigned issues (from /issues?filter=assigned)
                     // plus the PRs we mirror in pr_authored.
-                    candidateTasks = try YggdrasilTask.fetchAll(
+                    try YggdrasilTask.fetchAll(
                         db,
                         sql: """
                         SELECT task.* FROM task
@@ -246,7 +246,7 @@ struct AssignedTaskPicker: View {
                     // A PR I both authored and was review-requested on lands
                     // here too (rare but possible); the picker still excludes
                     // it once a tab shadows it.
-                    candidateTasks = try YggdrasilTask.fetchAll(
+                    try YggdrasilTask.fetchAll(
                         db,
                         sql: """
                         SELECT task.* FROM task
@@ -396,13 +396,11 @@ private struct TaskRow: View {
     }
 
     private var stateBadge: some View {
-        let (text, tone): (String, StatusChip.Tone) = {
-            switch row.task.state {
-            case .open: return ("open", .ok)
-            case .closed: return ("closed", .neutral)
-            case .merged: return ("merged", .info)
-            }
-        }()
+        let (text, tone): (String, StatusChip.Tone) = switch row.task.state {
+        case .open: ("open", .ok)
+        case .closed: ("closed", .neutral)
+        case .merged: ("merged", .info)
+        }
         return StatusChip(chip: .init(symbol: nil, text: text, tone: tone))
     }
 }

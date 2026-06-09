@@ -5,8 +5,8 @@ import Observation
 /// One open session in Phase 3's debug UI. Phase 4+ will replace this with proper
 /// `YggdrasilTab` rows driven by the sidebar.
 struct OpenSession: Identifiable, Hashable {
-    let id: Int64                // tab id
-    let displayName: String      // e.g. "Claude · feat/foo"
+    let id: Int64 // tab id
+    let displayName: String // e.g. "Claude · feat/foo"
     let cwd: String
     let command: String
     let args: [String]

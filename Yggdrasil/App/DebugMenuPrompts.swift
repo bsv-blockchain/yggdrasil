@@ -6,7 +6,6 @@ import GRDB
 /// type_body_length cap; behaviour is identical to the inline versions
 /// these replaced.
 extension DebugMenu {
-
     static func promptForOwnerAndName() -> (owner: String, name: String)? {
         let alert = NSAlert()
         alert.messageText = "Add Tracked Repo"

@@ -146,6 +146,7 @@ actor WorktreeManager {
 
         return target
     }
+
     // swiftlint:enable function_body_length
 
     private static func pullRequestNumber(from baseRef: String) -> Int? {

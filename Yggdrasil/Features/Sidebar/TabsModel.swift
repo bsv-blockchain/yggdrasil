@@ -90,8 +90,8 @@ final class TabsModel {
                 if let owning = repos[tabID], let repoID = owning.id,
                    let number = NewTabSheet.parsePRNumber(tab.branchName),
                    let match = try YggdrasilTask
-                       .filter(Column("repo_id") == repoID && Column("number") == number)
-                       .fetchOne(db),
+                   .filter(Column("repo_id") == repoID && Column("number") == number)
+                   .fetchOne(db),
                    let matchID = match.id {
                     tasks[tabID] = match
                     lazyLinks.append((tabID: tabID, taskID: matchID))
@@ -106,15 +106,15 @@ final class TabsModel {
             // Match AssignedTaskPicker(.review) — review-requested ∪
             // assigned-but-not-authored — minus what's already a tab.
             try Int.fetchOne(db, sql: """
-                SELECT COUNT(*) FROM task
-                WHERE task.type = 'pr'
-                  AND (
-                    task.id IN (SELECT task_id FROM pr_review_request)
-                 OR (task.id IN (SELECT task_id FROM pr_assigned)
-                     AND task.id NOT IN (SELECT task_id FROM pr_authored))
-                  )
-                  AND task.id NOT IN (SELECT task_id FROM tab WHERE task_id IS NOT NULL)
-                """) ?? 0
+            SELECT COUNT(*) FROM task
+            WHERE task.type = 'pr'
+              AND (
+                task.id IN (SELECT task_id FROM pr_review_request)
+             OR (task.id IN (SELECT task_id FROM pr_assigned)
+                 AND task.id NOT IN (SELECT task_id FROM pr_authored))
+              )
+              AND task.id NOT IN (SELECT task_id FROM tab WHERE task_id IS NOT NULL)
+            """) ?? 0
         }
     }
 

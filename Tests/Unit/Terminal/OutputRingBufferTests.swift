@@ -1,8 +1,7 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class OutputRingBufferTests: XCTestCase {
-
     func testEmptyAfterInit() {
         let ring = OutputRingBuffer(capacity: 16)
         XCTAssertEqual(ring.count, 0)
@@ -25,9 +24,9 @@ final class OutputRingBufferTests: XCTestCase {
 
     func testRetainsLastNBytesAcrossMultipleAppendsThatOverflow() {
         var ring = OutputRingBuffer(capacity: 4)
-        ring.append(Data("abc".utf8))   // ring: abc
-        ring.append(Data("def".utf8))   // ring: cdef (last 4 of "abcdef")
-        ring.append(Data("g".utf8))     // ring: defg
+        ring.append(Data("abc".utf8)) // ring: abc
+        ring.append(Data("def".utf8)) // ring: cdef (last 4 of "abcdef")
+        ring.append(Data("g".utf8)) // ring: defg
         XCTAssertEqual(ring.contents(), Data("defg".utf8))
     }
 

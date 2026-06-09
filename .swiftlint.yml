@@ -29,6 +29,7 @@ disabled_rules:
   - todo
   - line_length          # enforced by SwiftFormat instead
   - trailing_comma       # SwiftFormat handles
+  - void_function_in_ternary  # conflicts with SwiftFormat's redundantReturn (value-returning switch-case ternaries read as Void)
 
 identifier_name:
   excluded:
@@ -40,6 +41,9 @@ identifier_name:
     - ok     # status enum case (used in StatusChip.Tone)
     - er     # short error label
     - bg     # background color helper
+    - s      # FSEvents stream local in WorktreeWatcher
+    - w      # short-lived WorktreeWatcher local
+    - cb     # callback alias in WorktreeWatcher
 
 nesting:
   type_level:

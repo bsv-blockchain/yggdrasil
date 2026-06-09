@@ -1,5 +1,6 @@
 import SwiftUI
 
+// swiftlint:disable file_length
 /// Right-hand pane of the main window. Per `Yggdrasil.html` the layout is a
 /// **preset** chosen in Tweaks: Agent+Diff (default), Agent+GitHub, Diff+GitHub,
 /// or any of the three solo. Each visible pane gets its own segmented header
@@ -27,9 +28,9 @@ struct MainPaneView: View {
     var body: some View {
         Group {
             switch layout {
-            case .solo(let primary):
+            case let .solo(primary):
                 paneStack(primary: primary, secondary: nil)
-            case .split(let primary, let secondary):
+            case let .split(primary, secondary):
                 paneStack(primary: primary, secondary: secondary)
             }
         }
@@ -203,8 +204,8 @@ enum PaneLayout: Hashable {
 
     var primarySegment: PaneSegment {
         switch self {
-        case .solo(let seg): seg
-        case .split(let first, _): first
+        case let .solo(seg): seg
+        case let .split(first, _): first
         }
     }
 
@@ -217,7 +218,7 @@ enum PaneLayout: Hashable {
         case .split(.agent, .github): "agent+github"
         case .split(.diff, .github): "diff+github"
         // any other split is collapsed to its primary
-        case .split(let primary, _): primary == .agent ? "agent" : primary == .github ? "github" : "diff"
+        case let .split(primary, _): primary == .agent ? "agent" : primary == .github ? "github" : "diff"
         }
     }
 
@@ -237,10 +238,12 @@ enum PaneLayout: Hashable {
     private static func perTabKey(_ tab: YggdrasilTab) -> String {
         "yggdrasil.paneLayout.\(tab.id.map(String.init) ?? "unknown")"
     }
+
     private static let globalDividerKey = "yggdrasil.paneDivider"
     private static func perTabDividerKey(_ tab: YggdrasilTab) -> String {
         "yggdrasil.paneDivider.\(tab.id.map(String.init) ?? "unknown")"
     }
+
     static let defaultDividerFraction: Double = 0.5
 
     /// Layout for `tab`: prefers a saved per-tab choice, falls back to the
@@ -289,18 +292,18 @@ enum PaneLayout: Hashable {
 
     func with(primary: PaneSegment) -> PaneLayout {
         switch self {
-        case .solo: return .solo(primary)
-        case .split(_, let secondary):
-            return secondary == primary ? .solo(primary) : .split(primary, secondary)
+        case .solo: .solo(primary)
+        case let .split(_, secondary):
+            secondary == primary ? .solo(primary) : .split(primary, secondary)
         }
     }
 
     func toggleSplit(with companion: PaneSegment) -> PaneLayout {
         switch self {
-        case .solo(let current):
-            return current == companion ? .solo(current) : .split(current, companion)
-        case .split(let primary, _):
-            return .split(primary, companion)
+        case let .solo(current):
+            current == companion ? .solo(current) : .split(current, companion)
+        case let .split(primary, _):
+            .split(primary, companion)
         }
     }
 
@@ -476,7 +479,7 @@ struct PaneHeader: View {
             switch layout {
             case .solo:
                 layout = .solo(target)
-            case .split(let primary, let secondary):
+            case let .split(primary, secondary):
                 if segment == primary {
                     layout = secondary == target ? .solo(target) : .split(target, secondary)
                 } else {

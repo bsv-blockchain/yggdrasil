@@ -88,12 +88,14 @@ private final class PipeAccumulator: @unchecked Sendable {
     private var buffer = Data()
 
     func append(_ chunk: Data) {
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
+        defer { lock.unlock() }
         buffer.append(chunk)
     }
 
     var data: Data {
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
+        defer { lock.unlock() }
         return buffer
     }
 }

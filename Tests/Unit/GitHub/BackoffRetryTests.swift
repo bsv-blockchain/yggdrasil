@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 /// Capture the durations passed to the injected sleep closure so tests can verify
 /// the backoff schedule was followed.

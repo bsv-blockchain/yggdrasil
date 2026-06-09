@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class TabStoreTests: XCTestCase {
     private var db: YggdrasilDatabase!
@@ -64,8 +64,8 @@ final class TabStoreTests: XCTestCase {
             agentID: nil, taskID: nil
         )
         XCTAssertNil(tab.taskID, "fresh tab starts with no task linkage")
-        try store.setTaskID(id: tab.id!, taskID: taskID)
-        let reloaded = try store.get(id: tab.id!)
+        try store.setTaskID(id: XCTUnwrap(tab.id), taskID: taskID)
+        let reloaded = try store.get(id: XCTUnwrap(tab.id))
         XCTAssertEqual(reloaded?.taskID, taskID)
     }
 
@@ -75,16 +75,16 @@ final class TabStoreTests: XCTestCase {
             branchName: "x", worktreePath: "/x",
             agentID: nil, taskID: taskID
         )
-        try store.setTaskID(id: tab.id!, taskID: nil)
-        let reloaded = try store.get(id: tab.id!)
+        try store.setTaskID(id: XCTUnwrap(tab.id), taskID: nil)
+        let reloaded = try store.get(id: XCTUnwrap(tab.id))
         XCTAssertNil(reloaded?.taskID)
     }
 
     func testDeleteRemovesRow() throws {
         let one = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let two = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
-        try store.delete(id: one.id!)
-        XCTAssertEqual(try store.list().map(\.id), [two.id!])
+        try store.delete(id: XCTUnwrap(one.id))
+        XCTAssertEqual(try store.list().map(\.id), try [XCTUnwrap(two.id)])
     }
 
     func testReorderRewritesPositionsInGivenOrder() throws {
@@ -93,7 +93,7 @@ final class TabStoreTests: XCTestCase {
         let three = try store.insert(branchName: "c", worktreePath: "/c", agentID: nil, taskID: nil)
 
         // Reverse the order.
-        try store.reorder(ids: [three.id!, two.id!, one.id!])
+        try store.reorder(ids: [XCTUnwrap(three.id), XCTUnwrap(two.id), XCTUnwrap(one.id)])
         let listed = try store.list()
         XCTAssertEqual(listed.map(\.branchName), ["c", "b", "a"])
         XCTAssertEqual(listed.map(\.position), [0, 1, 2])
@@ -101,23 +101,23 @@ final class TabStoreTests: XCTestCase {
 
     func testReorderRejectsMissingIDs() throws {
         let one = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
-        XCTAssertThrowsError(try store.reorder(ids: [one.id!, 999]))
+        XCTAssertThrowsError(try store.reorder(ids: [XCTUnwrap(one.id), 999]))
     }
 
     func testReorderRejectsExtraOrMissingTabIDs() throws {
         let one = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let two = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
         // Only one of the two real ids → mismatch.
-        XCTAssertThrowsError(try store.reorder(ids: [one.id!]))
+        XCTAssertThrowsError(try store.reorder(ids: [XCTUnwrap(one.id)]))
         // Both real ids but in the wrong shape is OK.
-        XCTAssertNoThrow(try store.reorder(ids: [two.id!, one.id!]))
+        XCTAssertNoThrow(try store.reorder(ids: [XCTUnwrap(two.id), XCTUnwrap(one.id)]))
     }
 
     func testSetLastMainViewPersists() throws {
         let one = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         XCTAssertEqual(one.lastMainView, .agent)
-        try store.setLastMainView(id: one.id!, view: .github)
-        let refetched = try XCTUnwrap(try store.get(id: one.id!))
+        try store.setLastMainView(id: XCTUnwrap(one.id), view: .github)
+        let refetched = try XCTUnwrap(try store.get(id: XCTUnwrap(one.id)))
         XCTAssertEqual(refetched.lastMainView, .github)
     }
 
@@ -125,8 +125,8 @@ final class TabStoreTests: XCTestCase {
         let one = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let before = one.lastActiveAt
         Thread.sleep(forTimeInterval: 0.01)
-        try store.touchLastActiveAt(id: one.id!)
-        let updated = try XCTUnwrap(try store.get(id: one.id!))
+        try store.touchLastActiveAt(id: XCTUnwrap(one.id))
+        let updated = try XCTUnwrap(try store.get(id: XCTUnwrap(one.id)))
         XCTAssertGreaterThan(updated.lastActiveAt, before)
     }
 }

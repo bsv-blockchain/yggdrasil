@@ -45,7 +45,7 @@ enum TerminalKeyInterceptor {
         // ESC (0x1b) + CR (0x0d). Claude Code, codex, and other CLIs read
         // this sequence as "insert newline into input" rather than
         // "submit". Matches iTerm2's default Shift+Enter behavior.
-        terminalView.send([0x1b, 0x0d])
+        terminalView.send([0x1B, 0x0D])
         return true
     }
 

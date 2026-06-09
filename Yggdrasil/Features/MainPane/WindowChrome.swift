@@ -173,14 +173,12 @@ struct WindowChromeBar: View {
         // Cycle dark → light → auto. Persists via AppearancePrefsPane.
         let currentRaw =
             (try? SettingsStore(database: services.database)
-                .get(forKey: AppearancePrefsPane.settingKey)) ?? ""
-        let next: AppearancePrefsPane.Mode = {
-            switch AppearancePrefsPane.Mode(rawValue: currentRaw) ?? .auto {
-            case .auto: return .light
-            case .light: return .dark
-            case .dark: return .auto
-            }
-        }()
+                    .get(forKey: AppearancePrefsPane.settingKey)) ?? ""
+        let next: AppearancePrefsPane.Mode = switch AppearancePrefsPane.Mode(rawValue: currentRaw) ?? .auto {
+        case .auto: .light
+        case .light: .dark
+        case .dark: .auto
+        }
         NSApp.appearance = next.appearance
         try? SettingsStore(database: services.database)
             .set(next.rawValue, forKey: AppearancePrefsPane.settingKey)

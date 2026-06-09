@@ -1,6 +1,6 @@
 import Foundation
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 /// Test-only `HTTPClient` impl that returns canned bodies / statuses.
 final class CannedHTTPClient: HTTPClient, @unchecked Sendable {

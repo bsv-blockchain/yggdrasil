@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class WorktreeManagerTests: XCTestCase {
     private var fixture: FixtureGitRepo!
@@ -233,7 +233,10 @@ final class WorktreeManagerTests: XCTestCase {
             calls[1].arguments,
             ["-C", "/tmp/repo", "fetch", "origin", "+pull/655/head:pr-655"]
         )
-        XCTAssertEqual(calls[2].arguments[0 ..< 5], ["-C", "/tmp/repo", "worktree", "add", "/tmp/repo/.worktrees/pr-655"])
+        XCTAssertEqual(
+            calls[2].arguments[0 ..< 5],
+            ["-C", "/tmp/repo", "worktree", "add", "/tmp/repo/.worktrees/pr-655"]
+        )
         XCTAssertEqual(calls[2].arguments.last, "pr-655")
         // Crucially: no `-b` flag on the worktree add step (the branch already exists
         // locally after the fetch).

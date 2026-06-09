@@ -14,12 +14,13 @@ enum Migrations {
     }
 
     // MARK: - v5 — Label + milestone metadata on `task`
-    //
-    // Powers the issue-details picker (table view of issues assigned to me).
-    // Labels live as a JSON-encoded array of `{ name, color }` on the row so
-    // we don't need a separate join table for a feature that only renders
-    // them in one place. `milestone_title` is the single string GitHub
-    // returns for the milestone's title (nullable).
+
+    ///
+    /// Powers the issue-details picker (table view of issues assigned to me).
+    /// Labels live as a JSON-encoded array of `{ name, color }` on the row so
+    /// we don't need a separate join table for a feature that only renders
+    /// them in one place. `milestone_title` is the single string GitHub
+    /// returns for the milestone's title (nullable).
     private static func v5(_ db: Database) throws {
         try db.alter(table: "task") { table in
             table.add(column: "labels_json", .text).notNull().defaults(to: "[]")
@@ -28,12 +29,13 @@ enum Migrations {
     }
 
     // MARK: - v4 — Authored/assigned PR markers
-    //
-    // The Open Assigned picker now shows issues-assigned-to-me plus PRs
-    // I-authored. The Review picker shows PRs review-requested-from-me or
-    // PRs assigned-to-me (without being authored by me). Two new membership
-    // tables, same shape as the existing pr_review_request: a row's mere
-    // presence is the signal.
+
+    ///
+    /// The Open Assigned picker now shows issues-assigned-to-me plus PRs
+    /// I-authored. The Review picker shows PRs review-requested-from-me or
+    /// PRs assigned-to-me (without being authored by me). Two new membership
+    /// tables, same shape as the existing pr_review_request: a row's mere
+    /// presence is the signal.
     private static func v4(_ db: Database) throws {
         try db.create(table: "pr_authored") { table in
             table.column("task_id", .integer)
@@ -50,11 +52,12 @@ enum Migrations {
     }
 
     // MARK: - v3 — PR review-requested marker
-    //
-    // A row here means the current viewer was requested to review this PR
-    // (the linked task row is the PR itself; review-requested is an
-    // orthogonal status to assignment, so it gets its own table — same
-    // shape as task_assignee).
+
+    ///
+    /// A row here means the current viewer was requested to review this PR
+    /// (the linked task row is the PR itself; review-requested is an
+    /// orthogonal status to assignment, so it gets its own table — same
+    /// shape as task_assignee).
     private static func v3(_ db: Database) throws {
         try db.create(table: "pr_review_request") { table in
             table.column("task_id", .integer)
@@ -166,8 +169,8 @@ enum Migrations {
 
     private static func seedDefaultClaudeAgent(_ db: Database) throws {
         let now = Date()
-        let argsJSON = String(
-            data: try JSONEncoder().encode(["--dangerously-skip-permissions"]),
+        let argsJSON = try String(
+            data: JSONEncoder().encode(["--dangerously-skip-permissions"]),
             encoding: .utf8
         ) ?? "[]"
         try db.execute(

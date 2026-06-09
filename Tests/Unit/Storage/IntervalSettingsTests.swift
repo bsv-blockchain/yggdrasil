@@ -1,13 +1,18 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 /// Pure-logic tests for IntervalSettings. The store layer is injected via a
 /// `KeyValueStore` protocol so we don't open a real GRDB connection here.
 final class IntervalSettingsTests: XCTestCase {
     private final class MemoryKVStore: IntervalSettingsKVStore {
         var dict: [String: String] = [:]
-        func get(forKey key: String) throws -> String? { dict[key] }
-        func set(_ value: String, forKey key: String) throws { dict[key] = value }
+        func get(forKey key: String) throws -> String? {
+            dict[key]
+        }
+
+        func set(_ value: String, forKey key: String) throws {
+            dict[key] = value
+        }
     }
 
     func test_load_emptyStore_returnsDefaults() throws {
@@ -36,7 +41,7 @@ final class IntervalSettingsTests: XCTestCase {
 
     func test_load_outOfRangeValues_clampsToRange() throws {
         let store = MemoryKVStore()
-        store.dict["intervals.syncSeconds"] = "5"       // below min (15)
+        store.dict["intervals.syncSeconds"] = "5" // below min (15)
         store.dict["intervals.statusProbeSeconds"] = "120" // above max (60)
         let settings = try IntervalSettings.load(from: store)
         XCTAssertEqual(settings.syncSeconds, IntervalSettings.syncRange.lowerBound)

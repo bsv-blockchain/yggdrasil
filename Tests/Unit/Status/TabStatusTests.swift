@@ -1,8 +1,7 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class TabStatusTests: XCTestCase {
-
     private func make(
         claude: ClaudeState = .idle,
         git: GitState = GitState(dirty: false, remote: .noRemote),

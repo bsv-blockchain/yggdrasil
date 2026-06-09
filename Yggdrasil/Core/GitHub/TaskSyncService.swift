@@ -39,15 +39,19 @@ actor TaskSyncService {
         // Three orthogonal axes feed the task table. Each list is filtered to
         // tracked repos, merged via composite key for the upsert, and then
         // used independently to rebuild its dedicated membership table.
-        let reviewRequested = (try? await rest.reviewRequestedPRs()) ?? []
+        let reviewRequested = await (try? rest.reviewRequestedPRs()) ?? []
         let relevantReview = reviewRequested.filter { trackedKey["\($0.repoOwner)/\($0.repoName)"] != nil }
 
-        let authored = (try? await rest.authoredPRs()) ?? []
+        let authored = await (try? rest.authoredPRs()) ?? []
         let relevantAuthored = authored.filter { trackedKey["\($0.repoOwner)/\($0.repoName)"] != nil }
 
         // Union for the upsert / stale-prune pass; same-keyed raws collapse.
         var merged: [RawTask] = relevantAssigned
-        var seen = Set(relevantAssigned.map { Self.compositeKey(owner: $0.repoOwner, name: $0.repoName, number: $0.number) })
+        var seen = Set(relevantAssigned.map { Self.compositeKey(
+            owner: $0.repoOwner,
+            name: $0.repoName,
+            number: $0.number
+        ) })
         for raw in relevantReview + relevantAuthored {
             let key = Self.compositeKey(owner: raw.repoOwner, name: raw.repoName, number: raw.number)
             if seen.insert(key).inserted {

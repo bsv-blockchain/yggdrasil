@@ -22,15 +22,12 @@ struct DiagnosticsCommands: Commands {
 }
 
 enum Diagnostics {
-    static let crashFolderURL: URL = {
-        let base = FileManager.default
-            .urls(for: .libraryDirectory, in: .userDomainMask)
-            .first!
-            .appendingPathComponent("Logs", isDirectory: true)
-            .appendingPathComponent("Yggdrasil", isDirectory: true)
-            .appendingPathComponent("crashes", isDirectory: true)
-        return base
-    }()
+    static let crashFolderURL: URL = FileManager.default
+        .urls(for: .libraryDirectory, in: .userDomainMask)
+        .first!
+        .appendingPathComponent("Logs", isDirectory: true)
+        .appendingPathComponent("Yggdrasil", isDirectory: true)
+        .appendingPathComponent("crashes", isDirectory: true)
 
     /// Ensure the crash folder exists. Called from AppDelegate at launch.
     static func ensureCrashFolder() {

@@ -110,12 +110,12 @@ struct TabRow: View {
         switch model.trailingBadge {
         case .none:
             EmptyView()
-        case .prNumber(let number):
+        case let .prNumber(number):
             Text("#\(number)")
                 .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
                 .tracking(0.2)
-        case .issueNumber(let number):
+        case let .issueNumber(number):
             Text("#\(number)")
                 .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                 .foregroundStyle(YggdrasilTheme.ember)
@@ -263,6 +263,7 @@ struct StatusChip: View {
         case .ember: YggdrasilTheme.ember
         }
     }
+
     private var background: Color {
         switch chip.tone {
         case .neutral: YggdrasilTheme.chipBg(scheme)
@@ -273,6 +274,7 @@ struct StatusChip: View {
         case .ember: YggdrasilTheme.emberSoft(scheme)
         }
     }
+
     private var border: Color {
         switch chip.tone {
         case .neutral: YggdrasilTheme.chipBd(scheme)

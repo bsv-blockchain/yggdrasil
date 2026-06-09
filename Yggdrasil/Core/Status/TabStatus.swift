@@ -4,8 +4,8 @@ import Foundation
 /// by the status aggregator so it doesn't have to know how the row was
 /// fetched.
 struct GitHubAggregate: Equatable {
-    let ciState: String?     // e.g. "SUCCESS", "FAILURE", "PENDING", or nil
-    let unread: Int          // unread comments + reviews since last_seen_comment_id
+    let ciState: String? // e.g. "SUCCESS", "FAILURE", "PENDING", or nil
+    let unread: Int // unread comments + reviews since last_seen_comment_id
 }
 
 /// The combined sidebar-row status. `icon` is the highest-priority signal per

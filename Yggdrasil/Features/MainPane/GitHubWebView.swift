@@ -109,7 +109,7 @@ final class WebViewHost: NSView {
             webView.leadingAnchor.constraint(equalTo: leadingAnchor),
             webView.trailingAnchor.constraint(equalTo: trailingAnchor),
             webView.topAnchor.constraint(equalTo: topAnchor),
-            webView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            webView.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
         attached = webView
     }

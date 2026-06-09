@@ -1,6 +1,6 @@
 import AppKit
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class SmokeTests: XCTestCase {
     func testAppVendsAWindowTitledYggdrasil() {

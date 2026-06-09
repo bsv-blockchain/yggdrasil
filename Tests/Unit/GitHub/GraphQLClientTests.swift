@@ -1,6 +1,6 @@
 import Foundation
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 final class GraphQLClientTests: XCTestCase {
     func testPRDetailDecodesAllFields() async throws {

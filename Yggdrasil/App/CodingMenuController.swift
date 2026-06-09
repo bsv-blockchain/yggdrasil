@@ -25,7 +25,7 @@ final class CodingMenuController: NSObject {
     /// Identity tag we apply to the inserted NSMenuItem so we can find it
     /// again on later re-install attempts. `view` is 2 and `window` is 100
     /// by convention; pick something out of AppKit's tag space.
-    private static let codingMenuTag = 0x59_47_44_43 // "YGDC"
+    private static let codingMenuTag = 0x5947_4443 // "YGDC"
 
     func install() {
         // Listen for repeated lifecycle events so SwiftUI rebuilding the
@@ -110,7 +110,9 @@ final class CodingMenuController: NSObject {
 
     // MARK: - Selectors
 
-    private var services: AppServices? { appDelegate?.services }
+    private var services: AppServices? {
+        appDelegate?.services
+    }
 
     @objc private func addTrackedRepo() {
         YggdrasilLog.ui.notice("Coding menu: Add Tracked Repo clicked")

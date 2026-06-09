@@ -4,7 +4,6 @@ import Foundation
 /// Right-click context-menu actions for sidebar rows. Pure side-effects — kept
 /// outside the SwiftUI view so they're unit-testable in isolation if we want.
 enum SidebarActions {
-
     /// Reveal the worktree directory in Finder. Falls back to "open the parent"
     /// if the path itself can't be reached (e.g. the worktree was deleted).
     static func openInFinder(path: String) {

@@ -45,10 +45,10 @@ final class WorktreeWatcher {
         //   burst immediately rather than waiting for the latency
         //   window to expire — the debounce on our side handles
         //   coalescing.
-        let flags: UInt32 =
+        let flags =
             UInt32(kFSEventStreamCreateFlagFileEvents)
-            | UInt32(kFSEventStreamCreateFlagIgnoreSelf)
-            | UInt32(kFSEventStreamCreateFlagNoDefer)
+                | UInt32(kFSEventStreamCreateFlagIgnoreSelf)
+                | UInt32(kFSEventStreamCreateFlagNoDefer)
         guard let s = FSEventStreamCreate(
             nil, callback, &context,
             [path] as CFArray,
