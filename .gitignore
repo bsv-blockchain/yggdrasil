@@ -1,6 +1,9 @@
 # Worktrees (per CLAUDE.md convention)
 .worktrees/
 
+# Pinned lint/format tool binaries (downloaded by the Makefile)
+.tools/
+
 # macOS
 .DS_Store
 *.swp
