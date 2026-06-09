@@ -10,6 +10,7 @@ struct RepoPrefsPane: View {
 
     @State private var repos: [Repo] = []
     @State private var selectedID: Int64?
+    @State private var cloning = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -80,25 +81,69 @@ struct RepoPrefsPane: View {
             Text("Default branch: \(repo.defaultBranch)")
                 .font(.callout).foregroundStyle(.secondary)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("Local clone path").font(.system(size: 11, weight: .semibold))
-                HStack {
-                    Text(repo.localMainPath ?? "(unset)")
-                        .font(.system(size: 11, design: .monospaced))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+
+                if let path = repo.localMainPath, Self.isValidGitRepo(path) {
+                    HStack {
+                        Text(path)
+                            .font(.system(size: 11, design: .monospaced))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .padding(6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.gray.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                        Button("Choose…") { pickPath(for: repo) }
+                    }
+                } else {
+                    if repo.localMainPath != nil {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.orange)
+                                Text("Not cloned locally")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.orange)
+                            }
+                            Text("Choose an existing folder or clone from GitHub.")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
                         .padding(6)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.gray.opacity(0.1))
+                        .background(Color.orange.opacity(0.06))
                         .clipShape(RoundedRectangle(cornerRadius: 4))
+                    } else {
+                        Text("(unset)")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
 
-                    Button("Choose…") { pickPath(for: repo) }
+                    HStack(spacing: 8) {
+                        Button("Choose Folder…") { pickPath(for: repo) }
+                        Text("or")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Button("Clone from GitHub…") { cloneRepo(repo) }
+                            .disabled(cloning)
+                    }
+
+                    if cloning {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Cloning…").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                 }
-                Text("Used by Phase 2's WorktreeManager and Phase 7's diff view.")
-                    .font(.caption).foregroundStyle(.tertiary)
             }
         }
         .padding(.leading, 8)
+    }
+
+    static func isValidGitRepo(_ path: String) -> Bool {
+        FileManager.default.fileExists(atPath: (path as NSString).appendingPathComponent(".git"))
     }
 
     // MARK: - Actions
@@ -142,6 +187,57 @@ struct RepoPrefsPane: View {
         }
     }
 
+    private func cloneRepo(_ repo: Repo) {
+        let defaultParent = URL(fileURLWithPath: NewTabSheet.inferCloneParent(from: repos), isDirectory: true)
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a folder to clone \(repo.fullName) into. A \"\(repo.name)\" subfolder will be created."
+        panel.prompt = "Clone Here"
+        panel.directoryURL = defaultParent
+        guard panel.runModal() == .OK, let parentURL = panel.url else { return }
+        let targetPath = parentURL.appendingPathComponent(repo.name).path
+
+        if FileManager.default.fileExists(atPath: targetPath) {
+            NSAlert.show("Folder already exists",
+                         message: "\(repo.name) already exists in this location. Choose a different folder or remove it first.")
+            return
+        }
+
+        cloning = true
+        Task {
+            defer { Task { @MainActor in cloning = false } }
+            do {
+                try await GitHubCloner().clone(owner: repo.owner, name: repo.name, to: targetPath)
+                await MainActor.run { updateLocalPath(targetPath, for: repo) }
+            } catch {
+                YggdrasilLog.ui
+                    .error(
+                        "Clone failed for \(repo.fullName, privacy: .public): \(String(describing: error), privacy: .public)"
+                    )
+                await MainActor.run {
+                    NSAlert.show("Clone failed",
+                                 message: "Could not clone \(repo.fullName). Check your network connection and that you're signed in with gh, then try again.")
+                }
+            }
+        }
+    }
+
+    private func updateLocalPath(_ path: String, for repo: Repo) {
+        do {
+            try services.database.queue.write { db in
+                try db.execute(
+                    sql: "UPDATE repo SET local_main_path = ? WHERE id = ?",
+                    arguments: [path, repo.id ?? 0]
+                )
+            }
+            reload()
+        } catch {
+            NSAlert.show("Save path failed", message: String(describing: error))
+        }
+    }
+
     private func pickPath(for repo: Repo) {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -150,17 +246,7 @@ struct RepoPrefsPane: View {
         panel.message = "Pick the local clone of \(repo.fullName)"
         panel.prompt = "Use Folder"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try services.database.queue.write { db in
-                try db.execute(
-                    sql: "UPDATE repo SET local_main_path = ? WHERE id = ?",
-                    arguments: [url.path, repo.id ?? 0]
-                )
-            }
-            reload()
-        } catch {
-            NSAlert.show("Save path failed", message: String(describing: error))
-        }
+        updateLocalPath(url.path, for: repo)
     }
 }
 

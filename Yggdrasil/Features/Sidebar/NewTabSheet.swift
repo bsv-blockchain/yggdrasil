@@ -24,6 +24,7 @@ struct NewTabSheet: View {
     /// editable so the user can branch off any commit-ish.
     @State private var baseBranch: String = ""
     @State private var inProgress: Bool = false
+    @State private var cloning: Bool = false
     @State private var error: String?
 
     var body: some View {
@@ -42,6 +43,16 @@ struct NewTabSheet: View {
                     .font(.callout)
                     .foregroundStyle(YggdrasilTheme.statusErr(scheme))
                     .accessibilityIdentifier("newtab.error")
+            }
+
+            if cloning {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Cloning…")
+                        .font(.callout)
+                        .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                }
+                .accessibilityIdentifier("newtab.cloning")
             }
 
             Spacer(minLength: 4)
@@ -265,15 +276,18 @@ struct NewTabSheet: View {
 
         guard let repoID = selectedRepoID,
               let agent = agents.first(where: { $0.id == selectedAgentID }),
-              let repo = repos.first(where: { $0.id == repoID })
+              var repo = repos.first(where: { $0.id == repoID })
         else { return }
 
         inProgress = true
         error = nil
         defer { inProgress = false }
 
+        guard await ensureRepoCloned(repo) else { return }
+
+        if let updated = repos.first(where: { $0.id == repoID }) { repo = updated }
         guard repo.localMainPath != nil else {
-            error = "Repo \(repo.fullName) has no local clone path on disk; set it in Preferences → Repos."
+            error = "Repo \(repo.fullName) has no local clone path on disk; set it in Settings > Repos."
             return
         }
 
@@ -346,6 +360,74 @@ struct NewTabSheet: View {
         }
     }
 
+    /// If the selected repo has no valid local clone, prompt the user to clone
+    /// it (or pick an existing folder) and persist the resulting path. Returns
+    /// `false` when the user cancels or the clone fails so `confirm()` aborts.
+    /// A no-op returning `true` when the repo is already cloned.
+    private func ensureRepoCloned(_ repo: Repo) async -> Bool {
+        guard repo.localMainPath == nil || !RepoPrefsPane.isValidGitRepo(repo.localMainPath ?? "") else {
+            return true
+        }
+        let parentDir = Self.inferCloneParent(from: repos)
+        let defaultTarget = (parentDir as NSString).appendingPathComponent(repo.name)
+        let alert = NSAlert()
+        alert.messageText = "\"\(repo.fullName)\" is not cloned locally."
+        alert.informativeText = "Clone it to \(defaultTarget)?"
+        alert.addButton(withTitle: "Clone")
+        alert.addButton(withTitle: "Choose Folder…")
+        alert.addButton(withTitle: "Cancel")
+        let response = alert.runModal()
+        guard response != .alertThirdButtonReturn else { return false }
+
+        var cloneTarget = defaultTarget
+        if response == .alertSecondButtonReturn {
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = false
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = false
+            panel.message = "Choose a folder to clone \(repo.fullName) into. A \"\(repo.name)\" subfolder will be created."
+            panel.prompt = "Clone Here"
+            panel.directoryURL = URL(fileURLWithPath: parentDir, isDirectory: true)
+            guard panel.runModal() == .OK, let pickedURL = panel.url else { return false }
+            cloneTarget = pickedURL.appendingPathComponent(repo.name).path
+        }
+
+        if RepoPrefsPane.isValidGitRepo(cloneTarget) {
+            await persistClonePath(cloneTarget, repoID: repo.id ?? 0)
+            return true
+        }
+        if FileManager.default.fileExists(atPath: cloneTarget) {
+            error = "\(cloneTarget) already exists but is not a git repository. Remove it or set the path manually in Settings > Repos."
+            return false
+        }
+
+        cloning = true
+        defer { cloning = false }
+        do {
+            try await GitHubCloner().clone(owner: repo.owner, name: repo.name, to: cloneTarget)
+            await persistClonePath(cloneTarget, repoID: repo.id ?? 0)
+            return true
+        } catch {
+            YggdrasilLog.ui
+                .error(
+                    "Clone failed for \(repo.fullName, privacy: .public): \(String(describing: error), privacy: .public)"
+                )
+            self.error = "Could not clone \(repo.fullName). Check your network connection and that you're signed in with gh, then try again."
+            return false
+        }
+    }
+
+    /// Persist a repo's local clone path and refresh the in-memory `repos`.
+    private func persistClonePath(_ path: String, repoID: Int64) async {
+        try? await services.database.queue.write { db in
+            try db.execute(
+                sql: "UPDATE repo SET local_main_path = ? WHERE id = ?",
+                arguments: [path, repoID]
+            )
+        }
+        repos = await (try? services.database.queue.read { db in try Repo.fetchAll(db) }) ?? repos
+    }
+
     /// Extracts a PR/issue number from a branch name like "pr-643" or "#643",
     /// then looks up that task in the given repo. Returns nil for branches that
     /// don't look like PR refs, or when no matching task row exists yet (the
@@ -394,6 +476,16 @@ struct NewTabSheet: View {
             return number
         }
         return nil
+    }
+
+    static func inferCloneParent(from repos: [Repo]) -> String {
+        let parents = repos.compactMap(\.localMainPath)
+            .map { ($0 as NSString).deletingLastPathComponent }
+        let counts = Dictionary(grouping: parents, by: { $0 }).mapValues(\.count)
+        if let mostCommon = counts.max(by: { $0.value < $1.value })?.key {
+            return mostCommon
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.path
     }
 
     /// Result of interpreting whatever the user typed in the New Session
