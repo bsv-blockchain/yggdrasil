@@ -1,6 +1,6 @@
 import Foundation
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 /// Covers the pure helpers behind the "clone an uncloned repo" flow:
 /// `NewTabSheet.inferCloneParent` (suggest where to clone) and

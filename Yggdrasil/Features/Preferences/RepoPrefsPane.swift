@@ -209,7 +209,10 @@ struct RepoPrefsPane: View {
                 try await GitHubCloner().clone(owner: repo.owner, name: repo.name, to: targetPath)
                 await MainActor.run { updateLocalPath(targetPath, for: repo) }
             } catch {
-                YggdrasilLog.ui.error("Clone failed for \(repo.fullName, privacy: .public): \(String(describing: error), privacy: .public)")
+                YggdrasilLog.ui
+                    .error(
+                        "Clone failed for \(repo.fullName, privacy: .public): \(String(describing: error), privacy: .public)"
+                    )
                 await MainActor.run {
                     NSAlert.show("Clone failed",
                                  message: "Could not clone \(repo.fullName). Check your network connection and that you're signed in with gh, then try again.")

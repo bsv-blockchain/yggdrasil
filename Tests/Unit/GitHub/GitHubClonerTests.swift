@@ -1,5 +1,5 @@
-@testable import Yggdrasil
 import XCTest
+@testable import Yggdrasil
 
 /// Verifies the clone path shells out to `gh repo clone <owner>/<name> <dir>`
 /// (so private repos authenticate via gh) and surfaces gh's stderr on failure.

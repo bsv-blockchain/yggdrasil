@@ -408,7 +408,10 @@ struct NewTabSheet: View {
             await persistClonePath(cloneTarget, repoID: repo.id ?? 0)
             return true
         } catch {
-            YggdrasilLog.ui.error("Clone failed for \(repo.fullName, privacy: .public): \(String(describing: error), privacy: .public)")
+            YggdrasilLog.ui
+                .error(
+                    "Clone failed for \(repo.fullName, privacy: .public): \(String(describing: error), privacy: .public)"
+                )
             self.error = "Could not clone \(repo.fullName). Check your network connection and that you're signed in with gh, then try again."
             return false
         }
@@ -422,7 +425,7 @@ struct NewTabSheet: View {
                 arguments: [path, repoID]
             )
         }
-        repos = (try? await services.database.queue.read { db in try Repo.fetchAll(db) }) ?? repos
+        repos = await (try? services.database.queue.read { db in try Repo.fetchAll(db) }) ?? repos
     }
 
     /// Extracts a PR/issue number from a branch name like "pr-643" or "#643",
@@ -476,7 +479,7 @@ struct NewTabSheet: View {
     }
 
     static func inferCloneParent(from repos: [Repo]) -> String {
-        let parents = repos.compactMap { $0.localMainPath }
+        let parents = repos.compactMap(\.localMainPath)
             .map { ($0 as NSString).deletingLastPathComponent }
         let counts = Dictionary(grouping: parents, by: { $0 }).mapValues(\.count)
         if let mostCommon = counts.max(by: { $0.value < $1.value })?.key {
