@@ -398,6 +398,13 @@ struct SidebarView: View {
 
     @ViewBuilder
     private func contextMenu(for tab: YggdrasilTab) -> some View {
+        Button("Resume Session") {
+            if let id = tab.id { SidebarActions.restartAgent(tabID: id, services: services) }
+        }
+        Button("New Shell") {
+            if let id = tab.id { SidebarActions.openShell(tabID: id, services: services) }
+        }
+        Divider()
         Button("Open in Finder") { SidebarActions.openInFinder(path: tab.worktreePath) }
         Button("Open in Terminal.app") { SidebarActions.openInTerminal(path: tab.worktreePath) }
         Divider()

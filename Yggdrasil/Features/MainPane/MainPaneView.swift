@@ -35,7 +35,10 @@ struct MainPaneView: View {
             }
         }
         .id(selectedTab.id)
-        .onAppear { ensureSessionForSelectedTab() }
+        .onAppear {
+            ensureSessionForSelectedTab()
+            autoResumeIfExited()
+        }
         .onChange(of: layout) { _, newValue in
             newValue.persist(for: selectedTab)
             persistPrimary(newValue.primarySegment)
@@ -101,18 +104,21 @@ struct MainPaneView: View {
     @ViewBuilder
     private var agentSurface: some View {
         if let session = services.sessions.sessions.first(where: { $0.id == selectedTab.id }) {
-            AgentTerminalSurface(
-                tabID: session.id,
-                cwd: session.cwd,
-                command: session.command,
-                args: session.args,
-                sessionStore: services.sessionStore,
-                sessions: services.sessions,
-                // Auto-focus the terminal when this tab becomes the
-                // selected one. Background tabs (opacity 0) don't grab
-                // keyboard focus.
-                isActive: services.tabs.selectedID == selectedTab.id
-            )
+            VStack(spacing: 0) {
+                AgentTerminalSurface(
+                    tabID: session.id,
+                    cwd: session.cwd,
+                    command: session.command,
+                    args: session.args,
+                    sessionStore: services.sessionStore,
+                    sessions: services.sessions,
+                    isActive: services.tabs.selectedID == selectedTab.id
+                )
+
+                if services.sessions.exitedTabs[session.id] != nil {
+                    TerminalExitBanner(scheme: scheme)
+                }
+            }
         } else {
             ZStack {
                 YggdrasilTheme.bgPane(scheme)
@@ -124,6 +130,13 @@ struct MainPaneView: View {
                 }
             }
         }
+    }
+
+    private func autoResumeIfExited() {
+        guard let tabID = selectedTab.id,
+              services.sessions.exitedTabs[tabID] != nil
+        else { return }
+        SidebarActions.restartAgent(tabID: tabID, services: services)
     }
 
     // MARK: - Auto-spawn on selection (preserved from Phase 5)
@@ -505,6 +518,16 @@ struct PaneHeader: View {
             )
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            if target == .agent, let id = tab.id {
+                Button("Resume Session") {
+                    SidebarActions.restartAgent(tabID: id, services: services)
+                }
+                Button("New Shell") {
+                    SidebarActions.openShell(tabID: id, services: services)
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -540,5 +563,31 @@ struct PaneHeader: View {
         }
         .buttonStyle(.plain)
         .help(help)
+    }
+}
+
+// MARK: - TerminalExitBanner
+
+struct TerminalExitBanner: View {
+    let scheme: ColorScheme
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 11))
+            Text("Session ended. Right-click the Claude tab to resume your session or open a shell.")
+                .font(.system(size: 11))
+        }
+        .foregroundStyle(YggdrasilTheme.textDim(scheme))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(YggdrasilTheme.bgPaneSoft(scheme))
+        .overlay(
+            Rectangle()
+                .fill(YggdrasilTheme.border(scheme))
+                .frame(height: 0.5),
+            alignment: .top
+        )
     }
 }

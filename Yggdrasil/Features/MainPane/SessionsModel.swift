@@ -19,13 +19,22 @@ struct OpenSession: Identifiable, Hashable {
 final class SessionsModel {
     var sessions: [OpenSession] = []
     var selectedID: Int64?
+    var exitedTabs: [Int64: Int32] = [:]
 
     /// `AgentTerminalSurface.Coordinator` registers its PID here so app-quit
     /// can iterate and SIGTERM every live agent. YggdrasilTab id → PID.
     private var livePIDs: [Int64: pid_t] = [:]
 
     func add(_ session: OpenSession) {
-        sessions.append(session)
+        // Replace-or-append by id: re-adding the same tab (e.g. Resume Session
+        // after an agent exit) swaps the row in place rather than creating a
+        // duplicate, so `restartAgent` doesn't depend on `terminate` having
+        // already removed the old row.
+        if let idx = sessions.firstIndex(where: { $0.id == session.id }) {
+            sessions[idx] = session
+        } else {
+            sessions.append(session)
+        }
         selectedID = session.id
     }
 
@@ -35,6 +44,14 @@ final class SessionsModel {
         if selectedID == id {
             selectedID = sessions.first?.id
         }
+    }
+
+    func markExited(tabID: Int64, exitCode: Int32) {
+        exitedTabs[tabID] = exitCode
+    }
+
+    func clearExited(tabID: Int64) {
+        exitedTabs.removeValue(forKey: tabID)
     }
 
     func registerLivePID(_ pid: pid_t, for tabID: Int64) {

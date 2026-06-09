@@ -33,6 +33,49 @@ enum SidebarActions {
         }
     }
 
+    @MainActor
+    static func restartAgent(tabID: Int64, services: AppServices) {
+        guard let tab = services.tabs.tabs.first(where: { $0.id == tabID }),
+              let agentID = tab.codingAgentID,
+              let agent = try? services.agentStore.get(id: agentID)
+        else { return }
+        services.sessions.clearExited(tabID: tabID)
+        services.sessions.terminate(tabID: tabID)
+        // Defer the re-add one runloop tick so SwiftUI can dismantle the old
+        // AgentTerminalSurface (and its dead PTY) before the replacement row
+        // mounts a fresh one.
+        DispatchQueue.main.async {
+            services.sessions.add(OpenSession(
+                id: tabID,
+                displayName: "\(agent.name) \u{00b7} \(tab.branchName)",
+                cwd: tab.worktreePath,
+                command: agent.command,
+                args: agent.args
+            ))
+        }
+    }
+
+    @MainActor
+    static func openShell(tabID: Int64, services: AppServices) {
+        guard let session = services.sessions.sessions.first(where: { $0.id == tabID }) else { return }
+        let cwd = session.cwd
+        services.sessions.clearExited(tabID: tabID)
+        services.sessions.terminate(tabID: tabID)
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        // Defer the re-add one runloop tick so SwiftUI can dismantle the old
+        // AgentTerminalSurface (and its dead PTY) before the replacement row
+        // mounts a fresh one.
+        DispatchQueue.main.async {
+            services.sessions.add(OpenSession(
+                id: tabID,
+                displayName: "Shell",
+                cwd: cwd,
+                command: shell,
+                args: []
+            ))
+        }
+    }
+
     /// Confirm-then-delete a tab. Tears down any running session and (optionally)
     /// removes the worktree on disk. Three-way prompt:
     ///   - Remove Tab Only — DB row + session, worktree stays on disk.

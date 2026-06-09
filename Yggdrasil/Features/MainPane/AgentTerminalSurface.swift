@@ -271,6 +271,10 @@ struct AgentTerminalSurface: NSViewRepresentable {
                     .error("Failed to write session_state.end: \(String(describing: error), privacy: .public)")
             }
             sessions?.unregisterLivePID(for: tabID)
+            let id = tabID
+            DispatchQueue.main.async { [weak self] in
+                self?.sessions?.markExited(tabID: id, exitCode: resolved)
+            }
             YggdrasilLog.pty.info("Agent pid=\(self.pid, privacy: .public) exited code=\(resolved, privacy: .public)")
         }
     }
