@@ -123,7 +123,7 @@ final class CodingMenuController: NSObject {
         }
         guard let (owner, name) = DebugMenu.promptForOwnerAndName() else { return }
         Task {
-            let branch = (try? await services.restClient.defaultBranch(owner: owner, name: name)) ?? "main"
+            let branch = await (try? services.restClient.defaultBranch(owner: owner, name: name)) ?? "main"
             do {
                 try await services.database.queue.write { db in
                     var repo = Repo(

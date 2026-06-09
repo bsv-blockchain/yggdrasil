@@ -97,8 +97,11 @@ struct RESTClient {
         let url = Endpoints.repoInfo(owner: owner, repo: name)
         let result = try await http.get(url: url, accept: "application/vnd.github+json")
         let body = result.body ?? Data()
-        struct RepoDTO: Decodable { let default_branch: String }
-        return try Self.decoder.decode(RepoDTO.self, from: body).default_branch
+        struct RepoDTO: Decodable {
+            let defaultBranch: String
+            enum CodingKeys: String, CodingKey { case defaultBranch = "default_branch" }
+        }
+        return try Self.decoder.decode(RepoDTO.self, from: body).defaultBranch
     }
 
     /// Reusable decoder configured for GitHub's ISO-8601 date format.

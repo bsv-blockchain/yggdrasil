@@ -199,10 +199,12 @@ struct NewTabSheet: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 7))
 
-                Text("The commit the new branch starts from. Default branch: \(defaultBranchPlaceholder) (from GitHub).")
-                    .font(.system(size: 10))
-                    .foregroundStyle(YggdrasilTheme.textMute(scheme))
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "The commit the new branch starts from. Default branch: \(defaultBranchPlaceholder) (from GitHub)."
+                )
+                .font(.system(size: 10))
+                .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
