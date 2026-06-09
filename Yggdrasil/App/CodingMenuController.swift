@@ -116,24 +116,27 @@ final class CodingMenuController: NSObject {
 
     @objc private func addTrackedRepo() {
         YggdrasilLog.ui.notice("Coding menu: Add Tracked Repo clicked")
-        guard let database = services?.database else {
+        guard let services else {
             DebugMenu.alert(title: "Yggdrasil not ready",
                             message: "Services not initialised yet. Try again in a second.")
             return
         }
         guard let (owner, name) = DebugMenu.promptForOwnerAndName() else { return }
-        do {
-            try database.queue.write { db in
-                var repo = Repo(
-                    id: nil, owner: owner, name: name, defaultBranch: "main",
-                    localMainPath: nil, addedAt: Date()
-                )
-                try repo.insert(db)
+        Task {
+            let branch = await (try? services.restClient.defaultBranch(owner: owner, name: name)) ?? "main"
+            do {
+                try await services.database.queue.write { db in
+                    var repo = Repo(
+                        id: nil, owner: owner, name: name, defaultBranch: branch,
+                        localMainPath: nil, addedAt: Date()
+                    )
+                    try repo.insert(db)
+                }
+                YggdrasilLog.ui.info("Added tracked repo \(owner)/\(name) (default branch: \(branch))")
+            } catch {
+                DebugMenu.alert(title: "Add tracked repo failed",
+                                message: String(describing: error))
             }
-            YggdrasilLog.ui.info("Added tracked repo \(owner)/\(name)")
-        } catch {
-            DebugMenu.alert(title: "Add tracked repo failed",
-                            message: String(describing: error))
         }
     }
 
