@@ -37,22 +37,35 @@ CI builds the signed/notarized DMG; for a quick local install (e.g. to dogfood
 an unmerged branch):
 
 ```sh
+# 1. Build — arm64 only (see note)
 xcodebuild -project Yggdrasil.xcodeproj -scheme Yggdrasil -configuration Release \
   -destination 'platform=macOS' -derivedDataPath build/derived \
   ARCHS=arm64 ONLY_ACTIVE_ARCH=NO build
-cp -R build/derived/Build/Products/Release/Yggdrasil.app /Applications/Yggdrasil.app
+APP=build/derived/Build/Products/Release/Yggdrasil.app
+
+# 2. Vendor libgit2 into the bundle, then re-sign — REQUIRED even locally (see note)
+Scripts/bundle-libgit2.sh "$APP"
+codesign --force --deep --sign - "$APP"
+
+# 3. Install
+rm -rf /Applications/Yggdrasil.app
+cp -R "$APP" /Applications/Yggdrasil.app
 xattr -dr com.apple.quarantine /Applications/Yggdrasil.app
 ```
 
 - **`ARCHS=arm64` is required.** Homebrew's libgit2 is arm64-only on the build
   machine, so a default (arm64 + x86_64) Release build fails at the x86_64 link
   step. Yggdrasil is Apple-Silicon-only; Intel is not a target.
-- A local build is **ad-hoc signed** and links Homebrew libgit2 by absolute path
-  (`/opt/homebrew/opt/libgit2/...`). It runs fine on a machine with that libgit2
-  installed but is **not** self-contained — don't redistribute it. For a
-  shareable build, `Scripts/bundle-libgit2.sh <app>` vendors every Homebrew dylib
-  into `Contents/Frameworks` (then re-sign), which is what the release workflow
-  does before notarizing.
+- **Bundling libgit2 + re-signing is required even for a local run, not just for
+  distribution.** A local build is ad-hoc signed (no Team ID); macOS library
+  validation refuses to load Homebrew's libgit2 (different Team ID), so the app
+  crashes at launch with *"Yggdrasil cannot be opened … works with this version
+  of macOS"* (underlying dyld error: `… different Team IDs`).
+  `Scripts/bundle-libgit2.sh <app>` vendors libgit2 + its transitive deps into
+  `Contents/Frameworks` and rewrites load commands to `@rpath`; `codesign
+  --force --deep --sign -` then brings everything under one (ad-hoc) signature
+  so the dylibs load. The release workflow does the same before notarizing with
+  a Developer ID.
 
 ## App data / config locations (survives reinstall)
 
