@@ -148,17 +148,26 @@ final class TabsModel {
         }
     }
 
-    func model(for tab: YggdrasilTab) -> TabRowViewModel {
+    func model(for tab: YggdrasilTab, grouped: Bool = false) -> TabRowViewModel {
         let task = tab.id.flatMap { tasksByTabID[$0] }
-        return TabRowViewModel(tab: tab, task: task)
+        return TabRowViewModel(tab: tab, task: task, repoName: repoName(for: tab), grouped: grouped)
     }
 
     /// Phase 6+ overload: includes the live status so the row icon reflects
     /// the latest poller tick.
-    func model(for tab: YggdrasilTab, status: TabStatusModel) -> TabRowViewModel {
+    func model(for tab: YggdrasilTab, status: TabStatusModel, grouped: Bool = false) -> TabRowViewModel {
         let task = tab.id.flatMap { tasksByTabID[$0] }
         let live = tab.id.flatMap { status.status(forTabID: $0) }
-        return TabRowViewModel(tab: tab, task: task, liveStatus: live)
+        return TabRowViewModel(
+            tab: tab, task: task, liveStatus: live,
+            repoName: repoName(for: tab), grouped: grouped
+        )
+    }
+
+    /// `owner/name` for the repo that owns this tab's worktree, or nil if not
+    /// resolved (ad-hoc tab outside any tracked repo).
+    func repoName(for tab: YggdrasilTab) -> String? {
+        tab.id.flatMap { repoByTabID[$0] }?.fullName
     }
 
     /// Resolves the repo that owns a given worktree. Two layouts coexist:

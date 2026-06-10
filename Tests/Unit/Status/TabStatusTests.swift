@@ -95,4 +95,32 @@ final class TabStatusTests: XCTestCase {
         XCTAssertTrue(lines.contains(where: { $0.lowercased().contains("ci") && $0.contains("FAILURE") }))
         XCTAssertTrue(lines.contains(where: { $0.lowercased().contains("unread") && $0.contains("3") }))
     }
+
+    // MARK: - Review state
+
+    func testReviewStatePassesThrough() {
+        let status = make(github: .init(ciState: "SUCCESS", reviewState: "CHANGES_REQUESTED", unread: 0))
+        XCTAssertEqual(status.reviewState, "CHANGES_REQUESTED")
+    }
+
+    func testReviewStateDoesNotDisplaceWorkIcon() {
+        // An approved PR is still "idle" work-wise — the review shows as a
+        // separate dot, never as the row's work-state icon.
+        let status = make(github: .init(ciState: "SUCCESS", reviewState: "APPROVED", unread: 0))
+        XCTAssertEqual(status.icon, .idle)
+    }
+
+    func testTooltipIncludesReviewLabel() {
+        let status = make(github: .init(ciState: nil, reviewState: "APPROVED", unread: 0))
+        XCTAssertTrue(status.tooltipLines.contains("Review: Approved"))
+    }
+
+    func testReviewLabelMapping() {
+        XCTAssertEqual(TabStatus.reviewLabel("APPROVED"), "Approved")
+        XCTAssertEqual(TabStatus.reviewLabel("CHANGES_REQUESTED"), "Changes requested")
+        XCTAssertEqual(TabStatus.reviewLabel("REVIEW_REQUIRED"), "Review required")
+        XCTAssertNil(TabStatus.reviewLabel(nil))
+        XCTAssertNil(TabStatus.reviewLabel(""))
+        XCTAssertNil(TabStatus.reviewLabel("COMMENTED"))
+    }
 }

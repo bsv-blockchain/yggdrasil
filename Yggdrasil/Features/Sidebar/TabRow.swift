@@ -19,6 +19,20 @@ struct TabRow: View {
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 4) {
+                if let repoLine = model.repoLine {
+                    HStack(spacing: 5) {
+                        Image(systemName: "folder")
+                            .font(.system(size: 9))
+                            .opacity(0.6)
+                        Text(repoLine)
+                            .font(.system(size: 10.5, design: .monospaced))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                    .accessibilityIdentifier("tabrow.repo")
+                }
+
                 HStack(spacing: 6) {
                     if model.isReview {
                         Text("REVIEW")
@@ -67,6 +81,13 @@ struct TabRow: View {
 
             VStack(alignment: .trailing, spacing: 4) {
                 trailingBadge
+                if let dot = model.reviewDot {
+                    Circle()
+                        .fill(reviewColor(dot))
+                        .frame(width: 7, height: 7)
+                        .help(dot.label)
+                        .accessibilityIdentifier("tabrow.reviewdot")
+                }
                 if model.liveStatus?.showsUnreadBadgeDot == true {
                     Circle()
                         .fill(YggdrasilTheme.ember)
@@ -128,6 +149,14 @@ struct TabRow: View {
             return lines.joined(separator: "\n")
         }
         return model.titleLine
+    }
+
+    private func reviewColor(_ dot: TabRowViewModel.ReviewDot) -> Color {
+        switch dot {
+        case .approved: YggdrasilTheme.statusOK(scheme)
+        case .changesRequested: YggdrasilTheme.statusErr(scheme)
+        case .reviewRequired: YggdrasilTheme.statusWarn(scheme)
+        }
     }
 }
 
