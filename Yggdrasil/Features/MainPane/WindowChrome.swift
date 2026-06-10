@@ -28,6 +28,11 @@ struct WindowChromeBar: View {
     }
 
     private var repo: Repo? {
+        // Prefer the tab's owning repo so the breadcrumb shows for ad-hoc tabs
+        // too (not just PR/issue-linked ones); fall back to the linked task's repo.
+        if let id = selectedTab?.id, let repo = services.tabs.repoByTabID[id] {
+            return repo
+        }
         guard let task = selectedTask else { return nil }
         return try? services.database.queue.read { db in
             try Repo.fetchOne(db, key: task.repoID)

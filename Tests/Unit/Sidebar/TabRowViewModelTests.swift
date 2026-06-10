@@ -90,4 +90,57 @@ final class TabRowViewModelTests: XCTestCase {
         let model = TabRowViewModel(tab: makeTab(), task: nil)
         XCTAssertEqual(model.statusIcon, .idle)
     }
+
+    // MARK: - Repo line
+
+    func testRepoLineShownWhenNotGrouped() {
+        let model = TabRowViewModel(tab: makeTab(), task: nil, repoName: "acme/widgets", grouped: false)
+        XCTAssertEqual(model.repoLine, "acme/widgets")
+    }
+
+    func testRepoLineHiddenWhenGrouped() {
+        let model = TabRowViewModel(tab: makeTab(), task: nil, repoName: "acme/widgets", grouped: true)
+        XCTAssertNil(model.repoLine)
+    }
+
+    func testRepoLineNilWhenRepoUnknown() {
+        let model = TabRowViewModel(tab: makeTab(), task: nil, repoName: nil, grouped: false)
+        XCTAssertNil(model.repoLine)
+    }
+
+    // MARK: - Review dot
+
+    private func liveStatus(reviewState: String?) -> TabStatus {
+        TabStatus.aggregate(
+            claude: .idle,
+            git: GitState(dirty: false, remote: .noRemote),
+            github: .init(ciState: nil, reviewState: reviewState, unread: 0)
+        )
+    }
+
+    func testReviewDotMapping() {
+        XCTAssertEqual(
+            TabRowViewModel(tab: makeTab(taskID: 1), task: makeTask(),
+                            liveStatus: liveStatus(reviewState: "APPROVED")).reviewDot,
+            .approved
+        )
+        XCTAssertEqual(
+            TabRowViewModel(tab: makeTab(taskID: 1), task: makeTask(),
+                            liveStatus: liveStatus(reviewState: "CHANGES_REQUESTED")).reviewDot,
+            .changesRequested
+        )
+        XCTAssertEqual(
+            TabRowViewModel(tab: makeTab(taskID: 1), task: makeTask(),
+                            liveStatus: liveStatus(reviewState: "REVIEW_REQUIRED")).reviewDot,
+            .reviewRequired
+        )
+    }
+
+    func testNoReviewDotForUnknownOrMissingState() {
+        XCTAssertNil(TabRowViewModel(tab: makeTab(taskID: 1), task: makeTask(),
+                                     liveStatus: liveStatus(reviewState: nil)).reviewDot)
+        XCTAssertNil(TabRowViewModel(tab: makeTab(taskID: 1), task: makeTask(),
+                                     liveStatus: liveStatus(reviewState: "COMMENTED")).reviewDot)
+        XCTAssertNil(TabRowViewModel(tab: makeTab(), task: nil).reviewDot)
+    }
 }

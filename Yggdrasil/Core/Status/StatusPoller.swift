@@ -78,6 +78,7 @@ actor StatusPoller {
                 }
                 return GitHubAggregate(
                     ciState: row.ciState,
+                    reviewState: row.reviewState,
                     unread: row.unreadCommentsCount
                 )
             }

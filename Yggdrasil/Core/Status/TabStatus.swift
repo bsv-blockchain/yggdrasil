@@ -5,7 +5,16 @@ import Foundation
 /// fetched.
 struct GitHubAggregate: Equatable {
     let ciState: String? // e.g. "SUCCESS", "FAILURE", "PENDING", or nil
+    /// GitHub's `reviewDecision`: "APPROVED", "CHANGES_REQUESTED",
+    /// "REVIEW_REQUIRED", or nil for non-PR tabs / PRs with no review activity.
+    let reviewState: String?
     let unread: Int // unread comments + reviews since last_seen_comment_id
+
+    init(ciState: String?, reviewState: String? = nil, unread: Int) {
+        self.ciState = ciState
+        self.reviewState = reviewState
+        self.unread = unread
+    }
 }
 
 /// The combined sidebar-row status. `icon` is the highest-priority signal per
@@ -20,6 +29,17 @@ struct TabStatus: Equatable {
     let icon: Icon
     let showsUnreadBadgeDot: Bool
     let tooltipLines: [String]
+    /// Raw GitHub review decision for the linked PR (or nil). Surfaced as a
+    /// coloured dot on the row; deliberately independent of `icon` so it never
+    /// displaces the work-state icon.
+    let reviewState: String?
+
+    init(icon: Icon, showsUnreadBadgeDot: Bool, tooltipLines: [String], reviewState: String? = nil) {
+        self.icon = icon
+        self.showsUnreadBadgeDot = showsUnreadBadgeDot
+        self.tooltipLines = tooltipLines
+        self.reviewState = reviewState
+    }
 
     static func aggregate(
         claude: ClaudeState,
@@ -30,7 +50,8 @@ struct TabStatus: Equatable {
         return TabStatus(
             icon: icon,
             showsUnreadBadgeDot: github.unread > 0,
-            tooltipLines: makeTooltip(claude: claude, git: git, github: github)
+            tooltipLines: makeTooltip(claude: claude, git: git, github: github),
+            reviewState: github.reviewState
         )
     }
 
@@ -57,8 +78,20 @@ struct TabStatus: Equatable {
             lines.append("\(ahead) ahead, \(behind) behind upstream")
         }
         if let ciState = github.ciState { lines.append("CI: \(ciState)") }
+        if let review = reviewLabel(github.reviewState) { lines.append("Review: \(review)") }
         if github.unread > 0 { lines.append("\(github.unread) unread comment(s)") }
         return lines
+    }
+
+    /// GitHub-worded label for a `reviewDecision`, or nil for states we don't
+    /// surface (no review activity / draft).
+    static func reviewLabel(_ reviewState: String?) -> String? {
+        switch reviewState?.uppercased() {
+        case "APPROVED": "Approved"
+        case "CHANGES_REQUESTED": "Changes requested"
+        case "REVIEW_REQUIRED": "Review required"
+        default: nil
+        }
     }
 
     private static func claudeDescription(_ state: ClaudeState) -> String {

@@ -19,11 +19,43 @@ struct TabRowViewModel: Equatable {
         case issueNumber(Int)
     }
 
+    /// GitHub PR review decision, surfaced as a coloured dot on the row.
+    /// nil for non-PR tabs and PRs with no review activity (so no dot shows).
+    enum ReviewDot: Equatable {
+        case approved // green
+        case changesRequested // red
+        case reviewRequired // amber
+
+        init?(reviewState: String?) {
+            switch reviewState?.uppercased() {
+            case "APPROVED": self = .approved
+            case "CHANGES_REQUESTED": self = .changesRequested
+            case "REVIEW_REQUIRED": self = .reviewRequired
+            default: return nil
+            }
+        }
+
+        /// GitHub-worded label for the hover tooltip.
+        var label: String {
+            switch self {
+            case .approved: "Approved"
+            case .changesRequested: "Changes requested"
+            case .reviewRequired: "Review required"
+            }
+        }
+    }
+
     let titleLine: String
     let branchLine: String
     let worktreeLine: String
     let statusIcon: StatusIcon
     let trailingBadge: TrailingBadge
+    /// Owning repo `owner/name` shown above the branch. nil when grouping by
+    /// repo is on (the section header already names the repo) or the repo is
+    /// unknown.
+    let repoLine: String?
+    /// PR review decision dot, or nil when there's nothing to show.
+    let reviewDot: ReviewDot?
     /// True when the tab was opened via the review picker (branch prefixed
     /// with `review-`). Drives the REVIEW pill in TabRow so the user can
     /// distinguish a review session from a normal one at a glance.
@@ -37,6 +69,8 @@ struct TabRowViewModel: Equatable {
         tab: YggdrasilTab,
         task: YggdrasilTask?,
         liveStatus: TabStatus? = nil,
+        repoName: String? = nil,
+        grouped: Bool = false,
         maxWorktreeChars: Int = 50
     ) {
         if let task {
@@ -56,6 +90,9 @@ struct TabRowViewModel: Equatable {
         self.liveStatus = liveStatus
         statusIcon = Self.mapIcon(liveStatus?.icon) ?? .idle
         isReview = NewTabSheet.isReviewBranch(tab.branchName)
+        // Repo name is redundant with the section header when grouping by repo.
+        repoLine = grouped ? nil : repoName
+        reviewDot = ReviewDot(reviewState: liveStatus?.reviewState)
     }
 
     /// Map the aggregator's icon onto the row's enum. Returns nil to mean

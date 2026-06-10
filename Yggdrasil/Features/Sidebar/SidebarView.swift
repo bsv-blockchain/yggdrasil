@@ -305,7 +305,7 @@ struct SidebarView: View {
     @ViewBuilder
     private func rowView(for tab: YggdrasilTab, reorderEnabled: Bool) -> some View {
         let row = TabRow(
-            model: tabsModel.model(for: tab, status: services.tabStatus),
+            model: tabsModel.model(for: tab, status: services.tabStatus, grouped: groupByRepo),
             agent: tabsModel.agentIdentity(for: tab),
             isSelected: tabsModel.selectedID == tab.id
         )
@@ -339,7 +339,7 @@ struct SidebarView: View {
                     // tinted background so it reads as a card under the
                     // cursor instead of the default transparent silhouette.
                     TabRow(
-                        model: tabsModel.model(for: tab, status: services.tabStatus),
+                        model: tabsModel.model(for: tab, status: services.tabStatus, grouped: groupByRepo),
                         agent: tabsModel.agentIdentity(for: tab),
                         isSelected: true
                     )
