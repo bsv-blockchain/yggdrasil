@@ -14,6 +14,7 @@ struct YggdrasilApp: App {
             CommandGroup(replacing: .newItem) {}
             TabCommands()
             DiagnosticsCommands()
+            FindCommands()
             // "Coding" menu lives in AppKit (CodingMenuController) for
             // historical reasons (SwiftUI's CommandMenu used to stop
             // dispatching once MenuBarExtra was in the Scene graph). The
