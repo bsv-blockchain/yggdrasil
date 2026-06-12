@@ -56,6 +56,7 @@ struct RootView: View {
         }
         .frame(minWidth: 900, minHeight: 600)
         .accessibilityIdentifier("yggdrasil.root")
+        .background(WindowFrameAutosaver(autosaveName: "YggdrasilMainWindow"))
     }
 
     private var placeholder: some View {

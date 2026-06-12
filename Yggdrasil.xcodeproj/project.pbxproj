@@ -59,6 +59,7 @@
 		497450A80A785D691596E093 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = 22C8DA0B09E246E196AD567A /* KeychainAccess */; };
 		4AFD450AE557FF2F85070776 /* GitRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2696119602D5B020469CE2E2 /* GitRunner.swift */; };
 		4B4F01292DF1B277280DB0D5 /* SessionsModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2005C40FEFC212573B9B63 /* SessionsModelTests.swift */; };
+		4D16117F325C78116DB36B0C /* YggdrasilButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B501D1E9394345FFA10742B2 /* YggdrasilButtonStyle.swift */; };
 		4EC6A8F7E934C8A3ED11496A /* GHCLIAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4592E29AC7752D741FA4F483 /* GHCLIAuth.swift */; };
 		4EF8D76933A867D553763BBC /* IntervalSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEEDDC0EA22C512E4F6C4D4E /* IntervalSettingsTests.swift */; };
 		4F10AF7B1CA082C26E3BDE7C /* Clibgit2 in Frameworks */ = {isa = PBXBuildFile; productRef = B95C7CBB5969F9856E882084 /* Clibgit2 */; };
@@ -74,6 +75,7 @@
 		64BCF660F02BDF04F99AA60F /* GitHubLiveSyncIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68F9552DD7F1AC4861DA2D1E /* GitHubLiveSyncIntegrationTests.swift */; };
 		656DC0CBFCE1CCEA1909C218 /* WorktreeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67CEC205580D915F373EBB2D /* WorktreeManager.swift */; };
 		69F4924A3980512BEFB3415C /* index.js in Resources */ = {isa = PBXBuildFile; fileRef = 1319C448A5CB047913D8E864 /* index.js */; };
+		6EE19DE491B787CDD003248A /* WindowFrameAutosaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00D5284BD851077710947067 /* WindowFrameAutosaver.swift */; };
 		6EE2F76B0DAC9EAB9EF1BA57 /* StartupValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CEA97C97FF4C1D4A2578B1 /* StartupValidator.swift */; };
 		704A55EE84220A6F097E4E7C /* TabRowViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B6047B65F17F43271FFAE3 /* TabRowViewModelTests.swift */; };
 		7425EBE4549F248571D16098 /* TabStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0646F96A4EF7D2E9EB3DA65D /* TabStore.swift */; };
@@ -136,6 +138,7 @@
 		E95FF9A36B1FBA30ECEA91A7 /* CodingAgentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88E4FB20AE73F43E9A4934EC /* CodingAgentStore.swift */; };
 		EB5A16940C4EB34E1DD546FC /* index.html in Resources */ = {isa = PBXBuildFile; fileRef = BEC439EAE044AE869E531DAD /* index.html */; };
 		ECB7FF50A3EE91834B7E531E /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 0DCDF4C6F794D772D38F2952 /* GRDB */; };
+		EE944CB796E9468E9392907A /* WindowFrameAutosaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274F31B91244AD66E1D73701 /* WindowFrameAutosaveTests.swift */; };
 		F0877CD15CFE8ACD4D2934CC /* ReviewPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 948A16A92FE75C74D900FC72 /* ReviewPickerTests.swift */; };
 		F3AFA17A8905FA23BB7A8131 /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3642D905571F3D54A5796F /* SmokeTests.swift */; };
 		F47EAD1937EE379E1A26A822 /* YggdrasilApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4A8D8497EF59E2E426DF74 /* YggdrasilApp.swift */; };
@@ -156,6 +159,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		00D5284BD851077710947067 /* WindowFrameAutosaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowFrameAutosaver.swift; sourceTree = "<group>"; };
 		0373719560E953755E6352B7 /* Backoff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backoff.swift; sourceTree = "<group>"; };
 		05354BB03F5DF8D61B7BEA27 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		0646F96A4EF7D2E9EB3DA65D /* TabStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabStore.swift; sourceTree = "<group>"; };
@@ -184,6 +188,7 @@
 		251CFF837211B6BB1AD7F55D /* SidebarGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarGrouping.swift; sourceTree = "<group>"; };
 		252F995BF1A44D1A9207F6B8 /* TabsModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabsModelTests.swift; sourceTree = "<group>"; };
 		2696119602D5B020469CE2E2 /* GitRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRunner.swift; sourceTree = "<group>"; };
+		274F31B91244AD66E1D73701 /* WindowFrameAutosaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowFrameAutosaveTests.swift; sourceTree = "<group>"; };
 		2A8A112A91F42061FC56C62A /* SessionStateStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStateStoreTests.swift; sourceTree = "<group>"; };
 		2E0E0DC8AEEA33E8ACA1DCB0 /* OutputRingBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputRingBufferTests.swift; sourceTree = "<group>"; };
 		2E1615B02DDD056B4C259B3D /* GitStateProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStateProbeTests.swift; sourceTree = "<group>"; };
@@ -250,6 +255,7 @@
 		AFB4E230EABFF23158DF251C /* StatusPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusPoller.swift; sourceTree = "<group>"; };
 		B34777123CDFFD7E94E495C8 /* GraphQLClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphQLClient.swift; sourceTree = "<group>"; };
 		B4763684B5AE9E80D155A44C /* SessionsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsModel.swift; sourceTree = "<group>"; };
+		B501D1E9394345FFA10742B2 /* YggdrasilButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilButtonStyle.swift; sourceTree = "<group>"; };
 		B62666C4EF4D517E80E8FB97 /* PRAuthored.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRAuthored.swift; sourceTree = "<group>"; };
 		B9AF4BA8572678F249A60386 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		BA8E73AFC818DB9C164D07FF /* BackoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffTests.swift; sourceTree = "<group>"; };
@@ -424,6 +430,7 @@
 			isa = PBXGroup;
 			children = (
 				984816FB566D23BDE9C40076 /* StartupValidatorTests.swift */,
+				274F31B91244AD66E1D73701 /* WindowFrameAutosaveTests.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -432,6 +439,8 @@
 			isa = PBXGroup;
 			children = (
 				FC4E52B15FA3225091E11087 /* AgentIdentity.swift */,
+				00D5284BD851077710947067 /* WindowFrameAutosaver.swift */,
+				B501D1E9394345FFA10742B2 /* YggdrasilButtonStyle.swift */,
 				33BB47578AF7D4C92F05F460 /* YggdrasilTheme.swift */,
 			);
 			path = UI;
@@ -898,6 +907,7 @@
 				8771F772F18DDEEA655CF22F /* TabsModelTests.swift in Sources */,
 				76642A91AD7739574F27C910 /* TaskSyncServiceTests.swift in Sources */,
 				E4286CA80F3A5B2A3A199853 /* TerminalPaletteTests.swift in Sources */,
+				EE944CB796E9468E9392907A /* WindowFrameAutosaveTests.swift in Sources */,
 				4347B49F6CE3B2179629D8AD /* WorktreeManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -981,11 +991,13 @@
 				38E480A5E15DF0B78E0688FC /* TaskSyncService.swift in Sources */,
 				7C7B55E9E25B30F43EE5B22D /* WebViewPool.swift in Sources */,
 				1BCD4BA660EF67BBF384B315 /* WindowChrome.swift in Sources */,
+				6EE19DE491B787CDD003248A /* WindowFrameAutosaver.swift in Sources */,
 				9D6D9F28D66D73A2B790E155 /* WorktreeError.swift in Sources */,
 				11B34E7AEAA136DAABFB885C /* WorktreeInfo.swift in Sources */,
 				656DC0CBFCE1CCEA1909C218 /* WorktreeManager.swift in Sources */,
 				0B6592F496BCB0547D01104C /* WorktreeWatcher.swift in Sources */,
 				F47EAD1937EE379E1A26A822 /* YggdrasilApp.swift in Sources */,
+				4D16117F325C78116DB36B0C /* YggdrasilButtonStyle.swift in Sources */,
 				9B04B7E07B7806E85C20B02C /* YggdrasilDatabase.swift in Sources */,
 				261A4E67952D92CEB25FDA6C /* YggdrasilLogger.swift in Sources */,
 				3BE8BBE62D588C39AE59103C /* YggdrasilTab.swift in Sources */,
