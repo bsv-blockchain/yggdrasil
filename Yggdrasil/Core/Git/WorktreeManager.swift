@@ -186,7 +186,32 @@ actor WorktreeManager {
         if force {
             args.append("--force")
         }
-        try await git.run(args: args, cwd: mainURL)
+        do {
+            try await git.run(args: args, cwd: mainURL)
+        } catch let WorktreeError.gitFailed(stderr, exitCode) {
+            // `git worktree remove` (without --force) refuses a worktree that
+            // has modified or untracked files. The `git status --porcelain`
+            // pre-check above normally catches that first, but the two can
+            // disagree (e.g. untracked-cache / directory-mtime races have been
+            // seen to make porcelain report clean while the remove still
+            // refuses), leaking git's raw error to callers. Git's refusal is
+            // the authority on removability, so map it back to the typed
+            // .dirty regardless of what the pre-check thought.
+            if !force, Self.isDirtyRefusal(stderr) {
+                throw WorktreeError.dirty(path: path)
+            }
+            throw WorktreeError.gitFailed(stderr: stderr, exitCode: exitCode)
+        }
+    }
+
+    /// Whether `git worktree remove` failed because the worktree wasn't clean.
+    /// Matched loosely — git's exact wording has changed across versions, but
+    /// the "use --force" hint and "modified or untracked" phrasing are stable
+    /// signals of the dirty-refusal path.
+    private static func isDirtyRefusal(_ stderr: String) -> Bool {
+        let lowered = stderr.lowercased()
+        return lowered.contains("use --force")
+            || lowered.contains("modified or untracked")
     }
 
     /// `git worktree prune` — drops administrative entries for worktree directories

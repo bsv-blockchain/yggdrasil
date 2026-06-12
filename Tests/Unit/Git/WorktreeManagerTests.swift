@@ -186,6 +186,40 @@ final class WorktreeManagerTests: XCTestCase {
                       "dirty worktree must not be removed")
     }
 
+    /// Regression for a flaky CI failure: `git status --porcelain` reported the
+    /// worktree clean, yet `git worktree remove` still refused it as dirty —
+    /// leaking `gitFailed` instead of the typed `.dirty`. Git's refusal is the
+    /// authority, so it must map to `.dirty`. Driven via a stub so it's
+    /// deterministic (the real race only showed up intermittently on CI).
+    func testRemoveMapsGitRemoveRefusalToDirtyEvenWhenStatusIsClean() async throws {
+        let stub = StubSubprocessRunner(responses: [
+            // 1. status --porcelain reports clean (the racy/flaky path).
+            SubprocessResult(stdout: "", stderr: "", exitCode: 0),
+            // 2. worktree remove refuses anyway with git's dirty wording.
+            SubprocessResult(
+                stdout: "",
+                stderr: "fatal: '/tmp/repo/.worktrees/feat-foo' contains modified or "
+                    + "untracked files, use --force to delete it",
+                exitCode: 128
+            )
+        ])
+        let manager = WorktreeManager(git: GitRunner(runner: stub, gitExecutable: "/usr/bin/git"))
+        let repo = Repo(
+            id: 1, owner: "x", name: "y",
+            defaultBranch: "main", localMainPath: "/tmp/repo", addedAt: Date()
+        )
+        let path = URL(fileURLWithPath: "/tmp/repo/.worktrees/feat-foo", isDirectory: true)
+
+        do {
+            try await manager.remove(repo: repo, path: path, force: false)
+            XCTFail("expected throw")
+        } catch let WorktreeError.dirty(reportedPath) {
+            XCTAssertEqual(reportedPath, path)
+        } catch {
+            XCTFail("expected .dirty, got \(error)")
+        }
+    }
+
     func testRemoveDirtyWorktreeWithForceSucceeds() async throws {
         let manager = WorktreeManager()
         let path = try await manager.ensure(repo: fixture.repo, branch: "feat/foo", baseRef: nil)
