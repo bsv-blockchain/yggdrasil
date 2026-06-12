@@ -24,6 +24,7 @@
 		14FBF3ED9C9E52E9ED8611AD /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC4D78DD45A5F9D613077301 /* Migrations.swift */; };
 		15CA2C4826B709C8A5408DE4 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39A3F996A99BE839DF3BAB2E /* SettingsStore.swift */; };
 		179BD7CA4057108527897A1F /* AgentIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC4E52B15FA3225091E11087 /* AgentIdentity.swift */; };
+		1A9FA0943A18F3D5D08CC564 /* TerminalImagePasteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD26DD19E2BF2BE2214B7964 /* TerminalImagePasteTests.swift */; };
 		1B2A4F992FDAEBBE34A6712C /* FixtureGitRepo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CF555299DF2CF8D391A777A /* FixtureGitRepo.swift */; };
 		1B982FBB4E43911C40294A87 /* TabStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FBAF586200697B6C5E93A84 /* TabStatusTests.swift */; };
 		1BCD4BA660EF67BBF384B315 /* WindowChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97BAAB8ABEAADA789A31964 /* WindowChrome.swift */; };
@@ -258,6 +259,7 @@
 		BB294B77DDC7413F8D9551B1 /* Clibgit2 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Clibgit2; path = Vendor/Clibgit2; sourceTree = SOURCE_ROOT; };
 		BB714284664866D813B72CD3 /* Endpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoints.swift; sourceTree = "<group>"; };
 		BC6144C93179429F6F1C8272 /* PRReviewRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRReviewRequest.swift; sourceTree = "<group>"; };
+		BD26DD19E2BF2BE2214B7964 /* TerminalImagePasteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalImagePasteTests.swift; sourceTree = "<group>"; };
 		BEB0086A14754A9816E8A746 /* AppearancePrefsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePrefsPane.swift; sourceTree = "<group>"; };
 		BEC439EAE044AE869E531DAD /* index.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = index.html; sourceTree = "<group>"; };
 		BEE2012604DB01A1CFD0B5AB /* TabStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabStoreTests.swift; sourceTree = "<group>"; };
@@ -465,6 +467,7 @@
 				3608459737EDC4326ADCB9DF /* AgentResumeFlagTests.swift */,
 				9F402C4B789EBF05316BFF0A /* CodingAgentRunnerTests.swift */,
 				2E0E0DC8AEEA33E8ACA1DCB0 /* OutputRingBufferTests.swift */,
+				BD26DD19E2BF2BE2214B7964 /* TerminalImagePasteTests.swift */,
 				AC7ED4461BDBE347067823D7 /* TerminalPaletteTests.swift */,
 			);
 			path = Terminal;
@@ -900,6 +903,7 @@
 				D7546A140D0F2D32A5C6AF93 /* TabStoreTests.swift in Sources */,
 				8771F772F18DDEEA655CF22F /* TabsModelTests.swift in Sources */,
 				76642A91AD7739574F27C910 /* TaskSyncServiceTests.swift in Sources */,
+				1A9FA0943A18F3D5D08CC564 /* TerminalImagePasteTests.swift in Sources */,
 				E4286CA80F3A5B2A3A199853 /* TerminalPaletteTests.swift in Sources */,
 				4347B49F6CE3B2179629D8AD /* WorktreeManagerTests.swift in Sources */,
 			);
