@@ -16,6 +16,7 @@ struct MainPaneView: View {
     /// pane in a `.split` layout. Persisted per-tab so each session
     /// remembers its own divider position.
     @State private var dividerFraction: Double
+    @State private var find = FindBarState()
     @Environment(\.colorScheme) private var scheme
 
     init(services: AppServices, selectedTab: YggdrasilTab) {
@@ -35,6 +36,14 @@ struct MainPaneView: View {
             }
         }
         .id(selectedTab.id)
+        .overlay(alignment: .topTrailing) {
+            if find.isVisible {
+                FindBar(state: find)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: FindCommand.show)) { _ in
+            find.show()
+        }
         .onAppear {
             ensureSessionForSelectedTab()
             autoResumeIfExited()
