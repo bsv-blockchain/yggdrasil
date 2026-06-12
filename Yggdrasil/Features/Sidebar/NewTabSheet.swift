@@ -137,6 +137,10 @@ struct NewTabSheet: View {
                             isSelected: selectedAgentID == agent.id,
                             scheme: scheme
                         )
+                        // Whole card tappable, not just its opaque pixels —
+                        // an `.onTapGesture` on a view with transparent gaps
+                        // otherwise only hits the rendered content.
+                        .contentShape(Rectangle())
                         .onTapGesture {
                             selectedAgentID = agent.id
                         }

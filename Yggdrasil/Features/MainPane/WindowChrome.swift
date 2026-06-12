@@ -121,7 +121,7 @@ struct WindowChromeBar: View {
                                 .stroke(YggdrasilTheme.accent.opacity(0.4), lineWidth: 0.5)
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.yggdrasilIcon)
                 .help("Show PRs awaiting your review")
                 .accessibilityIdentifier("chrome.reviewpill")
             }
@@ -170,7 +170,7 @@ struct WindowChromeBar: View {
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
                 .frame(width: 26, height: 26)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.yggdrasilIcon)
         .help(help)
     }
 

@@ -517,7 +517,7 @@ struct PaneHeader: View {
                     .fill(isSelected ? YggdrasilTheme.bgElev(scheme) : Color.clear)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.yggdrasilIcon)
         .contextMenu {
             if target == .agent, let id = tab.id {
                 Button("Resume Session") {
@@ -561,7 +561,7 @@ struct PaneHeader: View {
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
                 .frame(width: 22, height: 22)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.yggdrasilIcon)
         .help(help)
     }
 }

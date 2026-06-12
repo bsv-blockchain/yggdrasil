@@ -111,7 +111,7 @@ struct SidebarView: View {
                     .foregroundStyle(YggdrasilTheme.textDim(scheme))
                     .frame(width: 22, height: 22)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.yggdrasilIcon)
         }
         .padding(.horizontal, 12)
         .padding(.top, 10)
@@ -199,7 +199,7 @@ struct SidebarView: View {
                                     : Color.clear)
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.yggdrasilIcon)
             }
             Spacer()
             Button {
@@ -214,7 +214,7 @@ struct SidebarView: View {
                             .stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.yggdrasilIcon)
             .keyboardShortcut("I", modifiers: [.command, .shift])
             .help("My issues — table view (⌘⇧I)")
             .accessibilityIdentifier("sidebar.issuedetails")
@@ -230,7 +230,7 @@ struct SidebarView: View {
                             .stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.yggdrasilIcon)
             .keyboardShortcut("O", modifiers: [.command])
             .help("Open assigned issue or PR (⌘O)")
             .accessibilityIdentifier("sidebar.openassigned")
@@ -246,7 +246,7 @@ struct SidebarView: View {
                             .stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.yggdrasilIcon)
             .keyboardShortcut("T", modifiers: [.command])
             .help("New session (⌘T)")
             .accessibilityIdentifier("sidebar.plus")
