@@ -60,6 +60,7 @@ struct RootView: View {
         }
         .frame(minWidth: 900, minHeight: 600)
         .accessibilityIdentifier("yggdrasil.root")
+        .background(WindowFrameAutosaver(autosaveName: "YggdrasilMainWindow"))
         .task {
             // Start Sparkle's scheduled update checks once, in production only.
             // The test bundle is hosted in the real app, so this view runs
