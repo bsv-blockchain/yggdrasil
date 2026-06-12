@@ -133,6 +133,7 @@
 		DF057374F1A5A643C1E32E4D /* BackoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8E73AFC818DB9C164D07FF /* BackoffTests.swift */; };
 		E4286CA80F3A5B2A3A199853 /* TerminalPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7ED4461BDBE347067823D7 /* TerminalPaletteTests.swift */; };
 		E659A6DC30E7B00850E55208 /* GHCLIAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A30B4717CB6A068A8F5793F /* GHCLIAuthTests.swift */; };
+		E8170BAB2271E8BA6A314C77 /* PaneFind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E20FC9796AA417F0B636BEA /* PaneFind.swift */; };
 		E95FF9A36B1FBA30ECEA91A7 /* CodingAgentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88E4FB20AE73F43E9A4934EC /* CodingAgentStore.swift */; };
 		EB5A16940C4EB34E1DD546FC /* index.html in Resources */ = {isa = PBXBuildFile; fileRef = BEC439EAE044AE869E531DAD /* index.html */; };
 		ECB7FF50A3EE91834B7E531E /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 0DCDF4C6F794D772D38F2952 /* GRDB */; };
@@ -199,6 +200,7 @@
 		42AC4ECC1A08E5604A2057FC /* GitHubStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubStatus.swift; sourceTree = "<group>"; };
 		4592E29AC7752D741FA4F483 /* GHCLIAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GHCLIAuth.swift; sourceTree = "<group>"; };
 		4CF555299DF2CF8D391A777A /* FixtureGitRepo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureGitRepo.swift; sourceTree = "<group>"; };
+		4E20FC9796AA417F0B636BEA /* PaneFind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneFind.swift; sourceTree = "<group>"; };
 		4E39389CC1E8E55A0BB9139F /* GitStateProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStateProbe.swift; sourceTree = "<group>"; };
 		4F3642D905571F3D54A5796F /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		50A21AE81239B21D83CAB04D /* DebugMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugMenu.swift; sourceTree = "<group>"; };
@@ -341,6 +343,7 @@
 				88AE2C7159A7E5623495819D /* GitHubSubPane.swift */,
 				1B258E487852090EBD0E38E5 /* GitHubWebView.swift */,
 				685917A4DBDCFDE875F155E5 /* MainPaneView.swift */,
+				4E20FC9796AA417F0B636BEA /* PaneFind.swift */,
 				B4763684B5AE9E80D155A44C /* SessionsModel.swift */,
 				C388E8EEB6766ACD41088087 /* WebViewPool.swift */,
 				D97BAAB8ABEAADA789A31964 /* WindowChrome.swift */,
@@ -954,6 +957,7 @@
 				08B0DF682CA7EF1025465430 /* OutputRingBuffer.swift in Sources */,
 				D8F68C90A43CA9D95B5FC792 /* PRAuthored.swift in Sources */,
 				1127A314ABE86CBA0EB815DA /* PRReviewRequest.swift in Sources */,
+				E8170BAB2271E8BA6A314C77 /* PaneFind.swift in Sources */,
 				8F9D3350CA9F4B3FD2B4ED81 /* PreferencesScene.swift in Sources */,
 				D15CA18949CB392828344BB2 /* RESTClient.swift in Sources */,
 				7C0B5CE421A96306020C85B0 /* Repo.swift in Sources */,

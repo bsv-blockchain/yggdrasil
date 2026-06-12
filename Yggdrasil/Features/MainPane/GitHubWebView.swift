@@ -114,3 +114,26 @@ final class WebViewHost: NSView {
         attached = webView
     }
 }
+
+// MARK: - Find
+
+/// Drives Cmd-F for both the GitHub and Diff panes (both host their WKWebView
+/// in a `WebViewHost`). Uses WebKit's native incremental find, which
+/// highlights and scrolls to matches.
+extension WebViewHost: PaneFinder {
+    func paneFind(_ query: String, forward: Bool) {
+        guard let webView = attached, !query.isEmpty else { return }
+        let config = WKFindConfiguration()
+        config.backwards = !forward
+        config.caseSensitive = false
+        config.wraps = true
+        webView.find(query, configuration: config) { _ in }
+    }
+
+    func paneClearFind() {
+        attached?.evaluateJavaScript(
+            "window.getSelection && window.getSelection().removeAllRanges()",
+            completionHandler: nil
+        )
+    }
+}

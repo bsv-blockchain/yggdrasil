@@ -180,3 +180,20 @@ final class DroppableTerminalView: LocalProcessTerminalView {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }
+
+// MARK: - Find
+
+extension DroppableTerminalView: PaneFinder {
+    func paneFind(_ query: String, forward: Bool) {
+        guard !query.isEmpty else { return }
+        if forward {
+            findNext(query)
+        } else {
+            findPrevious(query)
+        }
+    }
+
+    func paneClearFind() {
+        clearSearch()
+    }
+}
