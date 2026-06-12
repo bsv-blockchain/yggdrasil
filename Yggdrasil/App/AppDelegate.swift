@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         exit(1)
     }
 
-    private static var isRunningTests: Bool {
+    static var isRunningTests: Bool {
         NSClassFromString("XCTest") != nil
             || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }

@@ -4,10 +4,11 @@ import SwiftUI
 @main
 struct YggdrasilApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var updater = UpdaterController()
 
     var body: some Scene {
         WindowGroup("Yggdrasil", id: "main") {
-            RootView(appDelegate: appDelegate)
+            RootView(appDelegate: appDelegate, updater: updater)
         }
         .windowToolbarStyle(.unified)
         .commands {
@@ -15,6 +16,7 @@ struct YggdrasilApp: App {
             TabCommands()
             DiagnosticsCommands()
             FindCommands()
+            UpdaterCommands(updater: updater)
             // "Coding" menu lives in AppKit (CodingMenuController) for
             // historical reasons (SwiftUI's CommandMenu used to stop
             // dispatching once MenuBarExtra was in the Scene graph). The
@@ -38,6 +40,7 @@ struct YggdrasilApp: App {
 /// when no session has been spawned for that tab yet).
 struct RootView: View {
     @ObservedObject var appDelegate: AppDelegate
+    let updater: UpdaterController
 
     @State private var showingOnboarding = false
 
@@ -57,6 +60,13 @@ struct RootView: View {
         }
         .frame(minWidth: 900, minHeight: 600)
         .accessibilityIdentifier("yggdrasil.root")
+        .task {
+            // Start Sparkle's scheduled update checks once, in production only.
+            // The test bundle is hosted in the real app, so this view runs
+            // under XCTest too — starting the updater there would schedule a
+            // network check and the first-run permission prompt.
+            if !AppDelegate.isRunningTests { updater.start() }
+        }
     }
 
     private var placeholder: some View {
