@@ -30,5 +30,13 @@
 	<string></string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/bsv-blockchain/yggdrasil/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>OcdvspJ9ALofqPKnDvemK9MJtQFXy4tAxT3/nRBPInU=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>

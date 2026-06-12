@@ -170,6 +170,40 @@ jobs:
           cd dist
           shasum -a 256 *.dmg | tee SHA256SUMS
 
+      - name: Generate Sparkle appcast
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.ver.outputs.version }}"
+          DMG="dist/Yggdrasil-${VERSION}.dmg"
+          APP="${{ steps.app.outputs.path }}"
+
+          # Sparkle CLI tools — pinned in the Makefile (single source of truth,
+          # matched to the SPM dependency version).
+          make sparkle-tools
+          SIGN_UPDATE="$(find .tools -name sign_update -path '*sparkle*' | head -1)"
+
+          # Sign the DMG → EdDSA signature + byte length for the appcast enclosure.
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > sparkle_key.txt
+          SIG_OUT="$("$SIGN_UPDATE" "$DMG" -f sparkle_key.txt)"
+          rm -f sparkle_key.txt
+          export ED_SIGNATURE="$(printf '%s' "$SIG_OUT" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')"
+          export DMG_LENGTH="$(printf '%s' "$SIG_OUT" | sed -n 's/.*length="\([^"]*\)".*/\1/p')"
+
+          # CFBundleVersion drives Sparkle's update ordering — read it from the
+          # built app so the appcast can't drift from the shipped binary.
+          export BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")"
+          export VERSION
+          export DMG_URL="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/Yggdrasil-${VERSION}.dmg"
+          export RELEASE_NOTES_LINK="https://github.com/${{ github.repository }}/releases/tag/${GITHUB_REF_NAME}"
+          export MIN_SYSTEM="14.0"
+          export PUB_DATE="$(date -R)"
+
+          Scripts/generate-appcast.sh > dist/appcast.xml
+          echo "=== appcast.xml ===" && cat dist/appcast.xml
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -177,6 +211,7 @@ jobs:
           path: |
             dist/*.dmg
             dist/SHA256SUMS
+            dist/appcast.xml
 
       - name: Create / update GitHub Release
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
@@ -186,7 +221,7 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" --draft --title "Yggdrasil $TAG" --notes "Release $TAG"
-          gh release upload "$TAG" dist/*.dmg dist/SHA256SUMS --clobber
+          gh release upload "$TAG" dist/*.dmg dist/SHA256SUMS dist/appcast.xml --clobber
 
       - name: Clean up keychain
         if: always()

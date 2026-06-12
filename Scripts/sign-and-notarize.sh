@@ -21,6 +21,25 @@ ENTITLEMENTS_PATH=${2:?"Usage: $0 <Yggdrasil.app> <entitlements.plist>"}
 : "${APPLE_APP_SPECIFIC_PASSWORD:?must be set}"
 : "${APPLE_TEAM_ID:?must be set}"
 
+# Sparkle bundles its own nested executables (the updater app, the Autoupdate
+# helper, and the Downloader/Installer XPC services). Each must be signed
+# individually, inside-out, with the hardened runtime — sealing Sparkle.framework
+# (in the loop below) requires its nested code to already be signed. Done before
+# the generic loop so the framework seal is valid; the outer `--deep` pass then
+# re-seals everything. No-ops cleanly if Sparkle isn't bundled.
+SPARKLE_VERSIONED="$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B"
+if [[ -d "$SPARKLE_VERSIONED" ]]; then
+    echo "==> Signing Sparkle nested helpers"
+    for nested in \
+        "$SPARKLE_VERSIONED"/XPCServices/*.xpc \
+        "$SPARKLE_VERSIONED/Autoupdate" \
+        "$SPARKLE_VERSIONED/Updater.app"; do
+        [[ -e "$nested" ]] || continue
+        codesign --force --options runtime --timestamp \
+            --sign "$APPLE_SIGNING_IDENTITY" "$nested"
+    done
+fi
+
 # Sign nested helpers and frameworks first, bundle outermost last.
 echo "==> Signing nested binaries"
 find "$APP_PATH/Contents/Frameworks" \( -name "*.dylib" -o -name "*.framework" \) -print0 2>/dev/null \
