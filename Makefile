@@ -17,12 +17,17 @@ DESTINATION  := platform=macOS
 # Pinned lint/format tool versions (single source of truth, shared with CI).
 SWIFTFORMAT_VERSION := 0.60.1
 SWIFTLINT_VERSION   := 0.63.2
+# Pinned Sparkle version: the SPM dependency (project.yml) AND the release
+# pipeline's signing tools (sign_update) must match. Single source of truth.
+SPARKLE_VERSION     := 2.9.3
 
 TOOLS_DIR   := .tools
 SWIFTFORMAT := $(TOOLS_DIR)/swiftformat-$(SWIFTFORMAT_VERSION)/swiftformat
 SWIFTLINT   := $(TOOLS_DIR)/swiftlint-$(SWIFTLINT_VERSION)/swiftlint
+SPARKLE_DIR := $(TOOLS_DIR)/sparkle-$(SPARKLE_VERSION)
+SIGN_UPDATE := $(SPARKLE_DIR)/bin/sign_update
 
-.PHONY: all build test lint format format-lint tools project js clean help install-tools
+.PHONY: all build test lint format format-lint tools sparkle-tools project js clean help install-tools
 
 all: build
 
@@ -34,6 +39,7 @@ help:
 	@echo "  format         - pinned SwiftFormat in-place over Yggdrasil/ and Tests/"
 	@echo "  format-lint    - pinned SwiftFormat --lint (no writes); used by CI"
 	@echo "  tools          - download pinned SwiftFormat + SwiftLint into .tools/"
+	@echo "  sparkle-tools  - download pinned Sparkle CLI tools (sign_update) into .tools/"
 	@echo "  project        - regenerate Yggdrasil.xcodeproj from project.yml"
 	@echo "  js             - rebuild Web/Diff React bundle → Resources/diff2html/index.js"
 	@echo "  install-tools  - brew-install required dev tooling (xcodegen, libgit2)"
@@ -89,6 +95,18 @@ $(SWIFTLINT):
 	@chmod +x $@ && touch $@
 
 tools: $(SWIFTFORMAT) $(SWIFTLINT)
+
+# Sparkle ships its CLI tools (sign_update, generate_appcast) in the release
+# tarball. Used by the release pipeline to sign the DMG for the appcast.
+$(SIGN_UPDATE):
+	@mkdir -p $(SPARKLE_DIR)
+	@echo "↓ Sparkle $(SPARKLE_VERSION) tools"
+	@curl -fsSL -o $(TOOLS_DIR)/sparkle.tar.xz \
+	  https://github.com/sparkle-project/Sparkle/releases/download/$(SPARKLE_VERSION)/Sparkle-$(SPARKLE_VERSION).tar.xz
+	@tar -xf $(TOOLS_DIR)/sparkle.tar.xz -C $(SPARKLE_DIR)
+	@touch $@
+
+sparkle-tools: $(SIGN_UPDATE)
 
 lint: $(SWIFTLINT)
 	$(SWIFTLINT) --strict --quiet

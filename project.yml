@@ -29,6 +29,9 @@ packages:
   KeychainAccess:
     url: https://github.com/kishikawakatsumi/KeychainAccess
     from: "4.2.2"
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: "2.9.3"
 targets:
   Yggdrasil:
     type: application
@@ -58,6 +61,14 @@ targets:
         NSPrincipalClass: NSApplication
         NSMainStoryboardFile: ""
         LSApplicationCategoryType: public.app-category.developer-tools
+        # Sparkle auto-update. Feed is the latest published release's appcast
+        # asset (drafts/prereleases are excluded by GitHub's `latest`); each
+        # release ships an appcast.xml describing itself. EdDSA public key is
+        # the counterpart of the CI secret SPARKLE_ED_PRIVATE_KEY.
+        SUFeedURL: https://github.com/bsv-blockchain/yggdrasil/releases/latest/download/appcast.xml
+        SUPublicEDKey: OcdvspJ9ALofqPKnDvemK9MJtQFXy4tAxT3/nRBPInU=
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
     entitlements:
       path: Yggdrasil/Yggdrasil.entitlements
       properties:
@@ -84,6 +95,8 @@ targets:
         product: Clibgit2
       - package: KeychainAccess
         product: KeychainAccess
+      - package: Sparkle
+        product: Sparkle
 
   YggdrasilTests:
     type: bundle.unit-test

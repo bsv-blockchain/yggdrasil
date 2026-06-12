@@ -1,5 +1,6 @@
 import AppKit
 import SwiftTerm
+import UniformTypeIdentifiers
 
 /// Shift+Enter rewriter. SwiftTerm's default `keyDown` handler routes Return
 /// (with or without Shift) through `interpretKeyEvents`, which on macOS maps
@@ -150,6 +151,81 @@ final class DroppableTerminalView: LocalProcessTerminalView {
         }
     }
 
+    // MARK: - Image-aware paste
+
+    /// Cmd-V. SwiftTerm's `paste` only knows about text, so an image on the
+    /// clipboard is silently dropped. Claude Code (and other agents) accept an
+    /// image by file path, so: if the clipboard holds an image, send a path to
+    /// it — the existing file when the clipboard references one, otherwise a
+    /// temp PNG written from the raw image bytes. Everything else falls through
+    /// to SwiftTerm's normal text paste.
+    override func paste(_ sender: Any) {
+        if let payload = DroppableTerminalView.imagePastePayload(from: .general) {
+            send(txt: payload)
+            return
+        }
+        super.paste(sender)
+    }
+
+    /// Shell-quoted path(s) to send for an image on `pasteboard`, or nil when
+    /// there's no image (caller should fall back to text paste). Prefers an
+    /// existing on-disk image file; only writes a temp PNG for raw image data.
+    static func imagePastePayload(from pasteboard: NSPasteboard) -> String? {
+        if let urls = pasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL], !urls.isEmpty, urls.allSatisfy(isImageFile) {
+            return urls.map { shellQuote($0.path) }.joined(separator: " ")
+        }
+        if let data = pngData(from: pasteboard), let path = writeTempImage(data) {
+            return shellQuote(path)
+        }
+        return nil
+    }
+
+    /// True for a file URL whose type conforms to `public.image`.
+    static func isImageFile(_ url: URL) -> Bool {
+        guard url.isFileURL,
+              let type = UTType(filenameExtension: url.pathExtension)
+        else { return false }
+        return type.conforms(to: .image)
+    }
+
+    /// PNG bytes for any raw image on the pasteboard (PNG as-is, else TIFF /
+    /// NSImage transcoded to PNG), or nil when there's no raw image data.
+    static func pngData(from pasteboard: NSPasteboard) -> Data? {
+        if let png = pasteboard.data(forType: .png) {
+            return png
+        }
+        if let tiff = pasteboard.data(forType: .tiff),
+           let rep = NSBitmapImageRep(data: tiff) {
+            return rep.representation(using: .png, properties: [:])
+        }
+        if let image = pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage,
+           let tiff = image.tiffRepresentation,
+           let rep = NSBitmapImageRep(data: tiff) {
+            return rep.representation(using: .png, properties: [:])
+        }
+        return nil
+    }
+
+    /// Write `pngData` to a temp file and return its path, or nil on failure.
+    static func writeTempImage(_ pngData: Data) -> String? {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Yggdrasil-pasted", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let url = dir.appendingPathComponent("pasted-\(UUID().uuidString).png")
+            try pngData.write(to: url)
+            return url.path
+        } catch {
+            YggdrasilLog.pty.error(
+                "Failed to write pasted image: \(String(describing: error), privacy: .public)"
+            )
+            return nil
+        }
+    }
+
     // MARK: - File drag-and-drop
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -178,5 +254,22 @@ final class DroppableTerminalView: LocalProcessTerminalView {
     /// uses but inlined to avoid pulling the runner into the view layer.
     static func shellQuote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+}
+
+// MARK: - Find
+
+extension DroppableTerminalView: PaneFinder {
+    func paneFind(_ query: String, forward: Bool) {
+        guard !query.isEmpty else { return }
+        if forward {
+            findNext(query)
+        } else {
+            findPrevious(query)
+        }
+    }
+
+    func paneClearFind() {
+        clearSearch()
     }
 }
