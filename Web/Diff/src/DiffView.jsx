@@ -374,7 +374,7 @@ function DiffFile({ file, mode, collapsed, onToggle }) {
 
 // ----------------------------------------------------------------- Top-level
 
-export function DiffView({ files, mode, setMode, scopeOptions, onScopeChange }) {
+export function DiffView({ files, mode, setMode, scopeOptions, onScopeChange, context }) {
   const [selectedPath, setSelectedPath] = useState(files[0]?.path || null);
   const [collapsed, setCollapsed] = useState({});
   const fileRefs = useRef({});
@@ -443,12 +443,7 @@ export function DiffView({ files, mode, setMode, scopeOptions, onScopeChange }) 
                  scopeOptions={scopeOptions} onScopeChange={onScopeChange} />
         <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
           {isEmpty ? (
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              height: '100%', color: 'var(--text-mute)', fontSize: 13,
-            }}>
-              No diff yet.
-            </div>
+            <EmptyState context={context} />
           ) : files.map(file => (
             <div key={file.path}
                  ref={el => { fileRefs.current[file.path] = el; }}>
@@ -462,6 +457,52 @@ export function DiffView({ files, mode, setMode, scopeOptions, onScopeChange }) 
           ))}
         </div>
       </main>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------- EmptyState
+
+// Shown when the diff is empty. Names the branch + base + scope so a blank
+// pane reads as "this branch genuinely has no changes" rather than "the diff
+// is broken / pointed at the wrong branch".
+function EmptyState({ context }) {
+  const ctx = context || {};
+  const branch = ctx.branch || '(unknown branch)';
+  const uncommittedOnly = ctx.scope === 'uncommitted';
+  const headline = uncommittedOnly ? 'No uncommitted changes' : 'No changes';
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', gap: 10, height: '100%',
+      color: 'var(--text-mute)', textAlign: 'center', padding: 24,
+    }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+        {headline}
+      </div>
+      <div style={{
+        fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.7,
+        color: 'var(--text-mute)',
+      }}>
+        <div>
+          branch&nbsp;&nbsp;<span style={{ color: 'var(--text)' }}>{branch}</span>
+        </div>
+        {uncommittedOnly ? (
+          <div>scope&nbsp;&nbsp;&nbsp;working tree vs HEAD</div>
+        ) : (
+          <>
+            <div>
+              base&nbsp;&nbsp;&nbsp;&nbsp;<span style={{ color: 'var(--text)' }}>{ctx.base || 'origin/main'}</span>
+            </div>
+            <div>scope&nbsp;&nbsp;&nbsp;branch + uncommitted</div>
+          </>
+        )}
+      </div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-faint)', maxWidth: 320 }}>
+        {uncommittedOnly
+          ? 'Nothing is staged or modified in this worktree.'
+          : 'This branch is even with its base — no commits ahead and nothing modified in the worktree.'}
+      </div>
     </div>
   );
 }
