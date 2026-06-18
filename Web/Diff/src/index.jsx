@@ -8,7 +8,7 @@ import { DiffView } from './DiffView.jsx';
 import { parseDiff } from './parser.js';
 import './styles.css';
 
-function App({ diffText, theme, scopeOptions, onScopeChange }) {
+function App({ diffText, theme, scopeOptions, onScopeChange, context }) {
   const [mode, setMode] = useState('split');
   const files = React.useMemo(() => parseDiff(diffText || ''), [diffText]);
   React.useEffect(() => {
@@ -21,6 +21,7 @@ function App({ diffText, theme, scopeOptions, onScopeChange }) {
       setMode={setMode}
       scopeOptions={scopeOptions}
       onScopeChange={onScopeChange}
+      context={context}
     />
   );
 }
@@ -33,6 +34,10 @@ const state = {
   diffText: '',
   theme: 'dark',
   scopeOptions: { branchEnabled: true, selected: 'branch' },
+  // What the current diff is being computed against. Surfaced in the
+  // empty state so a blank pane explains *which* branch/base produced no
+  // changes (rather than leaving the user to guess it's the wrong branch).
+  context: { branch: '', base: '', scope: 'branch' },
 };
 
 function rerender() {
@@ -42,6 +47,7 @@ function rerender() {
       theme={state.theme}
       scopeOptions={state.scopeOptions}
       onScopeChange={postScope}
+      context={state.context}
     />
   );
 }
@@ -81,6 +87,16 @@ window.yggdrasil.setScopeOptions = function (opts) {
   state.scopeOptions = {
     branchEnabled: !!opts.branchEnabled,
     selected: opts.selected === 'uncommitted' ? 'uncommitted' : 'branch',
+  };
+  rerender();
+};
+/// ctx = { branch: string, base: string, scope: 'branch' | 'uncommitted' }
+/// Describes what the diff is computed against; shown in the empty state.
+window.yggdrasil.setContext = function (ctx) {
+  state.context = {
+    branch: (ctx && ctx.branch) ? String(ctx.branch) : '',
+    base: (ctx && ctx.base) ? String(ctx.base) : '',
+    scope: (ctx && ctx.scope === 'uncommitted') ? 'uncommitted' : 'branch',
   };
   rerender();
 };

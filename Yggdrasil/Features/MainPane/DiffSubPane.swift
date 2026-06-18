@@ -154,6 +154,11 @@ struct DiffSubPane: NSViewRepresentable {
             }
             // Tell the JS toolbar which modes to offer + which one is on.
             await pushScopeUI(branchEnabled: !onDefault, selected: scopeForCompute, on: webView)
+            // Describe what we're diffing so the empty state can name the
+            // branch/base/scope instead of rendering a blank pane.
+            await pushContext(
+                branch: currentBranch, base: baseRef, scope: scopeForCompute, on: webView
+            )
 
             do {
                 let diff = try await services.diffEngine.unifiedDiff(
@@ -189,6 +194,27 @@ struct DiffSubPane: NSViewRepresentable {
             );
             """
             _ = try? await webView.evaluateJavaScript(script)
+        }
+
+        private func pushContext(
+            branch: String?, base: String, scope: DiffScope, on webView: WKWebView
+        ) async {
+            let script = """
+            window.yggdrasil && window.yggdrasil.setContext \
+            && window.yggdrasil.setContext(\
+            { branch: "\(Self.jsEscape(branch ?? ""))", \
+            base: "\(Self.jsEscape(base))", \
+            scope: "\(Self.scopeRaw(scope))" }\
+            );
+            """
+            _ = try? await webView.evaluateJavaScript(script)
+        }
+
+        /// Escape a string for embedding in a double-quoted JS literal.
+        private static func jsEscape(_ value: String) -> String {
+            value
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
         }
 
         private func resolveBaseRef() -> String {
