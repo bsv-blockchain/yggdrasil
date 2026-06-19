@@ -37,6 +37,38 @@ final class TabRowViewModelTests: XCTestCase {
         XCTAssertEqual(model.titleLine, "Hello")
     }
 
+    func testIssueTabWithLinkedPRShowsBothBadges() {
+        let model = TabRowViewModel(
+            tab: makeTab(taskID: 1),
+            task: makeTask(type: .issue, number: 1001),
+            prTask: makeTask(type: .pullRequest, number: 1042)
+        )
+        XCTAssertEqual(model.trailingBadge, .issueNumber(1001))
+        XCTAssertEqual(model.secondaryBadge, .prNumber(1042))
+    }
+
+    func testIssueTabWithoutLinkedPRHasNoSecondaryBadge() {
+        let model = TabRowViewModel(
+            tab: makeTab(taskID: 1),
+            task: makeTask(type: .issue, number: 1001),
+            prTask: nil
+        )
+        XCTAssertEqual(model.trailingBadge, .issueNumber(1001))
+        XCTAssertEqual(model.secondaryBadge, .none)
+    }
+
+    func testPROnlyTabHasNoSecondaryBadge() {
+        // A PR-only tab shouldn't sprout a second badge even if a PR task is
+        // somehow passed — the secondary is reserved for issue+PR pairing.
+        let model = TabRowViewModel(
+            tab: makeTab(taskID: 1),
+            task: makeTask(type: .pullRequest, number: 655),
+            prTask: makeTask(type: .pullRequest, number: 1042)
+        )
+        XCTAssertEqual(model.trailingBadge, .prNumber(655))
+        XCTAssertEqual(model.secondaryBadge, .none)
+    }
+
     func testRowWithoutTaskFallsBackToBranchName() {
         let model = TabRowViewModel(tab: makeTab(taskID: nil, branch: "scratch"), task: nil)
         XCTAssertEqual(model.titleLine, "scratch")

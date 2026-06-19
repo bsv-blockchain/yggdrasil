@@ -87,6 +87,17 @@ struct TabStore {
         }
     }
 
+    /// Persist a (possibly nil) `pr_task_id` — the PR linked to an issue tab,
+    /// shown alongside the issue in the sidebar row.
+    func setPRTaskID(id: Int64, prTaskID: Int64?) throws {
+        try database.queue.write { db in
+            try db.execute(
+                sql: "UPDATE tab SET pr_task_id = ? WHERE id = ?",
+                arguments: [prTaskID, id]
+            )
+        }
+    }
+
     /// Updates `tab.last_main_view` for a single row.
     func setLastMainView(id: Int64, view: YggdrasilTab.MainView) throws {
         try database.queue.write { db in

@@ -177,11 +177,18 @@ enum SidebarActions {
         Task { @MainActor in services.triggerSyncNow() }
     }
 
-    /// Clear a tab's PR link, reverting it to a plain terminal tab.
+    /// Clear a tab's PR link. On an issue tab carrying a linked PR, this drops
+    /// just the PR and keeps the issue; on a PR-only tab it reverts to a plain
+    /// terminal tab.
     @MainActor
     static func unlinkPR(id: Int64, services: AppServices) {
         do {
-            try services.tabStore.setTaskID(id: id, taskID: nil)
+            let tab = services.tabs.tabs.first { $0.id == id }
+            if tab?.prTaskID != nil {
+                try services.tabStore.setPRTaskID(id: id, prTaskID: nil)
+            } else {
+                try services.tabStore.setTaskID(id: id, taskID: nil)
+            }
         } catch {
             YggdrasilLog.ui.error(
                 "unlinkPR failed for tab \(id, privacy: .public): \(String(describing: error), privacy: .public)"
@@ -224,7 +231,14 @@ enum SidebarActions {
                 let taskID = try await services.syncService.importPR(
                     owner: owner, name: name, number: number
                 )
-                try services.tabStore.setTaskID(id: tabID, taskID: taskID)
+                if services.tabs.tasksByTabID[tabID]?.type == .issue {
+                    // Issue tab: keep the issue as primary, attach the PR
+                    // alongside it so the row shows both.
+                    try services.tabStore.setPRTaskID(id: tabID, prTaskID: taskID)
+                } else {
+                    // Ad-hoc / PR-only tab: the PR becomes the primary task.
+                    try services.tabStore.setTaskID(id: tabID, taskID: taskID)
+                }
                 services.tabs.reload()
                 services.triggerSyncNow()
             } catch {

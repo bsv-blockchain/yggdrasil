@@ -49,7 +49,11 @@ struct TabRowViewModel: Equatable {
     let branchLine: String
     let worktreeLine: String
     let statusIcon: StatusIcon
+    /// Primary badge: the issue (when an issue tab) or the PR (PR-only tab).
     let trailingBadge: TrailingBadge
+    /// PR linked to an issue tab, shown beneath the issue badge. `.none` unless
+    /// the primary is an issue and a PR is linked.
+    let secondaryBadge: TrailingBadge
     /// Owning repo `owner/name` shown above the branch. nil when grouping by
     /// repo is on (the section header already names the repo) or the repo is
     /// unknown.
@@ -68,6 +72,7 @@ struct TabRowViewModel: Equatable {
     init(
         tab: YggdrasilTab,
         task: YggdrasilTask?,
+        prTask: YggdrasilTask? = nil,
         liveStatus: TabStatus? = nil,
         repoName: String? = nil,
         grouped: Bool = false,
@@ -84,6 +89,14 @@ struct TabRowViewModel: Equatable {
         } else {
             titleLine = tab.branchName
             trailingBadge = .none
+        }
+        // The linked PR shows beneath the issue. Only meaningful when the
+        // primary badge is an issue and the linked task is actually a PR.
+        if case .issueNumber = trailingBadge,
+           let prTask, prTask.type == .pullRequest {
+            secondaryBadge = .prNumber(prTask.number)
+        } else {
+            secondaryBadge = .none
         }
         branchLine = tab.branchName
         worktreeLine = TabRowViewModel.midEllipsis(tab.worktreePath, max: maxWorktreeChars)

@@ -10,7 +10,23 @@ enum Migrations {
         migrator.registerMigration("v3", migrate: v3)
         migrator.registerMigration("v4", migrate: v4)
         migrator.registerMigration("v5", migrate: v5)
+        migrator.registerMigration("v6", migrate: v6)
         return migrator
+    }
+
+    // MARK: - v6 — Linked PR on a tab
+
+    ///
+    /// A tab's `task_id` is its primary task (an issue, or a PR for PR-only
+    /// tabs). `pr_task_id` lets an issue tab additionally carry the PR that
+    /// implements it, so the sidebar row can show both (issue + PR) instead
+    /// of "Link PR" replacing the issue. Nullable; ON DELETE SET NULL so a
+    /// pruned PR task just drops the link.
+    private static func v6(_ db: Database) throws {
+        try db.alter(table: "tab") { table in
+            table.add(column: "pr_task_id", .integer)
+                .references("task", onDelete: .setNull)
+        }
     }
 
     // MARK: - v5 — Label + milestone metadata on `task`

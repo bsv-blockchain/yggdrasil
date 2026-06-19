@@ -81,6 +81,7 @@ struct TabRow: View {
 
             VStack(alignment: .trailing, spacing: 4) {
                 trailingBadge
+                secondaryBadge
                 if let dot = model.reviewDot {
                     Circle()
                         .fill(reviewColor(dot))
@@ -141,6 +142,19 @@ struct TabRow: View {
                 .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                 .foregroundStyle(YggdrasilTheme.ember)
                 .tracking(0.2)
+        }
+    }
+
+    /// PR linked to an issue tab, rendered in white beneath the orange issue
+    /// badge. Only the `.prNumber` case appears here (set by the view model).
+    @ViewBuilder
+    private var secondaryBadge: some View {
+        if case let .prNumber(number) = model.secondaryBadge {
+            Text("#\(number)")
+                .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                .foregroundStyle(YggdrasilTheme.text(scheme))
+                .tracking(0.2)
+                .accessibilityIdentifier("tabrow.linkedpr")
         }
     }
 
