@@ -89,6 +89,45 @@ actor TaskSyncService {
         YggdrasilLog.sync.info("Full sync complete")
     }
 
+    /// Fetch one PR by number, upsert it into the task table (+ github_status
+    /// from a GraphQL detail), and return its task id. Powers "Link PR" — a
+    /// PR the user just opened may not be in any synced list yet, so we fetch
+    /// it on demand rather than waiting for the next fullSync.
+    ///
+    /// A linked PR survives sync even when it isn't in any synced list
+    /// (e.g. one the user didn't author and isn't assigned/review-requested
+    /// on): `deleteStaleTasks` skips any task referenced by a live
+    /// `tab.task_id`. The link persists for as long as the tab exists; once
+    /// the tab is removed the task becomes prunable again on the next sync.
+    func importPR(owner: String, name: String, number: Int) async throws -> Int64 {
+        let repoID = try await database.queue.read { db -> Int64 in
+            guard let id = try Int64.fetchOne(
+                db,
+                sql: "SELECT id FROM repo WHERE owner = ? AND name = ?",
+                arguments: [owner, name]
+            ) else {
+                throw GitHubError.decodingFailed("importPR: repo \(owner)/\(name) not tracked")
+            }
+            return id
+        }
+        let raw = try await rest.pullRequest(owner: owner, name: name, number: number)
+        let detail = try? await graphql.prDetail(owner: owner, repo: name, number: number)
+        let now = Date()
+        return try await database.queue.write { db in
+            try TaskSyncWrites.upsertSingleTask(
+                db: db, raw: raw, repoID: repoID, detail: detail, now: now
+            )
+        }
+    }
+
+    /// Among the repo's open PRs, the number whose head branch equals
+    /// `branch`, else nil. Used to pre-fill the Link PR dialog from the
+    /// tab's worktree branch.
+    func linkablePRNumber(forBranch branch: String, owner: String, name: String) async throws -> Int? {
+        let openPRs = try await rest.openPRs(forOwner: owner, name: name)
+        return openPRs.first(where: { $0.headRef == branch })?.number
+    }
+
     static func compositeKey(owner: String, name: String, number: Int) -> String {
         "\(owner)/\(name)#\(number)"
     }
@@ -111,6 +150,33 @@ enum TaskSyncWrites {
             }
             try upsertTask(db: db, raw: raw, repoID: repoID, now: now, prDetails: prDetails)
         }
+    }
+
+    /// Upsert a single task row (+ github_status when a PRDetail is given)
+    /// and return its id. Reuses the same `upsertTask` write path as the
+    /// full sync so a linked PR is indistinguishable from a synced one.
+    static func upsertSingleTask(
+        db: Database,
+        raw: RawTask,
+        repoID: Int64,
+        detail: PRDetail?,
+        now: Date
+    ) throws -> Int64 {
+        var prDetails: [String: PRDetail] = [:]
+        if let detail {
+            prDetails[TaskSyncService.compositeKey(
+                owner: raw.repoOwner, name: raw.repoName, number: raw.number
+            )] = detail
+        }
+        try upsertTask(db: db, raw: raw, repoID: repoID, now: now, prDetails: prDetails)
+        guard let id = try Int64.fetchOne(
+            db,
+            sql: "SELECT id FROM task WHERE repo_id = ? AND type = ? AND number = ?",
+            arguments: [repoID, raw.type.rawValue, raw.number]
+        ) else {
+            throw GitHubError.decodingFailed("upsertSingleTask: task row not found after upsert")
+        }
+        return id
     }
 
     private static func upsertTask(
@@ -251,6 +317,14 @@ enum TaskSyncWrites {
     }
 
     static func deleteStaleTasks(db: Database, repos: [Repo], fetched: [RawTask]) throws {
+        // Task ids referenced by a live tab are never pruned, even when they
+        // drop out of (or never appeared in) the synced lists. This is what
+        // lets a manually-linked PR — including one the user didn't author
+        // and isn't assigned/review-requested on — survive the sync that
+        // `importPR` triggers. See `importPR`.
+        let linkedTaskIDs = try Int64.fetchSet(
+            db, sql: "SELECT task_id FROM tab WHERE task_id IS NOT NULL"
+        )
         var keptByRepoID: [Int64: Set<String>] = [:]
         for raw in fetched {
             guard let repoRow = repos.first(where: {
@@ -265,6 +339,7 @@ enum TaskSyncWrites {
                 db, sql: "SELECT * FROM task WHERE repo_id = ?", arguments: [repoID]
             )
             for existing in allForRepo where !kept.contains("\(existing.type.rawValue)#\(existing.number)") {
+                if let id = existing.id, linkedTaskIDs.contains(id) { continue }
                 try existing.delete(db)
             }
         }

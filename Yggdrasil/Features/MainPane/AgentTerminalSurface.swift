@@ -71,6 +71,19 @@ struct AgentTerminalSurface: NSViewRepresentable {
     func makeNSView(context: Context) -> LocalProcessTerminalView {
         let view = DroppableTerminalView(frame: .zero)
         AgentTerminalSurface.applyTheme(to: view, scheme: effectiveScheme)
+        // Disable mouse reporting entirely. Two reasons, both flowing from
+        // the post-tmux "native terminal UX" direction:
+        //  1. SwiftTerm's `feedPrepare()` clears the active text selection
+        //     on every output chunk WHENEVER `allowMouseReporting` is true
+        //     (its comment: "Preserve manual selection while output is
+        //     streaming when mouse reporting is disabled"). With it left on
+        //     (the default), you can't hold a selection while an agent
+        //     streams output — the whole point of native selection breaks
+        //     during the exact moments you want to copy a line.
+        //  2. We don't forward mouse events to the agent anyway — scrolling
+        //     is native SwiftTerm scrollback and selection is native. The
+        //     agent CLIs are fully keyboard-operable.
+        view.allowMouseReporting = false
         view.processDelegate = context.coordinator
         context.coordinator.attach(view: view, scheme: effectiveScheme)
         return view

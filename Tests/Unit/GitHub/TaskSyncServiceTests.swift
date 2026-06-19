@@ -253,6 +253,86 @@ final class TaskSyncServiceTests: XCTestCase {
         XCTAssertEqual(statuses[0].reviewState, "APPROVED")
     }
 
+    func test_importPR_insertsTaskAndReturnsID() async throws {
+        let db = try YggdrasilDatabase.inMemory()
+        _ = try insertRepo(db, owner: "o", name: "r")
+
+        let prJSON = """
+        {
+          "url": "https://api.github.com/repos/o/r/pulls/828",
+          "html_url": "https://github.com/o/r/pull/828",
+          "number": 828, "title": "Bulk utxos",
+          "user": { "login": "siggi" }, "state": "open", "body": null,
+          "created_at": "2026-05-29T10:00:00Z",
+          "updated_at": "2026-05-29T11:00:00Z",
+          "assignees": [], "draft": false, "merged_at": null,
+          "head": { "ref": "feat/bulk-utxos" }
+        }
+        """
+        let detailJSON = """
+        {"data":{"repository":{"pullRequest":{"mergeable":"UNKNOWN","reviewDecision":null,"commits":{"nodes":[]}}}}}
+        """
+        let http = CannedHTTPClient(responses: [
+            httpResult(prJSON),
+            httpResult(detailJSON)
+        ])
+        let sync = TaskSyncService(
+            database: db,
+            rest: RESTClient(http: http),
+            graphql: GraphQLClient(http: http)
+        )
+
+        let taskID = try await sync.importPR(owner: "o", name: "r", number: 828)
+
+        let (count, savedNumber): (Int, Int?) = try await db.queue.read { dbR in
+            let rowCount = try Int
+                .fetchOne(dbR, sql: "SELECT COUNT(*) FROM task WHERE id = ?", arguments: [taskID]) ?? 0
+            let number = try Int.fetchOne(dbR, sql: "SELECT number FROM task WHERE id = ?", arguments: [taskID])
+            return (rowCount, number)
+        }
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(savedNumber, 828)
+
+        let statusCount: Int = try await db.queue.read { dbR in
+            try Int.fetchOne(dbR, sql: "SELECT COUNT(*) FROM github_status WHERE task_id = ?", arguments: [taskID]) ?? 0
+        }
+        XCTAssertEqual(statusCount, 1, "importPR should write a github_status row from the GraphQL detail")
+    }
+
+    func test_linkablePRNumber_matchesHeadBranch() async throws {
+        let db = try YggdrasilDatabase.inMemory()
+        _ = try insertRepo(db, owner: "o", name: "r")
+        let listJSON = """
+        [
+          {"url":"u","html_url":"h","number":12,"title":"t","user":{"login":"a"},
+           "state":"open","body":null,"created_at":"2026-05-29T10:00:00Z",
+           "updated_at":"2026-05-29T11:00:00Z","assignees":[],"draft":false,
+           "merged_at":null,"head":{"ref":"other-branch"}},
+          {"url":"u","html_url":"h","number":828,"title":"t","user":{"login":"a"},
+           "state":"open","body":null,"created_at":"2026-05-29T10:00:00Z",
+           "updated_at":"2026-05-29T11:00:00Z","assignees":[],"draft":false,
+           "merged_at":null,"head":{"ref":"feat/bulk-utxos"}}
+        ]
+        """
+        let http = CannedHTTPClient(responses: [httpResult(listJSON)])
+        let sync = TaskSyncService(
+            database: db,
+            rest: RESTClient(http: http),
+            graphql: GraphQLClient(http: http)
+        )
+        let match = try await sync.linkablePRNumber(forBranch: "feat/bulk-utxos", owner: "o", name: "r")
+        XCTAssertEqual(match, 828)
+
+        let http2 = CannedHTTPClient(responses: [httpResult(listJSON)])
+        let sync2 = TaskSyncService(
+            database: db,
+            rest: RESTClient(http: http2),
+            graphql: GraphQLClient(http: http2)
+        )
+        let none = try await sync2.linkablePRNumber(forBranch: "no-such-branch", owner: "o", name: "r")
+        XCTAssertNil(none)
+    }
+
     func testNetworkErrorLeavesPreviousStateIntact() async throws {
         let db = try YggdrasilDatabase.inMemory()
         _ = try insertRepo(db, owner: "o", name: "r")
@@ -280,5 +360,44 @@ final class TaskSyncServiceTests: XCTestCase {
         }
         let countAfter = try await db.queue.read { try YggdrasilTask.fetchCount($0) }
         XCTAssertEqual(countAfter, 1)
+    }
+
+    func test_deleteStaleTasks_keepsTabLinkedTasks() throws {
+        let db = try YggdrasilDatabase.inMemory()
+        let repoID = try insertRepo(db, owner: "o", name: "r")
+        let epoch = Date(timeIntervalSince1970: 0)
+
+        let survivingNumbers: [Int] = try db.queue.write { dbW -> [Int] in
+            func makeTask(_ number: Int) throws -> Int64 {
+                var task = YggdrasilTask(
+                    id: nil, repoID: repoID, type: .pullRequest, number: number,
+                    title: "t\(number)", body: nil, state: .open, authorLogin: "x",
+                    githubURL: "", apiURL: "",
+                    createdAt: epoch, updatedAt: epoch, lastSyncedAt: epoch,
+                    etag: nil, labelsJSON: "[]", milestoneTitle: nil
+                )
+                try task.insert(dbW)
+                return task.id!
+            }
+            let linkedID = try makeTask(101)
+            _ = try makeTask(102) // unlinked → should be pruned
+
+            var tab = YggdrasilTab(
+                id: nil, taskID: linkedID, codingAgentID: nil, position: 0,
+                branchName: "feat/x", worktreePath: "/tmp/x", lastMainView: .agent,
+                createdAt: epoch, lastActiveAt: epoch
+            )
+            try tab.insert(dbW)
+
+            let repo = try Repo.fetchOne(dbW, key: repoID)!
+            // Empty fetched-set: BOTH tasks are stale by the synced-list rule.
+            // Only the tab-linked one (101) must survive.
+            try TaskSyncWrites.deleteStaleTasks(db: dbW, repos: [repo], fetched: [])
+
+            return try Int.fetchAll(dbW, sql: "SELECT number FROM task ORDER BY number")
+        }
+
+        XCTAssertEqual(survivingNumbers, [101],
+                       "tab-linked task survives prune; unlinked stale task is deleted")
     }
 }

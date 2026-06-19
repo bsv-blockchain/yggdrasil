@@ -408,6 +408,18 @@ struct SidebarView: View {
         Button("Open in Finder") { SidebarActions.openInFinder(path: tab.worktreePath) }
         Button("Open in Terminal.app") { SidebarActions.openInTerminal(path: tab.worktreePath) }
         Divider()
+        if let id = tab.id {
+            if tabsModel.tasksByTabID[id] == nil {
+                Button("Link PR…") {
+                    SidebarActions.linkPR(tab: tab, services: services)
+                }
+            } else {
+                Button("Unlink PR") {
+                    SidebarActions.unlinkPR(id: id, services: services)
+                }
+            }
+        }
+        Divider()
         Button("Remove…", role: .destructive) {
             if let id = tab.id { SidebarActions.removeTab(id: id, services: services) }
         }
