@@ -65,15 +65,20 @@ struct RESTPRDTO: Decodable {
     let assignees: [User]
     let draft: Bool?
     let mergedAt: Date?
+    let head: Head?
 
     struct User: Decodable {
         let login: String
     }
 
+    struct Head: Decodable {
+        let ref: String
+    }
+
     enum CodingKeys: String, CodingKey {
         case url
         case htmlURL = "html_url"
-        case number, title, user, state, body, assignees, draft
+        case number, title, user, state, body, assignees, draft, head
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case mergedAt = "merged_at"
@@ -101,6 +106,10 @@ struct RawTask: Equatable {
     let labels: [Label]
     /// Milestone title (if any). Single string.
     let milestoneTitle: String?
+    /// PR source branch (`head.ref`). nil for issues and for PR payloads
+    /// that don't carry it. Used to auto-detect which PR matches a tab's
+    /// worktree branch when linking.
+    let headRef: String?
 
     struct Label: Hashable, Codable {
         let name: String
@@ -138,6 +147,7 @@ extension RawTask {
         self.assignees = issue.assignees.map(\.login)
         self.labels = (issue.labels ?? []).map { RawTask.Label(name: $0.name, color: $0.color) }
         self.milestoneTitle = issue.milestone?.title
+        self.headRef = nil
     }
 
     init(pullRequest pull: RESTPRDTO, owner: String, name: String) {
@@ -160,5 +170,6 @@ extension RawTask {
         // doesn't need them and the issue-details picker is issues-only.
         self.labels = []
         self.milestoneTitle = nil
+        self.headRef = pull.head?.ref
     }
 }
