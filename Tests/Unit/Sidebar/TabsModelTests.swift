@@ -103,4 +103,49 @@ final class TabsModelTests: XCTestCase {
         _ = second
         _ = third
     }
+
+    func testPendingAssignedCountExcludesTabPrimaryAndLinkedPR() throws {
+        let epoch = Date(timeIntervalSince1970: 0)
+        let (issueID, prID) = try db.queue.write { db -> (Int64, Int64) in
+            var repo = Repo(
+                id: nil, owner: "o", name: "r", defaultBranch: "main",
+                localMainPath: nil, addedAt: epoch
+            )
+            try repo.insert(db)
+            let repoID = try XCTUnwrap(repo.id)
+            func makeTask(_ type: YggdrasilTask.Kind, _ number: Int) throws -> Int64 {
+                var task = YggdrasilTask(
+                    id: nil, repoID: repoID, type: type, number: number, title: "t",
+                    body: nil, state: .open, authorLogin: "me", githubURL: "", apiURL: "",
+                    createdAt: epoch, updatedAt: epoch, lastSyncedAt: epoch,
+                    etag: nil, labelsJSON: "[]", milestoneTitle: nil
+                )
+                try task.insert(db)
+                return try XCTUnwrap(task.id)
+            }
+            let issue = try makeTask(.issue, 1001)
+            let pull = try makeTask(.pullRequest, 1042)
+            // Authored PR → part of the .assigned candidate set.
+            try db.execute(
+                sql: "INSERT INTO pr_authored (task_id, recorded_at) VALUES (?, ?)",
+                arguments: [pull, epoch]
+            )
+            return (issue, pull)
+        }
+
+        // Nothing open yet: the assigned issue + the authored PR are both pending.
+        model.reload()
+        XCTAssertEqual(model.pendingAssignedCount, 2)
+
+        // Open the issue as a tab and link the PR to it (pr_task_id) — the
+        // regression: the linked PR must drop out of the pending count too.
+        let tab = try store.insert(
+            branchName: "claude-issue-1001", worktreePath: "/tmp/x",
+            agentID: nil, taskID: issueID
+        )
+        try store.setPRTaskID(id: XCTUnwrap(tab.id), prTaskID: prID)
+
+        model.reload()
+        XCTAssertEqual(model.pendingAssignedCount, 0, "issue (task_id) and linked PR (pr_task_id) both excluded")
+    }
 }

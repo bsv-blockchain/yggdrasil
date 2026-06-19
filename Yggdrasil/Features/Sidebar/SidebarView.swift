@@ -1,6 +1,6 @@
 import SwiftUI
 
-// swiftlint:disable type_body_length
+// swiftlint:disable type_body_length file_length
 /// Sidebar — redesigned per `Yggdrasil.html`:
 /// - Header: blue gradient Yggdrasil mark + workspace name + "N tabs · M active"
 /// - Search field with ⌘K hint chip
@@ -229,6 +229,18 @@ struct SidebarView: View {
                         RoundedRectangle(cornerRadius: 5)
                             .stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
                     )
+                    .overlay(alignment: .topTrailing) {
+                        if tabsModel.pendingAssignedCount > 0 {
+                            Text("\(tabsModel.pendingAssignedCount)")
+                                .font(.system(size: 8.5, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 3)
+                                .frame(minWidth: 13, minHeight: 13)
+                                .background(Capsule().fill(YggdrasilTheme.accent))
+                                .offset(x: 2, y: -2)
+                                .accessibilityIdentifier("sidebar.openassigned.count")
+                        }
+                    }
             }
             .buttonStyle(.yggdrasilIcon)
             .keyboardShortcut("O", modifiers: [.command])

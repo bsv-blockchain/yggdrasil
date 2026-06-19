@@ -223,10 +223,10 @@ struct AssignedTaskPicker: View {
     private func reload() {
         do {
             rows = try services.database.queue.read { db -> [Row] in
-                // Tasks not currently shadowed by any tab.
-                let openedTaskIDs = try Int64.fetchSet(
-                    db, sql: "SELECT task_id FROM tab WHERE task_id IS NOT NULL"
-                )
+                // Tasks not currently shadowed by any tab — as a tab's primary
+                // task OR as an issue tab's linked PR (pr_task_id), so a PR
+                // linked to an open issue tab doesn't show as still-available.
+                let openedTaskIDs = try Int64.fetchSet(db, sql: TabsModel.openedTaskIDsSQL)
                 let candidateTasks: [YggdrasilTask] = switch mode {
                 case .assigned:
                     // Issues assigned to me + PRs I authored. The task table

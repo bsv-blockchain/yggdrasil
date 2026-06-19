@@ -22,6 +22,9 @@ final class TabsModel {
     /// Number of review-requested PRs not yet shadowed by a tab. Drives the
     /// "N to review" pill in the window chrome.
     var pendingReviewCount: Int = 0
+    /// Number of assigned items (issues assigned to me + PRs I authored) not
+    /// yet shadowed by a tab. Drives the count chip on the Open Assigned button.
+    var pendingAssignedCount: Int = 0
     var selectedID: Int64?
 
     private let store: TabStore
@@ -51,6 +54,7 @@ final class TabsModel {
                 try? store.setTaskID(id: link.tabID, taskID: link.taskID)
             }
             pendingReviewCount = try fetchPendingReviewCount()
+            pendingAssignedCount = try fetchPendingAssignedCount()
             agentByTabID = try resolveAgentIdentities()
             // Drop selection if the row vanished.
             if let selected = selectedID, !tabs.contains(where: { $0.id == selected }) {
@@ -113,6 +117,15 @@ final class TabsModel {
         }
     }
 
+    /// Task ids already shadowed by a tab — as the tab's primary task OR as an
+    /// issue tab's linked PR (`pr_task_id`). Picker/count exclusions use this so
+    /// a PR linked to an open issue tab doesn't also show as "to review" or
+    /// "assigned".
+    static let openedTaskIDsSQL = """
+    SELECT task_id FROM tab WHERE task_id IS NOT NULL
+    UNION SELECT pr_task_id FROM tab WHERE pr_task_id IS NOT NULL
+    """
+
     private func fetchPendingReviewCount() throws -> Int {
         try database.queue.read { db in
             // Match AssignedTaskPicker(.review) — review-requested ∪
@@ -125,7 +138,19 @@ final class TabsModel {
              OR (task.id IN (SELECT task_id FROM pr_assigned)
                  AND task.id NOT IN (SELECT task_id FROM pr_authored))
               )
-              AND task.id NOT IN (SELECT task_id FROM tab WHERE task_id IS NOT NULL)
+              AND task.id NOT IN (\(Self.openedTaskIDsSQL))
+            """) ?? 0
+        }
+    }
+
+    private func fetchPendingAssignedCount() throws -> Int {
+        try database.queue.read { db in
+            // Match AssignedTaskPicker(.assigned) — issues assigned to me + PRs
+            // I authored — minus what's already a tab (primary or linked PR).
+            try Int.fetchOne(db, sql: """
+            SELECT COUNT(*) FROM task
+            WHERE (task.type = 'issue' OR task.id IN (SELECT task_id FROM pr_authored))
+              AND task.id NOT IN (\(Self.openedTaskIDsSQL))
             """) ?? 0
         }
     }
