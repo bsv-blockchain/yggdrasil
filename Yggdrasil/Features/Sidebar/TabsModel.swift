@@ -10,6 +10,9 @@ final class TabsModel {
     var tabs: [YggdrasilTab] = []
     /// Cache: tabID → linked YggdrasilTask (filled when a tab.taskID is non-nil).
     var tasksByTabID: [Int64: YggdrasilTask] = [:]
+    /// Cache: tabID → PR task linked to an issue tab (tab.prTaskID), shown
+    /// beneath the issue in the sidebar row.
+    var prTasksByTabID: [Int64: YggdrasilTask] = [:]
     /// Cache: tabID → owning Repo, resolved from the tab's worktreePath. Lets
     /// the GitHub pane synthesize a URL for tabs whose PR/issue hasn't been
     /// synced yet (so we don't gate the WebView on the next 60s sync tick).
@@ -42,6 +45,7 @@ final class TabsModel {
             tabs = try store.list()
             let result = try resolveTaskAndRepoMaps()
             tasksByTabID = result.taskMap
+            prTasksByTabID = result.prTaskMap
             repoByTabID = result.repoMap
             for link in result.lazyLinks {
                 try? store.setTaskID(id: link.tabID, taskID: link.taskID)
@@ -66,6 +70,7 @@ final class TabsModel {
     /// see them.
     private struct ResolveResult {
         let taskMap: [Int64: YggdrasilTask]
+        let prTaskMap: [Int64: YggdrasilTask]
         let repoMap: [Int64: Repo]
         let lazyLinks: [(tabID: Int64, taskID: Int64)]
     }
@@ -73,6 +78,7 @@ final class TabsModel {
     private func resolveTaskAndRepoMaps() throws -> ResolveResult {
         try database.queue.read { db -> ResolveResult in
             var tasks: [Int64: YggdrasilTask] = [:]
+            var prTasks: [Int64: YggdrasilTask] = [:]
             var repos: [Int64: Repo] = [:]
             var lazyLinks: [(tabID: Int64, taskID: Int64)] = []
             let allRepos = try Repo.fetchAll(db)
@@ -80,6 +86,10 @@ final class TabsModel {
                 guard let tabID = tab.id else { continue }
                 if let owning = Self.repoOwning(worktreePath: tab.worktreePath, repos: allRepos) {
                     repos[tabID] = owning
+                }
+                if let prTaskID = tab.prTaskID,
+                   let prTask = try YggdrasilTask.fetchOne(db, key: prTaskID) {
+                    prTasks[tabID] = prTask
                 }
                 if let taskID = tab.taskID,
                    let task = try YggdrasilTask.fetchOne(db, key: taskID) {
@@ -97,7 +107,9 @@ final class TabsModel {
                     lazyLinks.append((tabID: tabID, taskID: matchID))
                 }
             }
-            return ResolveResult(taskMap: tasks, repoMap: repos, lazyLinks: lazyLinks)
+            return ResolveResult(
+                taskMap: tasks, prTaskMap: prTasks, repoMap: repos, lazyLinks: lazyLinks
+            )
         }
     }
 
@@ -150,16 +162,21 @@ final class TabsModel {
 
     func model(for tab: YggdrasilTab, grouped: Bool = false) -> TabRowViewModel {
         let task = tab.id.flatMap { tasksByTabID[$0] }
-        return TabRowViewModel(tab: tab, task: task, repoName: repoName(for: tab), grouped: grouped)
+        let prTask = tab.id.flatMap { prTasksByTabID[$0] }
+        return TabRowViewModel(
+            tab: tab, task: task, prTask: prTask,
+            repoName: repoName(for: tab), grouped: grouped
+        )
     }
 
     /// Phase 6+ overload: includes the live status so the row icon reflects
     /// the latest poller tick.
     func model(for tab: YggdrasilTab, status: TabStatusModel, grouped: Bool = false) -> TabRowViewModel {
         let task = tab.id.flatMap { tasksByTabID[$0] }
+        let prTask = tab.id.flatMap { prTasksByTabID[$0] }
         let live = tab.id.flatMap { status.status(forTabID: $0) }
         return TabRowViewModel(
-            tab: tab, task: task, liveStatus: live,
+            tab: tab, task: task, prTask: prTask, liveStatus: live,
             repoName: repoName(for: tab), grouped: grouped
         )
     }

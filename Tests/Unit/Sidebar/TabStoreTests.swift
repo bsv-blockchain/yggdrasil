@@ -80,6 +80,21 @@ final class TabStoreTests: XCTestCase {
         XCTAssertNil(reloaded?.taskID)
     }
 
+    func testSetPRTaskIDPersistsAndClears() throws {
+        // Also exercises migration v6 (the pr_task_id column) + the model's
+        // CodingKey, since the in-memory DB runs the full migrator.
+        let prTaskID = try insertFixtureTask()
+        let tab = try store.insert(
+            branchName: "claude-issue-1001", worktreePath: "/tmp/i",
+            agentID: nil, taskID: nil
+        )
+        XCTAssertNil(tab.prTaskID, "fresh tab has no linked PR")
+        try store.setPRTaskID(id: XCTUnwrap(tab.id), prTaskID: prTaskID)
+        XCTAssertEqual(try store.get(id: XCTUnwrap(tab.id))?.prTaskID, prTaskID)
+        try store.setPRTaskID(id: XCTUnwrap(tab.id), prTaskID: nil)
+        XCTAssertNil(try store.get(id: XCTUnwrap(tab.id))?.prTaskID)
+    }
+
     func testDeleteRemovesRow() throws {
         let one = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let two = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)

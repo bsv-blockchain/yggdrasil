@@ -409,13 +409,18 @@ struct SidebarView: View {
         Button("Open in Terminal.app") { SidebarActions.openInTerminal(path: tab.worktreePath) }
         Divider()
         if let id = tab.id {
-            if tabsModel.tasksByTabID[id] == nil {
-                Button("Link PR…") {
-                    SidebarActions.linkPR(tab: tab, services: services)
-                }
-            } else {
+            // "Has a PR" = a PR-only tab (primary task is the PR) or an issue
+            // tab carrying a linked PR. Either way the action is Unlink;
+            // otherwise (ad-hoc tab, or an issue with no PR yet) offer Link.
+            let hasLinkedPR = tab.prTaskID != nil
+                || tabsModel.tasksByTabID[id]?.type == .pullRequest
+            if hasLinkedPR {
                 Button("Unlink PR") {
                     SidebarActions.unlinkPR(id: id, services: services)
+                }
+            } else {
+                Button("Link PR…") {
+                    SidebarActions.linkPR(tab: tab, services: services)
                 }
             }
         }

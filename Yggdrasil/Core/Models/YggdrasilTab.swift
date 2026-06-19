@@ -14,6 +14,9 @@ struct YggdrasilTab: Codable, FetchableRecord, MutablePersistableRecord, Equatab
 
     var id: Int64?
     var taskID: Int64?
+    /// PR task linked to this tab when `taskID` is an issue. Lets the row show
+    /// the issue and its implementing PR together. nil for PR-only / ad-hoc tabs.
+    var prTaskID: Int64?
     var codingAgentID: Int64?
     var position: Int
     var branchName: String
@@ -25,6 +28,7 @@ struct YggdrasilTab: Codable, FetchableRecord, MutablePersistableRecord, Equatab
     enum CodingKeys: String, CodingKey {
         case id
         case taskID = "task_id"
+        case prTaskID = "pr_task_id"
         case codingAgentID = "coding_agent_id"
         case position
         case branchName = "branch_name"
