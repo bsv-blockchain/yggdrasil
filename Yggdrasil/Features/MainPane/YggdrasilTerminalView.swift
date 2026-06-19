@@ -129,26 +129,37 @@ final class DroppableTerminalView: LocalProcessTerminalView {
 
     // MARK: - Scroll follow
 
+    /// Terminal-level callback — fires when *output* advances the buffer
+    /// (line feed → `Terminal.scroll`), which always snaps `yDisp` to the
+    /// bottom (SwiftTerm's `userScrolling` gate is never set in 1.x, so it
+    /// snaps unconditionally). If the user had parked the viewport up in
+    /// history, put it back.
     override func scrolled(source terminal: Terminal, yDisp: Int) {
         super.scrolled(source: terminal, yDisp: yDisp)
-        guard !inRestore else { return }
-        let pos = scrollPosition
+        guard !inRestore, let frozen = userFrozenAtPosition, scrollPosition >= 1.0 else { return }
+        inRestore = true
+        scroll(toPosition: frozen)
+        inRestore = false
+    }
 
-        if TerminalUserInputTracker.dispatching {
-            // User-driven scroll (wheel, or scroll-to-cursor from a
-            // keystroke). Take the resulting position as their intent.
-            userFrozenAtPosition = pos >= 1.0 ? nil : pos
-            return
-        }
+    /// View-level callback — fires for every *user* scroll (wheel, trackpad,
+    /// slider, page up/down), all of which route through `scrollTo`. The
+    /// Terminal-level `scrolled(source:yDisp:)` above does NOT fire for these,
+    /// which is the bug: a wheel scroll-up never registered, `userFrozenAtPosition`
+    /// stayed nil, and the next line of output snapped the viewport to the
+    /// bottom. Capture the parked position here. The `dispatching` gate tells a
+    /// genuine user scroll apart from the output-driven snap (which also lands
+    /// here via the yDisp→position forward) and from our own restore.
+    override func scrolled(source: TerminalView, position: Double) {
+        super.scrolled(source: source, position: position)
+        guard !inRestore, TerminalUserInputTracker.dispatching else { return }
+        userFrozenAtPosition = Self.frozenTarget(forScrollPosition: position)
+    }
 
-        // No user input currently dispatching — any `scrolled` notification
-        // is system-driven (output advancing yBase + auto-snap). If we
-        // were pinned and the snap landed at the bottom, undo.
-        if let frozen = userFrozenAtPosition, pos >= 1.0 {
-            inRestore = true
-            scroll(toPosition: frozen)
-            inRestore = false
-        }
+    /// Maps a viewport scroll position to the freeze target: `nil` (follow the
+    /// tail) when at/after the bottom, otherwise the fractional position to pin.
+    static func frozenTarget(forScrollPosition pos: Double) -> Double? {
+        pos >= 1.0 ? nil : pos
     }
 
     // MARK: - Image-aware paste
