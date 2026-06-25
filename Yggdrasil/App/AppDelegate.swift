@@ -69,10 +69,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // input interceptor we keep — scroll-wheel + selection now work
         // natively via SwiftTerm since we dropped tmux mouse-mode.
         TerminalKeyInterceptor.install()
-        // Flags one runloop tick whenever the user produces a scroll or
-        // key event — DroppableTerminalView uses it to tell user-driven
-        // scrolls apart from output-driven auto-snaps to bottom.
-        TerminalUserInputTracker.install()
 
         // Install the AppKit "Coding" menu after the main menu bar is built.
         // SwiftUI sets up the bar during its own scene init; defer one tick

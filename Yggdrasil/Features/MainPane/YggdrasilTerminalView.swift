@@ -61,52 +61,27 @@ enum TerminalKeyInterceptor {
     }
 }
 
-/// Tracks whether a user-input event is currently being dispatched.
-/// Used by `DroppableTerminalView` to distinguish a `scrollTo` triggered
-/// by the user (wheel scroll, keypress → ensureCaretIsVisible) from an
-/// auto-snap-to-bottom triggered by the terminal's `scroll()` on output.
-@MainActor
-enum TerminalUserInputTracker {
-    private static var monitor: Any?
-    /// True during the dispatch of one user input event (set inside the
-    /// `addLocalMonitorForEvents` block, cleared on the next runloop tick
-    /// via `DispatchQueue.main.async`). NSEvent monitors fire before the
-    /// responder chain receives the event, so the flag is set BEFORE
-    /// SwiftTerm's view handler runs and stays set throughout — any
-    /// `scrolled` callback during that dispatch sees `true`.
-    private(set) static var dispatching = false
-
-    static func install() {
-        guard monitor == nil else { return }
-        monitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.scrollWheel, .keyDown]
-        ) { event in
-            dispatching = true
-            DispatchQueue.main.async { dispatching = false }
-            return event
-        }
-    }
-}
-
 /// `LocalProcessTerminalView` subclass with two enhancements:
 ///
 /// 1. **File drag-and-drop** — paths from Finder are shell-quoted and sent
 ///    to the PTY at the prompt. Matches iTerm2/Warp/Terminal.app.
 ///
-/// 2. **Don't snap to bottom on output while the user is reading
-///    history.** SwiftTerm's `Terminal.scroll()` snaps the viewport to
-///    `yBase` whenever new output arrives unless its internal
-///    `userScrolling` flag is set — but that flag is only wired for
-///    slider-drag input, not for wheel scrolling. Without a fix,
-///    reading scrollback while Claude writes means the view jumps to
-///    the bottom on every new line.
+/// 2. **Don't snap to bottom on output while the user is reading history.**
+///    SwiftTerm's `Terminal.scroll()` snaps the viewport to `yBase` on every
+///    new line — its internal `userScrolling` gate is never set in 1.x and is
+///    module-internal, so we can't suppress the snap. Instead we record where
+///    the user parked the viewport and restore it after each output-driven
+///    snap.
 ///
-///    The override watches the `scrolled` delegate callback. When the
-///    callback fires AND we're scrolled up AND no user input event is
-///    currently being dispatched, the viewport just got auto-snapped by
-///    output — we restore it. User-driven scrolls (wheel, drag, or the
-///    "ensureCaretIsVisible" path that runs on keypress) update the
-///    freeze state directly without ever triggering an undo.
+///    The two `scrolled` overrides split cleanly by call path, with no
+///    timing/event-monitor guesswork:
+///    - `scrolled(source:yDisp:)` (Terminal delegate) fires ONLY for output.
+///      It restores the parked position after the snap.
+///    - `scrolled(source:position:)` (view delegate) fires for every *user*
+///      scroll (wheel/trackpad/slider/page) via `scrollTo`. Output also
+///      reaches it (the yDisp override forwards through `super`), flagged by
+///      `inOutputScroll`; only a direct user scroll updates the parked
+///      position.
 @MainActor
 final class DroppableTerminalView: LocalProcessTerminalView {
     /// nil = follow tail; Double in [0, 1) = the position the user pinned
@@ -116,6 +91,11 @@ final class DroppableTerminalView: LocalProcessTerminalView {
     /// Re-entrance guard: our own `scroll(toPosition:)` triggers `scrolled`
     /// again.
     private var inRestore = false
+    /// True only while inside the output-driven `scrolled(source:yDisp:)`
+    /// path, so the view-level `scrolled(source:position:)` it forwards into
+    /// can tell an output snap from a genuine user scroll — deterministically,
+    /// by call path, rather than via an NSEvent-timing flag.
+    private var inOutputScroll = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -135,7 +115,9 @@ final class DroppableTerminalView: LocalProcessTerminalView {
     /// snaps unconditionally). If the user had parked the viewport up in
     /// history, put it back.
     override func scrolled(source terminal: Terminal, yDisp: Int) {
+        inOutputScroll = true
         super.scrolled(source: terminal, yDisp: yDisp)
+        inOutputScroll = false
         guard !inRestore, let frozen = userFrozenAtPosition, scrollPosition >= 1.0 else { return }
         inRestore = true
         scroll(toPosition: frozen)
@@ -143,16 +125,13 @@ final class DroppableTerminalView: LocalProcessTerminalView {
     }
 
     /// View-level callback — fires for every *user* scroll (wheel, trackpad,
-    /// slider, page up/down), all of which route through `scrollTo`. The
-    /// Terminal-level `scrolled(source:yDisp:)` above does NOT fire for these,
-    /// which is the bug: a wheel scroll-up never registered, `userFrozenAtPosition`
-    /// stayed nil, and the next line of output snapped the viewport to the
-    /// bottom. Capture the parked position here. The `dispatching` gate tells a
-    /// genuine user scroll apart from the output-driven snap (which also lands
-    /// here via the yDisp→position forward) and from our own restore.
+    /// slider, page up/down), all of which route through `scrollTo`. Output
+    /// also reaches here, but only via `scrolled(source:yDisp:)` → `super`,
+    /// flagged by `inOutputScroll`. A direct call (not in output, not our own
+    /// restore) is therefore a genuine user scroll → record where they parked.
     override func scrolled(source: TerminalView, position: Double) {
         super.scrolled(source: source, position: position)
-        guard !inRestore, TerminalUserInputTracker.dispatching else { return }
+        guard !inRestore, !inOutputScroll else { return }
         userFrozenAtPosition = Self.frozenTarget(forScrollPosition: position)
     }
 
