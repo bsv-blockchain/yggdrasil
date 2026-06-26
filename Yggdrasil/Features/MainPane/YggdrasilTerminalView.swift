@@ -61,17 +61,27 @@ enum TerminalKeyInterceptor {
     }
 }
 
-/// Forwards wheel scrolling to the agent when SwiftTerm's native scrollback
-/// can't help — i.e. the agent owns the screen via the alternate buffer (a
-/// full-screen TUI like Claude Code, which has no terminal scrollback) and/or
-/// is reading the mouse. SwiftTerm 1.x's `scrollWheel` only ever moves native
-/// scrollback and never forwards to the app, and it's `public` (not `open`), so
-/// it can't be overridden — hence a global event monitor, mirroring
-/// `TerminalKeyInterceptor`. This is the standard "alternate scroll" behaviour
-/// (à la xterm/iTerm): translate the wheel into mouse-wheel events when the app
-/// reads the mouse, or cursor up/down keys when it's a non-mouse alt-buffer app.
+/// Bridges the mouse to the agent for things SwiftTerm doesn't do on its own,
+/// via a global event monitor (SwiftTerm's `scrollWheel`/`mouseDown` are
+/// `public`, not `open`, so they can't be overridden — same approach as
+/// `TerminalKeyInterceptor`). Two jobs:
+///
+/// 1. **Wheel forwarding.** SwiftTerm's `scrollWheel` only ever moves its own
+///    native scrollback and never forwards to the app. A full-screen TUI in the
+///    alternate buffer (e.g. Claude Code's fullscreen renderer) has no native
+///    scrollback, so the wheel did nothing. We translate the wheel into
+///    mouse-wheel events when the app reads the mouse, or cursor up/down keys in
+///    a non-mouse alt buffer (standard "alternate scroll", à la xterm/iTerm).
+///
+/// 2. **Keeping `allowMouseReporting` in sync with the live `mouseMode`.** When
+///    the agent is reading the mouse we want clicks/drags forwarded (so
+///    click-to-expand and the agent's own selection work); otherwise we want it
+///    off so SwiftTerm preserves the native text selection across streaming
+///    output (it clears the selection on each line feed while reporting is on).
+///    `mouseModeChanged` isn't overridable either, so we re-sync the flag on
+///    every mouse/scroll event — always correct by the time the view handles it.
 @MainActor
-enum TerminalScrollInterceptor {
+enum TerminalMouseInterceptor {
     private static var monitor: Any?
 
     /// What to do with a wheel notch, given the focused terminal's state. Pure
@@ -95,21 +105,32 @@ enum TerminalScrollInterceptor {
 
     static func install() {
         guard monitor == nil else { return }
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+        let mask: NSEvent.EventTypeMask = [
+            .scrollWheel, .leftMouseDown, .leftMouseDragged, .leftMouseUp,
+            .rightMouseDown, .otherMouseDown
+        ]
+        monitor = NSEvent.addLocalMonitorForEvents(matching: mask) { event in
             handle(event) ? nil : event
         }
     }
 
-    /// True when we forwarded the scroll to the agent (event should be
-    /// swallowed). False lets SwiftTerm scroll its native scrollback.
+    /// True only when we forwarded a *scroll* to the agent (event should be
+    /// swallowed). Mouse-button events are never swallowed — we only re-sync
+    /// `allowMouseReporting` and let the view handle them.
     private static func handle(_ event: NSEvent) -> Bool {
-        guard event.deltaY != 0 else { return false }
         guard let window = event.window ?? NSApp.keyWindow,
               let hit = window.contentView?.hitTest(event.locationInWindow),
               let view = TerminalKeyInterceptor.closestTerminalView(from: hit)
         else { return false }
 
         let terminal = view.getTerminal()
+        // Keep mouse forwarding aligned with whether the agent reads the mouse.
+        view.allowMouseReporting = terminal.mouseMode != .off
+
+        // Only scroll-wheel events are bridged/swallowed below; button events
+        // were handled by the re-sync above and pass through to the view.
+        guard event.type == .scrollWheel, event.deltaY != 0 else { return false }
+
         let upward = event.deltaY > 0
         let action = action(
             mouseTracking: terminal.mouseMode != .off,
