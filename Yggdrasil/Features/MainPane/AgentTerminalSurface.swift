@@ -71,18 +71,16 @@ struct AgentTerminalSurface: NSViewRepresentable {
     func makeNSView(context: Context) -> LocalProcessTerminalView {
         let view = DroppableTerminalView(frame: .zero)
         AgentTerminalSurface.applyTheme(to: view, scheme: effectiveScheme)
-        // Disable mouse reporting entirely. Two reasons, both flowing from
-        // the post-tmux "native terminal UX" direction:
-        //  1. SwiftTerm's `feedPrepare()` clears the active text selection
-        //     on every output chunk WHENEVER `allowMouseReporting` is true
-        //     (its comment: "Preserve manual selection while output is
-        //     streaming when mouse reporting is disabled"). With it left on
-        //     (the default), you can't hold a selection while an agent
-        //     streams output — the whole point of native selection breaks
-        //     during the exact moments you want to copy a line.
-        //  2. We don't forward mouse events to the agent anyway — scrolling
-        //     is native SwiftTerm scrollback and selection is native. The
-        //     agent CLIs are fully keyboard-operable.
+        // Initial state: mouse reporting off (no agent is reading the mouse at
+        // launch). `TerminalMouseInterceptor` then keeps this in sync with the
+        // live `mouseMode` on every mouse/scroll event:
+        //  - OFF when the agent isn't reading the mouse → SwiftTerm keeps the
+        //    native text selection alive across streaming output (it clears the
+        //    selection on each line feed while reporting is on).
+        //  - ON when the agent is reading the mouse (e.g. Claude Code's
+        //    fullscreen renderer) → clicks/drags are forwarded so click-to-
+        //    expand and the agent's own in-app selection work. There's no
+        //    native selection to lose in that mode — the agent owns the mouse.
         view.allowMouseReporting = false
         view.processDelegate = context.coordinator
         context.coordinator.attach(view: view, scheme: effectiveScheme)

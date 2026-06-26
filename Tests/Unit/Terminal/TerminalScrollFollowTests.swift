@@ -25,13 +25,13 @@ final class TerminalScrollFollowTests: XCTestCase {
     func testMouseTrackingForwardsAsMouseWheel() {
         // The agent reads the mouse → forward the wheel, even in the normal buffer.
         XCTAssertEqual(
-            TerminalScrollInterceptor.action(
+            TerminalMouseInterceptor.action(
                 mouseTracking: true, alternateBuffer: false, upward: true, applicationCursor: false
             ),
             .mouseWheel(upward: true)
         )
         XCTAssertEqual(
-            TerminalScrollInterceptor.action(
+            TerminalMouseInterceptor.action(
                 mouseTracking: true, alternateBuffer: true, upward: false, applicationCursor: true
             ),
             .mouseWheel(upward: false)
@@ -40,13 +40,13 @@ final class TerminalScrollFollowTests: XCTestCase {
 
     func testAlternateBufferWithoutMouseSendsArrowKeys() {
         XCTAssertEqual(
-            TerminalScrollInterceptor.action(
+            TerminalMouseInterceptor.action(
                 mouseTracking: false, alternateBuffer: true, upward: true, applicationCursor: false
             ),
             .arrowKeys(upward: true, applicationCursor: false)
         )
         XCTAssertEqual(
-            TerminalScrollInterceptor.action(
+            TerminalMouseInterceptor.action(
                 mouseTracking: false, alternateBuffer: true, upward: false, applicationCursor: true
             ),
             .arrowKeys(upward: false, applicationCursor: true)
@@ -56,7 +56,7 @@ final class TerminalScrollFollowTests: XCTestCase {
     func testNormalBufferNoMouseUsesNativeScrollback() {
         // A plain shell keeps SwiftTerm's native scrollback (+ the scroll-follow).
         XCTAssertEqual(
-            TerminalScrollInterceptor.action(
+            TerminalMouseInterceptor.action(
                 mouseTracking: false, alternateBuffer: false, upward: true, applicationCursor: false
             ),
             .native
