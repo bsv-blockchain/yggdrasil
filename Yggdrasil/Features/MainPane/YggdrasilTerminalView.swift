@@ -61,6 +61,107 @@ enum TerminalKeyInterceptor {
     }
 }
 
+/// Forwards wheel scrolling to the agent when SwiftTerm's native scrollback
+/// can't help — i.e. the agent owns the screen via the alternate buffer (a
+/// full-screen TUI like Claude Code, which has no terminal scrollback) and/or
+/// is reading the mouse. SwiftTerm 1.x's `scrollWheel` only ever moves native
+/// scrollback and never forwards to the app, and it's `public` (not `open`), so
+/// it can't be overridden — hence a global event monitor, mirroring
+/// `TerminalKeyInterceptor`. This is the standard "alternate scroll" behaviour
+/// (à la xterm/iTerm): translate the wheel into mouse-wheel events when the app
+/// reads the mouse, or cursor up/down keys when it's a non-mouse alt-buffer app.
+@MainActor
+enum TerminalScrollInterceptor {
+    private static var monitor: Any?
+
+    /// What to do with a wheel notch, given the focused terminal's state. Pure
+    /// so the routing is unit-testable; the side-effecting send lives in `handle`.
+    enum Action: Equatable {
+        /// Let SwiftTerm scroll its native scrollback (normal buffer, no mouse).
+        case native
+        /// Forward as a mouse-wheel button (the app reads the mouse).
+        case mouseWheel(upward: Bool)
+        /// Alternate-scroll: cursor up/down keys (alt buffer, no mouse).
+        case arrowKeys(upward: Bool, applicationCursor: Bool)
+    }
+
+    static func action(
+        mouseTracking: Bool, alternateBuffer: Bool, upward: Bool, applicationCursor: Bool
+    ) -> Action {
+        if mouseTracking { return .mouseWheel(upward: upward) }
+        if alternateBuffer { return .arrowKeys(upward: upward, applicationCursor: applicationCursor) }
+        return .native
+    }
+
+    static func install() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            handle(event) ? nil : event
+        }
+    }
+
+    /// True when we forwarded the scroll to the agent (event should be
+    /// swallowed). False lets SwiftTerm scroll its native scrollback.
+    private static func handle(_ event: NSEvent) -> Bool {
+        guard event.deltaY != 0 else { return false }
+        guard let window = event.window ?? NSApp.keyWindow,
+              let hit = window.contentView?.hitTest(event.locationInWindow),
+              let view = TerminalKeyInterceptor.closestTerminalView(from: hit)
+        else { return false }
+
+        let terminal = view.getTerminal()
+        let upward = event.deltaY > 0
+        let action = action(
+            mouseTracking: terminal.mouseMode != .off,
+            alternateBuffer: terminal.isCurrentBufferAlternate,
+            upward: upward,
+            applicationCursor: terminal.applicationCursor
+        )
+        // One notch per ~line of delta, capped so a hard flick doesn't fling.
+        let notches = max(1, min(5, Int(abs(event.deltaY).rounded(.up))))
+
+        switch action {
+        case .native:
+            return false
+        case let .mouseWheel(upward):
+            let point = view.convert(event.locationInWindow, from: nil)
+            let (col, row) = cell(at: point, in: view, terminal: terminal)
+            let flags = terminal.encodeButton(
+                button: upward ? 4 : 5, release: false, shift: false, meta: false, control: false
+            )
+            for _ in 0 ..< notches {
+                terminal.sendEvent(buttonFlags: flags, x: col, y: row)
+            }
+            return true
+        case let .arrowKeys(upward, applicationCursor):
+            let seq: [UInt8] = applicationCursor
+                ? (upward ? [0x1B, 0x4F, 0x41] : [0x1B, 0x4F, 0x42]) // SS3 A / B
+                : (upward ? [0x1B, 0x5B, 0x41] : [0x1B, 0x5B, 0x42]) // CSI A / B
+            for _ in 0 ..< notches {
+                view.send(seq)
+            }
+            return true
+        }
+    }
+
+    /// Approximate terminal cell under `point` (view coords). SwiftTerm's exact
+    /// hit-test is internal; cols/rows + bounds give a good-enough wheel
+    /// position (apps scroll on the wheel button regardless of the exact cell).
+    private static func cell(
+        at point: CGPoint, in view: LocalProcessTerminalView, terminal: Terminal
+    ) -> (col: Int, row: Int) {
+        let cols = max(1, terminal.cols)
+        let rows = max(1, terminal.rows)
+        let width = view.bounds.width
+        let height = view.bounds.height
+        guard width > 0, height > 0 else { return (0, 0) }
+        let col = min(max(0, Int(point.x / (width / CGFloat(cols)))), cols - 1)
+        // AppKit's y is bottom-up; terminal row 0 is at the top.
+        let row = min(max(0, Int((height - point.y) / (height / CGFloat(rows)))), rows - 1)
+        return (col, row)
+    }
+}
+
 /// `LocalProcessTerminalView` subclass with two enhancements:
 ///
 /// 1. **File drag-and-drop** — paths from Finder are shell-quoted and sent
