@@ -60,13 +60,32 @@ final class TabsModelTests: XCTestCase {
         XCTAssertEqual(model.selectedID, second.id)
     }
 
-    func testMoveSelectionUpClampsAtTop() throws {
+    func testMoveSelectionUpWrapsToBottom() throws {
         let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
-        _ = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
+        let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
         model.reload()
         try model.select(XCTUnwrap(first.id))
         model.moveSelection(by: -1)
-        XCTAssertEqual(model.selectedID, first.id, "moveSelection clamps; can't go above the top")
+        XCTAssertEqual(model.selectedID, second.id, "moving up from the first tab wraps to the last")
+    }
+
+    func testMoveSelectionDownWrapsToTop() throws {
+        let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
+        let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
+        model.reload()
+        try model.select(XCTUnwrap(second.id))
+        model.moveSelection(by: 1)
+        XCTAssertEqual(model.selectedID, first.id, "moving down from the last tab wraps to the first")
+    }
+
+    func testMoveSelectionSingleTabIsNoOp() throws {
+        let only = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
+        model.reload()
+        try model.select(XCTUnwrap(only.id))
+        model.moveSelection(by: 1)
+        XCTAssertEqual(model.selectedID, only.id)
+        model.moveSelection(by: -1)
+        XCTAssertEqual(model.selectedID, only.id)
     }
 
     func testFilteredByQueryMatchesBranchSubstring() throws {
