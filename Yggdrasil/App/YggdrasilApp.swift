@@ -100,6 +100,18 @@ struct SidebarSessionsLayout: View {
             }
         }
         .background(YggdrasilTheme.bg(scheme))
+        .background {
+            // Keep ⌥↑ / ⌥↓ tab navigation alive now that the visible View-menu
+            // items carry ⌘⇧[ / ⌘⇧]. Zero-size and hidden, but present in the
+            // responder chain while the window is open; same action as the menu
+            // commands (SidebarActions.selectTab).
+            Button("") { SidebarActions.selectTab(by: -1, services: services) }
+                .keyboardShortcut(.upArrow, modifiers: [.option])
+                .hidden()
+            Button("") { SidebarActions.selectTab(by: 1, services: services) }
+                .keyboardShortcut(.downArrow, modifiers: [.option])
+                .hidden()
+        }
     }
 
     @ViewBuilder
