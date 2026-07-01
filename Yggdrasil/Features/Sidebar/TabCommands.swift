@@ -4,7 +4,7 @@ import SwiftUI
 /// system View menu (after "Show Sidebar") rather than a custom top-level
 /// menu, since these all act on sidebar selection.
 ///
-/// - ⌥↑ / ⌥↓ — move selection up/down
+/// - ⌘⇧[ / ⌘⇧] — previous / next tab (⌥↑ / ⌥↓ also work, see YggdrasilApp)
 /// - ⌘W — close the selected tab (with confirm)
 /// - ⌘T — new tab (mirrors the sidebar "+" button)
 struct TabCommands: Commands {
@@ -16,20 +16,14 @@ struct TabCommands: Commands {
         CommandGroup(after: .sidebar) {
             Divider()
             Button("Previous Tab") {
-                services?.tabs.moveSelection(by: -1)
-                if let id = services?.tabs.selectedID {
-                    services?.sessions.selectedID = id
-                }
+                if let services { SidebarActions.selectTab(by: -1, services: services) }
             }
-            .keyboardShortcut(.upArrow, modifiers: [.option])
+            .keyboardShortcut("[", modifiers: [.command, .shift])
 
             Button("Next Tab") {
-                services?.tabs.moveSelection(by: 1)
-                if let id = services?.tabs.selectedID {
-                    services?.sessions.selectedID = id
-                }
+                if let services { SidebarActions.selectTab(by: 1, services: services) }
             }
-            .keyboardShortcut(.downArrow, modifiers: [.option])
+            .keyboardShortcut("]", modifiers: [.command, .shift])
 
             Button("Close Tab…") {
                 guard let services, let id = services.tabs.selectedID else { return }
