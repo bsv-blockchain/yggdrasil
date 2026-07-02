@@ -178,8 +178,12 @@ final class TabsModel {
 
     func moveSelection(by delta: Int) {
         guard !tabs.isEmpty else { return }
+        let count = tabs.count
         let currentIdx = tabs.firstIndex(where: { $0.id == selectedID }) ?? 0
-        let newIdx = (currentIdx + delta).clamped(to: 0 ... (tabs.count - 1))
+        // True modulo wrap: Swift's `%` keeps the dividend's sign, so add
+        // `count` before the final `%` to handle negative deltas (wrap past
+        // the top back to the bottom).
+        let newIdx = ((currentIdx + delta) % count + count) % count
         if let id = tabs[newIdx].id {
             select(id)
         }
@@ -273,11 +277,5 @@ final class TabsModel {
             // Roll back: reload from disk to recover the canonical order.
             reload()
         }
-    }
-}
-
-private extension Comparable {
-    func clamped(to range: ClosedRange<Self>) -> Self {
-        min(max(self, range.lowerBound), range.upperBound)
     }
 }

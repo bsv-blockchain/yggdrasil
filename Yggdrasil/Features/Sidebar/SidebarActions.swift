@@ -177,6 +177,17 @@ enum SidebarActions {
         Task { @MainActor in services.triggerSyncNow() }
     }
 
+    /// Move sidebar tab selection by `delta` (wrapping at both ends) and mirror
+    /// the new selection onto the live-session host. Shared by the View-menu
+    /// commands (⌘⇧[ / ⌘⇧]) and the hidden arrow-key buttons (⌥↑ / ⌥↓) so the
+    /// move-then-sync stays in one place.
+    static func selectTab(by delta: Int, services: AppServices) {
+        services.tabs.moveSelection(by: delta)
+        if let id = services.tabs.selectedID {
+            services.sessions.selectedID = id
+        }
+    }
+
     /// Clear a tab's PR link. On an issue tab carrying a linked PR, this drops
     /// just the PR and keeps the issue; on a PR-only tab it reverts to a plain
     /// terminal tab.
