@@ -59,6 +59,32 @@ final class GraphQLClientTests: XCTestCase {
         }
     }
 
+    func testPRDetailSumsInlineReviewComments() async throws {
+        // Inline review-thread comments (author replies to review feedback) are
+        // summed across reviews — they don't show up in `comments.totalCount`.
+        let json = """
+        { "data": { "repository": { "pullRequest": {
+          "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": null,
+          "commits": { "totalCount": 3, "nodes": [{ "commit": { "oid": "abc123", "statusCheckRollup": null } }] },
+          "comments": { "totalCount": 6 },
+          "reviews": { "totalCount": 2, "nodes": [
+            { "comments": { "totalCount": 3 } },
+            { "comments": { "totalCount": 2 } }
+          ] }
+        }}}}
+        """
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data(json.utf8), etag: nil, rateLimitRemaining: 4999)
+        ])
+        let detail = try await GraphQLClient(http: http).prDetail(owner: "o", repo: "r", number: 1)
+
+        XCTAssertEqual(detail.commentsTotal, 6)
+        XCTAssertEqual(detail.reviewsTotal, 2)
+        XCTAssertEqual(detail.reviewCommentsTotal, 5, "inline review comments summed across reviews")
+        XCTAssertEqual(detail.commitsTotal, 3)
+        XCTAssertEqual(detail.headSHA, "abc123")
+    }
+
     func testPostsToGraphQLEndpointWithVariables() async throws {
         let body = try Fixtures.data("pr-detail.graphql")
         let http = CannedHTTPClient(responses: [

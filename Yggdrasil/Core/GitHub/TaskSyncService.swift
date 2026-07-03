@@ -229,7 +229,9 @@ enum TaskSyncWrites {
            let detail = prDetails[TaskSyncService.compositeKey(
                owner: raw.repoOwner, name: raw.repoName, number: raw.number
            )] {
-            let commentsReviews = detail.commentsTotal + detail.reviewsTotal
+            // Include inline review-thread comments so an author replying to
+            // review feedback registers as activity, not just issue comments.
+            let commentsReviews = detail.commentsTotal + detail.reviewsTotal + detail.reviewCommentsTotal
             // Preserve the user's "seen" baseline across syncs; seed it to the
             // current values the first time we see this PR so an already-active
             // PR isn't flagged as having activity the user hasn't looked at.
