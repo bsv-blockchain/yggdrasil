@@ -62,9 +62,14 @@ struct GitHubSubPane: View {
         }
         // 3. Not yet synced: synthesize from the PR/issue number in the branch
         //    so the user can navigate before the next sync imports the task.
+        //    For a fork, issues and PRs live in the upstream (source) repo — a
+        //    fork carries no issues of its own and PR numbers are per base repo
+        //    — so synthesize against the upstream when known.
         if let repo, let number = NewTabSheet.parsePRNumber(branchName) {
             let path = branchName.lowercased().hasPrefix("issue") ? "issues" : "pull"
-            return URL(string: "https://github.com/\(repo.owner)/\(repo.name)/\(path)/\(number)")
+            let owner = repo.upstreamOwner ?? repo.owner
+            let name = repo.upstreamName ?? repo.name
+            return URL(string: "https://github.com/\(owner)/\(name)/\(path)/\(number)")
         }
         // 4. Ad-hoc tab inside a tracked repo → the repo home page.
         if let repo {

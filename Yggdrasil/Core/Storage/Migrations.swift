@@ -12,7 +12,24 @@ enum Migrations {
         migrator.registerMigration("v5", migrate: v5)
         migrator.registerMigration("v6", migrate: v6)
         migrator.registerMigration("v7", migrate: v7)
+        migrator.registerMigration("v8", migrate: v8)
         return migrator
+    }
+
+    // MARK: - v8 — Fork upstream tracking
+
+    ///
+    /// A fork carries no issues of its own; they live in the parent/source repo.
+    /// Storing the resolved source owner/name lets sync attribute upstream-owned
+    /// issues + PRs back to this fork's `repo_id`, transparently. `upstream_checked_at`
+    /// distinguishes "resolved, not a fork" (owner/name NULL, timestamp set) from
+    /// "not yet probed" (timestamp NULL) so non-forks aren't re-probed every sync.
+    private static func v8(_ db: Database) throws {
+        try db.alter(table: "repo") { table in
+            table.add(column: "upstream_owner", .text)
+            table.add(column: "upstream_name", .text)
+            table.add(column: "upstream_checked_at", .datetime)
+        }
     }
 
     // MARK: - v7 — PR activity tracking (review "your move" signal)
