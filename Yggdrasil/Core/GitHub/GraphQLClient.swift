@@ -8,6 +8,10 @@ struct PRDetail: Equatable {
     let ciState: String?
     let commentsTotal: Int
     let reviewsTotal: Int
+    /// Inline review-thread comments (incl. author replies to review feedback).
+    /// Counted separately from issue comments so "the author responded to my
+    /// review" registers as activity.
+    let reviewCommentsTotal: Int
     let commitsTotal: Int
     let headSHA: String?
 }
@@ -37,7 +41,16 @@ private struct PullRequestNode: Decodable {
     let reviewDecision: String?
     let commits: CommitsNode?
     let comments: TotalCountNode?
-    let reviews: TotalCountNode?
+    let reviews: ReviewsNode?
+}
+
+private struct ReviewsNode: Decodable {
+    let totalCount: Int?
+    let nodes: [ReviewNodeWrap]?
+}
+
+private struct ReviewNodeWrap: Decodable {
+    let comments: TotalCountNode?
 }
 
 private struct CommitsNode: Decodable {
@@ -76,7 +89,7 @@ struct GraphQLClient {
           reviewDecision
           commits(last: 1) { totalCount nodes { commit { oid statusCheckRollup { state } } } }
           comments(first: 1) { totalCount }
-          reviews(first: 1) { totalCount }
+          reviews(first: 100) { totalCount nodes { comments { totalCount } } }
         }
       }
     }
@@ -126,6 +139,8 @@ struct GraphQLClient {
             ciState: ciState,
             commentsTotal: pull.comments?.totalCount ?? 0,
             reviewsTotal: pull.reviews?.totalCount ?? 0,
+            reviewCommentsTotal: pull.reviews?.nodes?
+                .reduce(0) { $0 + ($1.comments?.totalCount ?? 0) } ?? 0,
             commitsTotal: pull.commits?.totalCount ?? 0,
             headSHA: pull.commits?.nodes.first?.commit.oid
         )
