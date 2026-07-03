@@ -8,12 +8,21 @@ struct GitHubAggregate: Equatable {
     /// GitHub's `reviewDecision`: "APPROVED", "CHANGES_REQUESTED",
     /// "REVIEW_REQUIRED", or nil for non-PR tabs / PRs with no review activity.
     let reviewState: String?
-    let unread: Int // unread comments + reviews since last_seen_comment_id
+    let unread: Int // new comments + reviews since the tab was last opened
+    let newCommits: Int // new commits since the tab was last opened
+    /// The PR gained commits or comments since the user last opened the tab —
+    /// drives the amber "your move" REVIEW pill.
+    let hasActivity: Bool
 
-    init(ciState: String?, reviewState: String? = nil, unread: Int) {
+    init(
+        ciState: String?, reviewState: String? = nil, unread: Int,
+        newCommits: Int = 0, hasActivity: Bool = false
+    ) {
         self.ciState = ciState
         self.reviewState = reviewState
         self.unread = unread
+        self.newCommits = newCommits
+        self.hasActivity = hasActivity
     }
 }
 
@@ -33,12 +42,22 @@ struct TabStatus: Equatable {
     /// coloured dot on the row; deliberately independent of `icon` so it never
     /// displaces the work-state icon.
     let reviewState: String?
+    /// The linked PR gained commits or comments since the user last opened the
+    /// tab. Drives the amber "your move" REVIEW pill on review tabs.
+    let reviewActivity: Bool
+    /// New commits since last opened (for the "↑N" chip). 0 when none/unseen.
+    let newCommits: Int
 
-    init(icon: Icon, showsUnreadBadgeDot: Bool, tooltipLines: [String], reviewState: String? = nil) {
+    init(
+        icon: Icon, showsUnreadBadgeDot: Bool, tooltipLines: [String],
+        reviewState: String? = nil, reviewActivity: Bool = false, newCommits: Int = 0
+    ) {
         self.icon = icon
         self.showsUnreadBadgeDot = showsUnreadBadgeDot
         self.tooltipLines = tooltipLines
         self.reviewState = reviewState
+        self.reviewActivity = reviewActivity
+        self.newCommits = newCommits
     }
 
     static func aggregate(
@@ -51,7 +70,9 @@ struct TabStatus: Equatable {
             icon: icon,
             showsUnreadBadgeDot: github.unread > 0,
             tooltipLines: makeTooltip(claude: claude, git: git, github: github),
-            reviewState: github.reviewState
+            reviewState: github.reviewState,
+            reviewActivity: github.hasActivity,
+            newCommits: github.newCommits
         )
     }
 
@@ -79,6 +100,7 @@ struct TabStatus: Equatable {
         }
         if let ciState = github.ciState { lines.append("CI: \(ciState)") }
         if let review = reviewLabel(github.reviewState) { lines.append("Review: \(review)") }
+        if github.newCommits > 0 { lines.append("\(github.newCommits) new commit(s)") }
         if github.unread > 0 { lines.append("\(github.unread) unread comment(s)") }
         return lines
     }

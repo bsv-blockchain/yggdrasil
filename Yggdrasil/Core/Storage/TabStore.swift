@@ -98,6 +98,25 @@ struct TabStore {
         }
     }
 
+    /// Snapshot the current PR activity as the "seen" baseline for a task —
+    /// called when the user opens a tab, so the sidebar stops flagging that PR
+    /// as having new commits/comments until fresh activity arrives. No-op for
+    /// tasks without a `github_status` row (issues, unsynced PRs).
+    func markReviewSeen(taskID: Int64) throws {
+        try database.queue.write { db in
+            try db.execute(
+                sql: """
+                UPDATE github_status
+                SET seen_comments_reviews_total = comments_reviews_total,
+                    seen_commits_total = commits_total,
+                    seen_head_sha = head_sha
+                WHERE task_id = ?
+                """,
+                arguments: [taskID]
+            )
+        }
+    }
+
     /// Updates `tab.last_main_view` for a single row.
     func setLastMainView(id: Int64, view: YggdrasilTab.MainView) throws {
         try database.queue.write { db in

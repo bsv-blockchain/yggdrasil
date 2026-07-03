@@ -8,6 +8,8 @@ struct PRDetail: Equatable {
     let ciState: String?
     let commentsTotal: Int
     let reviewsTotal: Int
+    let commitsTotal: Int
+    let headSHA: String?
 }
 
 // MARK: - GraphQL response envelope
@@ -39,6 +41,7 @@ private struct PullRequestNode: Decodable {
 }
 
 private struct CommitsNode: Decodable {
+    let totalCount: Int?
     let nodes: [CommitNodeWrap]
 }
 
@@ -47,6 +50,7 @@ private struct CommitNodeWrap: Decodable {
 }
 
 private struct CommitInner: Decodable {
+    let oid: String?
     let statusCheckRollup: StatusCheckRollupNode?
 }
 
@@ -70,7 +74,7 @@ struct GraphQLClient {
           mergeable
           mergeStateStatus
           reviewDecision
-          commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+          commits(last: 1) { totalCount nodes { commit { oid statusCheckRollup { state } } } }
           comments(first: 1) { totalCount }
           reviews(first: 1) { totalCount }
         }
@@ -121,7 +125,9 @@ struct GraphQLClient {
             reviewState: pull.reviewDecision,
             ciState: ciState,
             commentsTotal: pull.comments?.totalCount ?? 0,
-            reviewsTotal: pull.reviews?.totalCount ?? 0
+            reviewsTotal: pull.reviews?.totalCount ?? 0,
+            commitsTotal: pull.commits?.totalCount ?? 0,
+            headSHA: pull.commits?.nodes.first?.commit.oid
         )
     }
 }
