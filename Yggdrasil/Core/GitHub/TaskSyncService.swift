@@ -279,32 +279,42 @@ enum TaskSyncWrites {
            let detail = prDetails[TaskSyncService.compositeKey(
                owner: raw.repoOwner, name: raw.repoName, number: raw.number
            )] {
-            // Include inline review-thread comments so an author replying to
-            // review feedback registers as activity, not just issue comments.
-            let commentsReviews = detail.commentsTotal + detail.reviewsTotal + detail.reviewCommentsTotal
-            // Preserve the user's "seen" baseline across syncs; seed it to the
-            // current values the first time we see this PR so an already-active
-            // PR isn't flagged as having activity the user hasn't looked at.
-            let existing = try GitHubStatus.fetchOne(db, key: taskID)
-            let status = GitHubStatus(
-                taskID: taskID,
-                ciState: detail.ciState,
-                ciURL: nil,
-                mergeable: detail.mergeable,
-                mergeableState: detail.mergeableState,
-                reviewState: detail.reviewState,
-                unreadCommentsCount: 0,
-                lastSeenCommentID: nil,
-                fetchedAt: now,
-                commentsReviewsTotal: commentsReviews,
-                commitsTotal: detail.commitsTotal,
-                headSHA: detail.headSHA,
-                seenCommentsReviewsTotal: existing?.seenCommentsReviewsTotal ?? commentsReviews,
-                seenCommitsTotal: existing?.seenCommitsTotal ?? detail.commitsTotal,
-                seenHeadSHA: existing?.seenHeadSHA ?? detail.headSHA
-            )
-            try status.save(db)
+            try upsertGitHubStatus(db: db, taskID: taskID, detail: detail, now: now)
         }
+    }
+
+    /// Write the PR's `github_status` row from a GraphQL detail. Refreshes the
+    /// current activity counts + per-viewer review state each sync, while
+    /// preserving the user's "seen" baseline (seeded to current on first sight
+    /// so an already-active PR isn't flagged as unseen activity).
+    private static func upsertGitHubStatus(
+        db: Database, taskID: Int64, detail: PRDetail, now: Date
+    ) throws {
+        // Include inline review-thread comments so an author replying to review
+        // feedback registers as activity, not just issue comments.
+        let commentsReviews = detail.commentsTotal + detail.reviewsTotal + detail.reviewCommentsTotal
+        let existing = try GitHubStatus.fetchOne(db, key: taskID)
+        let status = GitHubStatus(
+            taskID: taskID,
+            ciState: detail.ciState,
+            ciURL: nil,
+            mergeable: detail.mergeable,
+            mergeableState: detail.mergeableState,
+            reviewState: detail.reviewState,
+            unreadCommentsCount: 0,
+            lastSeenCommentID: nil,
+            fetchedAt: now,
+            commentsReviewsTotal: commentsReviews,
+            commitsTotal: detail.commitsTotal,
+            headSHA: detail.headSHA,
+            seenCommentsReviewsTotal: existing?.seenCommentsReviewsTotal ?? commentsReviews,
+            seenCommitsTotal: existing?.seenCommitsTotal ?? detail.commitsTotal,
+            seenHeadSHA: existing?.seenHeadSHA ?? detail.headSHA,
+            viewerLatestReviewState: detail.viewerLatestReviewState,
+            viewerReviewedHeadSHA: detail.viewerReviewedHeadSHA,
+            unresolvedThreadsAwaitingViewer: detail.unresolvedThreadsAwaitingViewer
+        )
+        try status.save(db)
     }
 
     /// Replaces the `pr_review_request` table contents for tracked repos

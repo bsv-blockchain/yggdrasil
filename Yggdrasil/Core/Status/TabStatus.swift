@@ -10,8 +10,9 @@ struct GitHubAggregate: Equatable {
     let reviewState: String?
     let unread: Int // new comments + reviews since the tab was last opened
     let newCommits: Int // new commits since the tab was last opened
-    /// The PR gained commits or comments since the user last opened the tab —
-    /// drives the amber "your move" REVIEW pill.
+    /// There's an outstanding review action for the viewer on the linked PR
+    /// (not approved-and-current, or a thread awaits their reply). Drives the
+    /// amber "your move" REVIEW pill; derived from GitHub, not tab-open state.
     let hasActivity: Bool
 
     init(
@@ -42,8 +43,9 @@ struct TabStatus: Equatable {
     /// coloured dot on the row; deliberately independent of `icon` so it never
     /// displaces the work-state icon.
     let reviewState: String?
-    /// The linked PR gained commits or comments since the user last opened the
-    /// tab. Drives the amber "your move" REVIEW pill on review tabs.
+    /// The linked PR has an outstanding review action for the viewer. Drives the
+    /// amber "your move" REVIEW pill on review tabs; stays amber until the viewer
+    /// approves the current head / clears every thread awaiting them.
     let reviewActivity: Bool
     /// New commits since last opened (for the "↑N" chip). 0 when none/unseen.
     let newCommits: Int

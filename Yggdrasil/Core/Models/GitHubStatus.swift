@@ -26,6 +26,12 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
     var seenCommitsTotal: Int?
     var seenHeadSHA: String?
 
+    // v9 — per-viewer review state, for the "outstanding action" REVIEW pill.
+    // Derived from GitHub each sync; independent of whether the tab was opened.
+    var viewerLatestReviewState: String?
+    var viewerReviewedHeadSHA: String?
+    var unresolvedThreadsAwaitingViewer: Int = 0
+
     enum CodingKeys: String, CodingKey {
         case taskID = "task_id"
         case ciState = "ci_state"
@@ -42,6 +48,9 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
         case seenCommentsReviewsTotal = "seen_comments_reviews_total"
         case seenCommitsTotal = "seen_commits_total"
         case seenHeadSHA = "seen_head_sha"
+        case viewerLatestReviewState = "viewer_latest_review_state"
+        case viewerReviewedHeadSHA = "viewer_reviewed_head_sha"
+        case unresolvedThreadsAwaitingViewer = "unresolved_threads_awaiting_viewer"
     }
 
     // MARK: - Activity since last opened (pure)
@@ -71,5 +80,25 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
     /// commented since the user last looked.
     var hasActivitySinceSeen: Bool {
         newCommentsSinceSeen > 0 || newCommitsSinceSeen > 0 || headChangedSinceSeen
+    }
+
+    // MARK: - Outstanding review action (pure)
+
+    /// The viewer has approved the PR *and* that approval covers the current
+    /// head (no commits landed since). A stale approval (head moved after) is
+    /// not "current".
+    var reviewApprovedCurrentHead: Bool {
+        viewerLatestReviewState == "APPROVED"
+            && viewerReviewedHeadSHA != nil
+            && viewerReviewedHeadSHA == headSHA
+    }
+
+    /// Whether there's an outstanding review action for the viewer: they
+    /// haven't approved the current head (never reviewed, commented-only,
+    /// changes-requested, or approved-then-new-commits), or an unresolved
+    /// thread awaits their reply. Drives the amber REVIEW pill — derived purely
+    /// from GitHub, so opening the tab does not clear it.
+    var reviewActionOutstanding: Bool {
+        !reviewApprovedCurrentHead || unresolvedThreadsAwaitingViewer > 0
     }
 }

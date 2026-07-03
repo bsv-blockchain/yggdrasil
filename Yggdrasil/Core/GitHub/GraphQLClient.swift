@@ -14,6 +14,15 @@ struct PRDetail: Equatable {
     let reviewCommentsTotal: Int
     let commitsTotal: Int
     let headSHA: String?
+    /// The viewer's latest review state ("APPROVED"/"CHANGES_REQUESTED"/
+    /// "COMMENTED"/"DISMISSED"/"PENDING"), or nil if they haven't reviewed.
+    let viewerLatestReviewState: String?
+    /// The commit oid the viewer's latest review covered — compared to `headSHA`
+    /// to tell whether an approval is still current after new pushes.
+    let viewerReviewedHeadSHA: String?
+    /// Count of unresolved review threads whose last comment isn't the viewer's
+    /// — i.e. threads awaiting the viewer's reply/re-review.
+    let unresolvedThreadsAwaitingViewer: Int
 }
 
 // MARK: - GraphQL response envelope
@@ -42,6 +51,30 @@ private struct PullRequestNode: Decodable {
     let commits: CommitsNode?
     let comments: TotalCountNode?
     let reviews: ReviewsNode?
+    let viewerLatestReview: ViewerReviewNode?
+    let reviewThreads: ReviewThreadsNode?
+}
+
+private struct ViewerReviewNode: Decodable {
+    let state: String?
+    let commit: CommitInner?
+}
+
+private struct ReviewThreadsNode: Decodable {
+    let nodes: [ReviewThreadNode]?
+}
+
+private struct ReviewThreadNode: Decodable {
+    let isResolved: Bool?
+    let comments: ThreadCommentsNode?
+}
+
+private struct ThreadCommentsNode: Decodable {
+    let nodes: [ThreadCommentNode]?
+}
+
+private struct ThreadCommentNode: Decodable {
+    let viewerDidAuthor: Bool?
 }
 
 private struct ReviewsNode: Decodable {
@@ -90,6 +123,8 @@ struct GraphQLClient {
           commits(last: 1) { totalCount nodes { commit { oid statusCheckRollup { state } } } }
           comments(first: 1) { totalCount }
           reviews(first: 100) { totalCount nodes { comments { totalCount } } }
+          viewerLatestReview { state commit { oid } }
+          reviewThreads(first: 100) { nodes { isResolved comments(last: 1) { nodes { viewerDidAuthor } } } }
         }
       }
     }
@@ -132,6 +167,13 @@ struct GraphQLClient {
         default: nil
         }
         let ciState = pull.commits?.nodes.first?.commit.statusCheckRollup?.state
+        // Threads awaiting the viewer: unresolved, with a last comment the
+        // viewer didn't author. A thread with no comments doesn't count.
+        let unresolvedAwaitingViewer = (pull.reviewThreads?.nodes ?? []).filter { thread in
+            guard !(thread.isResolved ?? false) else { return false }
+            guard let last = thread.comments?.nodes?.last else { return false }
+            return !(last.viewerDidAuthor ?? false)
+        }.count
         return PRDetail(
             mergeable: mergeable,
             mergeableState: pull.mergeStateStatus,
@@ -142,7 +184,10 @@ struct GraphQLClient {
             reviewCommentsTotal: pull.reviews?.nodes?
                 .reduce(0) { $0 + ($1.comments?.totalCount ?? 0) } ?? 0,
             commitsTotal: pull.commits?.totalCount ?? 0,
-            headSHA: pull.commits?.nodes.first?.commit.oid
+            headSHA: pull.commits?.nodes.first?.commit.oid,
+            viewerLatestReviewState: pull.viewerLatestReview?.state,
+            viewerReviewedHeadSHA: pull.viewerLatestReview?.commit?.oid,
+            unresolvedThreadsAwaitingViewer: unresolvedAwaitingViewer
         )
     }
 }
