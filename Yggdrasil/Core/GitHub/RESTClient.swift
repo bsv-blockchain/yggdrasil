@@ -104,6 +104,46 @@ struct RESTClient {
         return try Self.decoder.decode(RepoDTO.self, from: body).defaultBranch
     }
 
+    /// Resolved metadata from `GET /repos/{owner}/{repo}`: default branch plus,
+    /// for forks, the upstream (source) repo whose issues/PRs we also pull.
+    /// Prefers the fork-network root (`source`) over the immediate `parent`, so
+    /// a fork-of-a-fork still resolves to the true home of the issues.
+    struct RepoInfo: Equatable {
+        let defaultBranch: String
+        let isFork: Bool
+        let upstreamOwner: String?
+        let upstreamName: String?
+    }
+
+    func repoInfo(owner: String, name: String) async throws -> RepoInfo {
+        let url = Endpoints.repoInfo(owner: owner, repo: name)
+        let result = try await http.get(url: url, accept: "application/vnd.github+json")
+        guard let body = result.body else {
+            throw GitHubError.requestFailed(.badServerResponse)
+        }
+        let dto: RepoInfoDTO
+        do {
+            dto = try Self.decoder.decode(RepoInfoDTO.self, from: body)
+        } catch {
+            throw GitHubError.decodingFailed(String(describing: error))
+        }
+        let upstream = (dto.source?.fullName ?? dto.parent?.fullName)
+            .flatMap(Self.splitFullName)
+        return RepoInfo(
+            defaultBranch: dto.defaultBranch,
+            isFork: dto.fork ?? false,
+            upstreamOwner: upstream?.owner,
+            upstreamName: upstream?.name
+        )
+    }
+
+    /// Split a `owner/name` full name; nil if malformed (empty half or no slash).
+    private static func splitFullName(_ fullName: String) -> (owner: String, name: String)? {
+        let parts = fullName.split(separator: "/", maxSplits: 1).map(String.init)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
+        return (parts[0], parts[1])
+    }
+
     /// Fetch a single PR by number. Works for any state (open / closed /
     /// merged), unlike the open-PRs list. Used by the "Link PR" flow to
     /// import a PR on demand.
@@ -128,4 +168,23 @@ struct RESTClient {
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }()
+}
+
+/// Decodes the subset of `GET /repos/{owner}/{repo}` we need: default branch
+/// and (for forks) the parent/source repo. File-scoped to keep nesting shallow.
+private struct RepoInfoDTO: Decodable {
+    let defaultBranch: String
+    let fork: Bool?
+    let parent: RepoRef?
+    let source: RepoRef?
+
+    struct RepoRef: Decodable {
+        let fullName: String
+        enum CodingKeys: String, CodingKey { case fullName = "full_name" }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case defaultBranch = "default_branch"
+        case fork, parent, source
+    }
 }

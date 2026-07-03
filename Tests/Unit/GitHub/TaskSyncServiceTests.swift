@@ -3,8 +3,17 @@ import GRDB
 import XCTest
 @testable import Yggdrasil
 
-/// Helper: insert a tracked Repo row and return its id.
-private func insertRepo(_ db: YggdrasilDatabase, owner: String, name: String) throws -> Int64 {
+/// Helper: insert a tracked Repo row and return its id. Defaults to already
+/// upstream-resolved (`upstreamCheckedAt` set) so `fullSync` skips the backfill
+/// probe — tests that exercise the backfill pass `upstreamCheckedAt: nil`.
+private func insertRepo(
+    _ db: YggdrasilDatabase,
+    owner: String,
+    name: String,
+    upstreamOwner: String? = nil,
+    upstreamName: String? = nil,
+    upstreamCheckedAt: Date? = Date(timeIntervalSince1970: 1_700_000_000)
+) throws -> Int64 {
     try db.queue.write { dbW in
         var repo = Repo(
             id: nil,
@@ -12,7 +21,10 @@ private func insertRepo(_ db: YggdrasilDatabase, owner: String, name: String) th
             name: name,
             defaultBranch: "main",
             localMainPath: nil,
-            addedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            addedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            upstreamOwner: upstreamOwner,
+            upstreamName: upstreamName,
+            upstreamCheckedAt: upstreamCheckedAt
         )
         try repo.insert(dbW)
         return repo.id!

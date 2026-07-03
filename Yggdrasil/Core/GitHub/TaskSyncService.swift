@@ -23,13 +23,19 @@ actor TaskSyncService {
     }
 
     func fullSync() async throws {
-        let trackedRepos = try await database.queue.read { db in try Repo.fetchAll(db) }
+        var trackedRepos = try await database.queue.read { db in try Repo.fetchAll(db) }
         guard !trackedRepos.isEmpty else {
             YggdrasilLog.sync.info("No tracked repos; sync is a no-op")
             return
         }
+        // Resolve fork upstreams before building the match table so a fork's
+        // upstream-owned issues/PRs resolve to the fork's repo_id this cycle.
+        trackedRepos = await backfillUpstreams(trackedRepos)
         let trackedKey: [String: Repo] = Dictionary(
-            uniqueKeysWithValues: trackedRepos.map { ("\($0.owner)/\($0.name)", $0) }
+            trackedRepos.flatMap { repo in
+                repo.issueSources.map { ("\($0.owner)/\($0.name)", repo) }
+            },
+            uniquingKeysWith: { existing, _ in existing }
         )
 
         YggdrasilLog.sync.info("Starting full sync over \(trackedRepos.count, privacy: .public) tracked repos")
@@ -130,6 +136,50 @@ actor TaskSyncService {
 
     static func compositeKey(owner: String, name: String, number: Int) -> String {
         "\(owner)/\(name)#\(number)"
+    }
+
+    /// Resolve the fork upstream for any tracked repo not yet probed (one
+    /// `GET /repos/{owner}/{repo}` each, ever). Populates `upstream_owner`/`name`
+    /// so upstream-owned issues + PRs get attributed to the fork's `repo_id`.
+    /// `upstream_checked_at` marks a repo resolved — including non-forks, whose
+    /// upstream columns stay NULL — so we don't re-probe every sync. Best-effort:
+    /// a failed probe leaves the repo unresolved and is retried next sync.
+    private func backfillUpstreams(_ repos: [Repo]) async -> [Repo] {
+        var result = repos
+        for index in repos.indices where repos[index].upstreamCheckedAt == nil {
+            let repo = repos[index]
+            guard let id = repo.id,
+                  let info = try? await rest.repoInfo(owner: repo.owner, name: repo.name)
+            else { continue }
+            let upstreamOwner = info.isFork ? info.upstreamOwner : nil
+            let upstreamName = info.isFork ? info.upstreamName : nil
+            let now = Date()
+            do {
+                try await database.queue.write { db in
+                    try db.execute(
+                        sql: """
+                        UPDATE repo
+                        SET upstream_owner = ?, upstream_name = ?, upstream_checked_at = ?
+                        WHERE id = ?
+                        """,
+                        arguments: [upstreamOwner, upstreamName, now, id]
+                    )
+                }
+                result[index].upstreamOwner = upstreamOwner
+                result[index].upstreamName = upstreamName
+                result[index].upstreamCheckedAt = now
+                if let upstreamOwner, let upstreamName {
+                    YggdrasilLog.sync.info(
+                        "Resolved fork upstream \(repo.fullName, privacy: .public) -> \(upstreamOwner, privacy: .public)/\(upstreamName, privacy: .public)"
+                    )
+                }
+            } catch {
+                YggdrasilLog.sync.error(
+                    "Upstream backfill failed for \(repo.fullName, privacy: .public): \(String(describing: error), privacy: .public)"
+                )
+            }
+        }
+        return result
     }
 }
 
@@ -340,8 +390,11 @@ enum TaskSyncWrites {
         )
         var keptByRepoID: [Int64: Set<String>] = [:]
         for raw in fetched {
-            guard let repoRow = repos.first(where: {
-                $0.owner == raw.repoOwner && $0.name == raw.repoName
+            // Match on issueSources (own + fork upstream) so an upstream-owned
+            // raw resolves to the fork's repo_id — otherwise it'd be pruned in
+            // the same transaction that just inserted it.
+            guard let repoRow = repos.first(where: { repo in
+                repo.issueSources.contains { $0.owner == raw.repoOwner && $0.name == raw.repoName }
             }), let repoID = repoRow.id else { continue }
             keptByRepoID[repoID, default: []].insert("\(raw.type.rawValue)#\(raw.number)")
         }

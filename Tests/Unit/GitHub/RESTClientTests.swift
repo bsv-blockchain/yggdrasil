@@ -242,4 +242,39 @@ final class RESTClientTests: XCTestCase {
             // expected
         }
     }
+
+    func testRepoInfoParsesForkUpstreamFromSource() async throws {
+        // A fork: GitHub returns fork:true, parent + source. We prefer `source`
+        // (fork-network root) so a fork-of-a-fork still resolves upstream.
+        let body = """
+        {
+          "default_branch": "main",
+          "fork": true,
+          "parent": { "full_name": "middle/teranode" },
+          "source": { "full_name": "bsv-blockchain/teranode" }
+        }
+        """
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data(body.utf8), etag: nil, rateLimitRemaining: 4999)
+        ])
+        let info = try await RESTClient(http: http).repoInfo(owner: "freemans13", name: "teranode")
+        XCTAssertEqual(info.defaultBranch, "main")
+        XCTAssertTrue(info.isFork)
+        XCTAssertEqual(info.upstreamOwner, "bsv-blockchain")
+        XCTAssertEqual(info.upstreamName, "teranode")
+        XCTAssertEqual(http.calledURLs.first?.path, "/repos/freemans13/teranode")
+    }
+
+    func testRepoInfoNonForkHasNoUpstream() async throws {
+        // A plain repo: fork field may be absent entirely; upstream stays nil.
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data("{\"default_branch\":\"master\"}".utf8),
+                       etag: nil, rateLimitRemaining: 4999)
+        ])
+        let info = try await RESTClient(http: http).repoInfo(owner: "o", name: "r")
+        XCTAssertEqual(info.defaultBranch, "master")
+        XCTAssertFalse(info.isFork)
+        XCTAssertNil(info.upstreamOwner)
+        XCTAssertNil(info.upstreamName)
+    }
 }

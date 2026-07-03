@@ -144,6 +144,27 @@ final class MigrationsTests: XCTestCase {
         XCTAssertEqual(assigneeCount, 0)
     }
 
+    func testV8AddsUpstreamColumnsAndRoundTrips() throws {
+        let db = try YggdrasilDatabase.inMemory()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        try db.queue.write { db in
+            var repo = Repo(
+                id: nil, owner: "freemans13", name: "teranode",
+                defaultBranch: "main", localMainPath: nil, addedAt: now,
+                upstreamOwner: "bsv-blockchain", upstreamName: "teranode",
+                upstreamCheckedAt: now
+            )
+            try repo.insert(db)
+        }
+        let read = try db.queue.read { db in
+            try Repo.fetchOne(db, sql: "SELECT * FROM repo WHERE owner = 'freemans13'")
+        }
+        XCTAssertEqual(read?.upstreamOwner, "bsv-blockchain")
+        XCTAssertEqual(read?.upstreamName, "teranode")
+        XCTAssertEqual(read?.upstreamCheckedAt, now)
+        XCTAssertEqual(read?.issueSources.count, 2)
+    }
+
     func testGitHubStatusRoundTrip() throws {
         let db = try YggdrasilDatabase.inMemory()
         let now = Date(timeIntervalSince1970: 1_700_000_000)
