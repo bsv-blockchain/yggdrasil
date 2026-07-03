@@ -277,6 +277,40 @@ final class WorktreeManagerTests: XCTestCase {
         XCTAssertFalse(calls[2].arguments.contains("-b"))
     }
 
+    /// A fork's PRs live in the upstream repo, so `pull/N/head` must be fetched
+    /// from the upstream URL — fetching `origin` (the fork) fails with "couldn't
+    /// find remote ref pull" (issue: selecting a parent-repo PR errored out).
+    func testEnsurePullRequestRefForForkFetchesFromUpstream() async throws {
+        let stub = StubSubprocessRunner(responses: [
+            SubprocessResult(
+                stdout: """
+                worktree /tmp/repo
+                HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                branch refs/heads/main
+
+                """,
+                stderr: "", exitCode: 0
+            ),
+            SubprocessResult(stdout: "", stderr: "", exitCode: 0), // fetch
+            SubprocessResult(stdout: "", stderr: "", exitCode: 0) // worktree add
+        ])
+        let manager = WorktreeManager(git: GitRunner(runner: stub, gitExecutable: "/usr/bin/git"))
+        let fork = Repo(
+            id: 1, owner: "freemans13", name: "teranode",
+            defaultBranch: "main", localMainPath: "/tmp/repo", addedAt: Date(),
+            upstreamOwner: "bsv-blockchain", upstreamName: "teranode"
+        )
+        _ = try await manager.ensure(repo: fork, branch: "pr-655", baseRef: "refs/pull/655/head")
+
+        let calls = await stub.recordedCalls()
+        XCTAssertEqual(
+            calls[1].arguments,
+            ["-C", "/tmp/repo", "fetch", "https://github.com/bsv-blockchain/teranode.git",
+             "+pull/655/head:pr-655"],
+            "a fork must fetch the PR head from its upstream, not origin"
+        )
+    }
+
     func testEnsurePullRequestRefUnknownPullSurfacesUnknownRef() async throws {
         let stub = StubSubprocessRunner(responses: [
             SubprocessResult(

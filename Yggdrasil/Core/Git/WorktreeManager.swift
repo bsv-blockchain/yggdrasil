@@ -94,11 +94,18 @@ actor WorktreeManager {
 
         // Case 3a: PR ref → fetch then worktree add. Force-update the
         // local branch with `+pull/N/head:<branch>` so re-opening an
-        // older PR brings it up to date.
+        // older PR brings it up to date. GitHub hosts `pull/N/head` on the
+        // base repo; for a fork that's the upstream, not the fork's own
+        // origin, so fetch from the upstream URL when this repo is a fork.
         if let baseRef, let prNumber = Self.pullRequestNumber(from: baseRef) {
+            let remote = if let owner = repo.upstreamOwner, let name = repo.upstreamName {
+                "https://github.com/\(owner)/\(name).git"
+            } else {
+                "origin"
+            }
             do {
                 try await git.run(
-                    args: ["fetch", "origin", "+pull/\(prNumber)/head:\(branch)"],
+                    args: ["fetch", remote, "+pull/\(prNumber)/head:\(branch)"],
                     cwd: mainURL
                 )
             } catch let WorktreeError.gitFailed(stderr, code) {
