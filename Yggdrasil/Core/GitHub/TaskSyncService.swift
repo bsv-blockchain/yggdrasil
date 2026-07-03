@@ -229,6 +229,11 @@ enum TaskSyncWrites {
            let detail = prDetails[TaskSyncService.compositeKey(
                owner: raw.repoOwner, name: raw.repoName, number: raw.number
            )] {
+            let commentsReviews = detail.commentsTotal + detail.reviewsTotal
+            // Preserve the user's "seen" baseline across syncs; seed it to the
+            // current values the first time we see this PR so an already-active
+            // PR isn't flagged as having activity the user hasn't looked at.
+            let existing = try GitHubStatus.fetchOne(db, key: taskID)
             let status = GitHubStatus(
                 taskID: taskID,
                 ciState: detail.ciState,
@@ -238,7 +243,13 @@ enum TaskSyncWrites {
                 reviewState: detail.reviewState,
                 unreadCommentsCount: 0,
                 lastSeenCommentID: nil,
-                fetchedAt: now
+                fetchedAt: now,
+                commentsReviewsTotal: commentsReviews,
+                commitsTotal: detail.commitsTotal,
+                headSHA: detail.headSHA,
+                seenCommentsReviewsTotal: existing?.seenCommentsReviewsTotal ?? commentsReviews,
+                seenCommitsTotal: existing?.seenCommitsTotal ?? detail.commitsTotal,
+                seenHeadSHA: existing?.seenHeadSHA ?? detail.headSHA
             )
             try status.save(db)
         }

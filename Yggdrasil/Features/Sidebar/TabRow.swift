@@ -35,17 +35,7 @@ struct TabRow: View {
 
                 HStack(spacing: 6) {
                     if model.isReview {
-                        Text("REVIEW")
-                            .font(.system(size: 9, weight: .bold))
-                            .tracking(0.6)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .foregroundStyle(YggdrasilTheme.accent)
-                            .background(Capsule().fill(YggdrasilTheme.accentSoft(scheme)))
-                            .overlay(
-                                Capsule().stroke(YggdrasilTheme.accent.opacity(0.4), lineWidth: 0.5)
-                            )
-                            .accessibilityIdentifier("tabrow.reviewbadge")
+                        reviewPill
                     }
                     Text(model.titleLine)
                         .font(.system(size: 12.5, weight: .medium))
@@ -125,6 +115,31 @@ struct TabRow: View {
         )
         .contentShape(Rectangle())
         .help(tooltipText)
+    }
+
+    /// REVIEW pill — blue normally, amber with a dot when the PR has new
+    /// commits/comments since the user last opened this review tab ("your move").
+    @ViewBuilder
+    private var reviewPill: some View {
+        let attention = model.reviewNeedsAttention
+        let tint = attention ? YggdrasilTheme.statusWarn(scheme) : YggdrasilTheme.accent
+        HStack(spacing: 3) {
+            Text("REVIEW")
+                .font(.system(size: 9, weight: .bold))
+                .tracking(0.6)
+            if attention {
+                Circle().fill(tint).frame(width: 4, height: 4)
+            }
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1)
+        .foregroundStyle(tint)
+        .background(Capsule().fill(attention ? tint.opacity(0.14) : YggdrasilTheme.accentSoft(scheme)))
+        .overlay(Capsule().stroke(tint.opacity(0.4), lineWidth: 0.5))
+        .help(attention
+            ? "New commits or comments since you last opened this review"
+            : "Review session")
+        .accessibilityIdentifier("tabrow.reviewbadge")
     }
 
     @ViewBuilder

@@ -175,4 +175,39 @@ final class TabRowViewModelTests: XCTestCase {
                                      liveStatus: liveStatus(reviewState: "COMMENTED")).reviewDot)
         XCTAssertNil(TabRowViewModel(tab: makeTab(), task: nil).reviewDot)
     }
+
+    private func liveStatus(reviewActivity: Bool) -> TabStatus {
+        TabStatus.aggregate(
+            claude: .idle,
+            git: GitState(dirty: false, remote: .noRemote),
+            github: .init(ciState: nil, unread: 0, hasActivity: reviewActivity)
+        )
+    }
+
+    func testReviewBranchWithActivityNeedsAttention() {
+        let model = TabRowViewModel(
+            tab: makeTab(branch: "review-pr-655"), task: makeTask(),
+            liveStatus: liveStatus(reviewActivity: true)
+        )
+        XCTAssertTrue(model.isReview)
+        XCTAssertTrue(model.reviewNeedsAttention)
+    }
+
+    func testReviewBranchWithoutActivityDoesNotNeedAttention() {
+        let model = TabRowViewModel(
+            tab: makeTab(branch: "review-pr-655"), task: makeTask(),
+            liveStatus: liveStatus(reviewActivity: false)
+        )
+        XCTAssertTrue(model.isReview)
+        XCTAssertFalse(model.reviewNeedsAttention)
+    }
+
+    func testNonReviewBranchNeverNeedsAttention() {
+        let model = TabRowViewModel(
+            tab: makeTab(branch: "feat/foo"), task: makeTask(),
+            liveStatus: liveStatus(reviewActivity: true)
+        )
+        XCTAssertFalse(model.isReview)
+        XCTAssertFalse(model.reviewNeedsAttention)
+    }
 }

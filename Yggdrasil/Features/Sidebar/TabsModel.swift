@@ -174,6 +174,13 @@ final class TabsModel {
     func select(_ id: Int64) {
         selectedID = id
         try? store.touchLastActiveAt(id: id)
+        // Opening a tab clears its "new activity since last opened" flag (the
+        // amber REVIEW pill). Covers the tab's own PR and an issue tab's
+        // linked PR. The pill clears on the next status poll (~seconds).
+        if let tab = tabs.first(where: { $0.id == id }) {
+            if let taskID = tab.taskID { try? store.markReviewSeen(taskID: taskID) }
+            if let prTaskID = tab.prTaskID { try? store.markReviewSeen(taskID: prTaskID) }
+        }
     }
 
     func moveSelection(by delta: Int) {

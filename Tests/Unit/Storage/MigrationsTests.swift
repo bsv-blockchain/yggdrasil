@@ -167,7 +167,9 @@ final class MigrationsTests: XCTestCase {
                 taskID: task.id!, ciState: "success", ciURL: "https://ci",
                 mergeable: true, mergeableState: "clean",
                 reviewState: "APPROVED", unreadCommentsCount: 0,
-                lastSeenCommentID: nil, fetchedAt: now
+                lastSeenCommentID: nil, fetchedAt: now,
+                commentsReviewsTotal: 0, commitsTotal: 0, headSHA: nil,
+                seenCommentsReviewsTotal: nil, seenCommitsTotal: nil, seenHeadSHA: nil
             )
             try status.insert(db)
             return status

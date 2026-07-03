@@ -11,7 +11,29 @@ enum Migrations {
         migrator.registerMigration("v4", migrate: v4)
         migrator.registerMigration("v5", migrate: v5)
         migrator.registerMigration("v6", migrate: v6)
+        migrator.registerMigration("v7", migrate: v7)
         return migrator
+    }
+
+    // MARK: - v7 — PR activity tracking (review "your move" signal)
+
+    ///
+    /// Track the PR's current comment+review count, commit count, and head SHA,
+    /// plus a "seen" baseline snapshotted when the user opens the tab. The
+    /// sidebar compares current vs seen to flag review tabs whose PR gained new
+    /// commits or comments since the user last looked (amber REVIEW pill). The
+    /// legacy `unread_comments_count`/`last_seen_comment_id` columns were never
+    /// populated (always 0); these supersede them.
+    private static func v7(_ db: Database) throws {
+        try db.alter(table: "github_status") { table in
+            table.add(column: "comments_reviews_total", .integer).notNull().defaults(to: 0)
+            table.add(column: "commits_total", .integer).notNull().defaults(to: 0)
+            table.add(column: "head_sha", .text)
+            // Baseline captured on tab open; NULL until first seeded by sync.
+            table.add(column: "seen_comments_reviews_total", .integer)
+            table.add(column: "seen_commits_total", .integer)
+            table.add(column: "seen_head_sha", .text)
+        }
     }
 
     // MARK: - v6 — Linked PR on a tab
