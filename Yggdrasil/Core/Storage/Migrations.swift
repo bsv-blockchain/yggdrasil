@@ -13,7 +13,25 @@ enum Migrations {
         migrator.registerMigration("v6", migrate: v6)
         migrator.registerMigration("v7", migrate: v7)
         migrator.registerMigration("v8", migrate: v8)
+        migrator.registerMigration("v9", migrate: v9)
         return migrator
+    }
+
+    // MARK: - v9 — Per-viewer review state (outstanding-action REVIEW pill)
+
+    ///
+    /// The amber REVIEW pill now means "there's a review action for you on this
+    /// PR", derived from GitHub, rather than "activity since you last opened the
+    /// tab". Store the viewer's latest review state and the commit it covered
+    /// (to detect a stale approval after new pushes), plus the count of
+    /// unresolved threads whose last comment isn't the viewer's.
+    private static func v9(_ db: Database) throws {
+        try db.alter(table: "github_status") { table in
+            table.add(column: "viewer_latest_review_state", .text)
+            table.add(column: "viewer_reviewed_head_sha", .text)
+            table.add(column: "unresolved_threads_awaiting_viewer", .integer)
+                .notNull().defaults(to: 0)
+        }
     }
 
     // MARK: - v8 — Fork upstream tracking

@@ -202,4 +202,42 @@ final class MigrationsTests: XCTestCase {
         XCTAssertEqual(read?.mergeable, true)
         XCTAssertEqual(read?.reviewState, "APPROVED")
     }
+
+    func testV9AddsViewerReviewColumnsAndRoundTrips() throws {
+        let db = try YggdrasilDatabase.inMemory()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let taskID = try db.queue.write { db -> Int64 in
+            var repo = Repo(
+                id: nil, owner: "o", name: "r",
+                defaultBranch: "main", localMainPath: nil, addedAt: now
+            )
+            try repo.insert(db)
+            var task = YggdrasilTask(
+                id: nil, repoID: repo.id!, type: .pullRequest, number: 1,
+                title: "t", body: nil, state: .open, authorLogin: "a",
+                githubURL: "u", apiURL: "u",
+                createdAt: now, updatedAt: now, lastSyncedAt: now, etag: nil
+            )
+            try task.insert(db)
+            var status = GitHubStatus(
+                taskID: task.id!, ciState: nil, ciURL: nil, mergeable: nil,
+                mergeableState: nil, reviewState: nil, unreadCommentsCount: 0,
+                lastSeenCommentID: nil, fetchedAt: now,
+                commentsReviewsTotal: 0, commitsTotal: 0, headSHA: "head",
+                seenCommentsReviewsTotal: nil, seenCommitsTotal: nil, seenHeadSHA: nil,
+                viewerLatestReviewState: "APPROVED",
+                viewerReviewedHeadSHA: "head",
+                unresolvedThreadsAwaitingViewer: 2
+            )
+            try status.insert(db)
+            return task.id!
+        }
+        let read = try db.queue.read { db in try GitHubStatus.fetchOne(db, key: taskID) }
+        XCTAssertEqual(read?.viewerLatestReviewState, "APPROVED")
+        XCTAssertEqual(read?.viewerReviewedHeadSHA, "head")
+        XCTAssertEqual(read?.unresolvedThreadsAwaitingViewer, 2)
+        XCTAssertTrue(read?.reviewApprovedCurrentHead ?? false)
+        // Approved & current head, but 2 threads awaiting → still outstanding.
+        XCTAssertTrue(read?.reviewActionOutstanding ?? false)
+    }
 }

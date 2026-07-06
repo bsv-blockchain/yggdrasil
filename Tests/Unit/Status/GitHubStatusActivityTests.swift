@@ -16,7 +16,8 @@ final class GitHubStatusActivityTests: XCTestCase {
             fetchedAt: Date(timeIntervalSince1970: 0),
             commentsReviewsTotal: current.comments, commitsTotal: current.commits, headSHA: current.head,
             seenCommentsReviewsTotal: seen?.comments,
-            seenCommitsTotal: seen?.commits, seenHeadSHA: seen?.head
+            seenCommitsTotal: seen?.commits, seenHeadSHA: seen?.head,
+            viewerLatestReviewState: nil, viewerReviewedHeadSHA: nil
         )
     }
 

@@ -117,8 +117,11 @@ struct TabRow: View {
         .help(tooltipText)
     }
 
-    /// REVIEW pill — blue normally, amber with a dot when the PR has new
-    /// commits/comments since the user last opened this review tab ("your move").
+    /// REVIEW pill — blue when you're done (approved the current head, nothing
+    /// awaiting you), amber with a dot when there's an outstanding review action
+    /// ("your move"): not yet approved, new commits since your approval, or a
+    /// thread awaiting your reply. Derived from GitHub — opening the tab doesn't
+    /// clear it.
     @ViewBuilder
     private var reviewPill: some View {
         let attention = model.reviewNeedsAttention
@@ -137,8 +140,8 @@ struct TabRow: View {
         .background(Capsule().fill(attention ? tint.opacity(0.14) : YggdrasilTheme.accentSoft(scheme)))
         .overlay(Capsule().stroke(tint.opacity(0.4), lineWidth: 0.5))
         .help(attention
-            ? "New commits or comments since you last opened this review"
-            : "Review session")
+            ? "Your move — not yet approved, new commits since your review, or a thread awaiting your reply"
+            : "You're up to date — approved the current head, nothing awaiting you")
         .accessibilityIdentifier("tabrow.reviewbadge")
     }
 

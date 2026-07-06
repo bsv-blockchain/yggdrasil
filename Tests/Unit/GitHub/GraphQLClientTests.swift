@@ -85,6 +85,54 @@ final class GraphQLClientTests: XCTestCase {
         XCTAssertEqual(detail.headSHA, "abc123")
     }
 
+    func testPRDetailDecodesViewerReviewAndThreads() async throws {
+        // viewerLatestReview + reviewThreads drive the outstanding-action pill.
+        // Threads awaiting me = unresolved with a last comment I didn't author.
+        let json = """
+        { "data": { "repository": { "pullRequest": {
+          "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": "APPROVED",
+          "commits": { "totalCount": 4, "nodes": [{ "commit": { "oid": "newhead", "statusCheckRollup": null } }] },
+          "comments": { "totalCount": 0 },
+          "reviews": { "totalCount": 1, "nodes": [] },
+          "viewerLatestReview": { "state": "APPROVED", "commit": { "oid": "oldhead" } },
+          "reviewThreads": { "nodes": [
+            { "isResolved": true,  "comments": { "nodes": [{ "viewerDidAuthor": false }] } },
+            { "isResolved": false, "comments": { "nodes": [{ "viewerDidAuthor": false }] } },
+            { "isResolved": false, "comments": { "nodes": [{ "viewerDidAuthor": true }] } },
+            { "isResolved": false, "comments": { "nodes": [] } }
+          ] }
+        }}}}
+        """
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data(json.utf8), etag: nil, rateLimitRemaining: 4999)
+        ])
+        let detail = try await GraphQLClient(http: http).prDetail(owner: "o", repo: "r", number: 1)
+
+        XCTAssertEqual(detail.viewerLatestReviewState, "APPROVED")
+        XCTAssertEqual(detail.viewerReviewedHeadSHA, "oldhead")
+        XCTAssertEqual(detail.headSHA, "newhead")
+        // Only the one unresolved thread whose last comment isn't mine counts.
+        XCTAssertEqual(detail.unresolvedThreadsAwaitingViewer, 1)
+    }
+
+    func testPRDetailMissingViewerReviewDefaultsToNilAndZero() async throws {
+        // Older mocks / PRs with no reviewThreads block still decode.
+        let json = """
+        { "data": { "repository": { "pullRequest": {
+          "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": null,
+          "commits": { "totalCount": 1, "nodes": [{ "commit": { "oid": "h", "statusCheckRollup": null } }] },
+          "comments": { "totalCount": 0 }, "reviews": { "totalCount": 0, "nodes": [] }
+        }}}}
+        """
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data(json.utf8), etag: nil, rateLimitRemaining: 4999)
+        ])
+        let detail = try await GraphQLClient(http: http).prDetail(owner: "o", repo: "r", number: 1)
+        XCTAssertNil(detail.viewerLatestReviewState)
+        XCTAssertNil(detail.viewerReviewedHeadSHA)
+        XCTAssertEqual(detail.unresolvedThreadsAwaitingViewer, 0)
+    }
+
     func testPostsToGraphQLEndpointWithVariables() async throws {
         let body = try Fixtures.data("pr-detail.graphql")
         let http = CannedHTTPClient(responses: [
