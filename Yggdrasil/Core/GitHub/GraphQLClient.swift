@@ -23,6 +23,13 @@ struct PRDetail: Equatable {
     /// Count of unresolved review threads whose last comment isn't the viewer's
     /// — i.e. threads awaiting the viewer's reply/re-review.
     let unresolvedThreadsAwaitingViewer: Int
+    /// The most recent time the viewer engaged with the PR — the latest of their
+    /// last review submission and their last comment (issue or review-thread).
+    /// nil if they've never engaged. Compared against `headCommittedAt` to tell
+    /// whether the author pushed something the viewer hasn't looked at.
+    let viewerLastEngagementAt: Date?
+    /// Commit date of the current head. Compared against `viewerLastEngagementAt`.
+    let headCommittedAt: Date?
 }
 
 // MARK: - GraphQL response envelope
@@ -49,7 +56,7 @@ private struct PullRequestNode: Decodable {
     let mergeStateStatus: String?
     let reviewDecision: String?
     let commits: CommitsNode?
-    let comments: TotalCountNode?
+    let comments: IssueCommentsNode?
     let reviews: ReviewsNode?
     let viewerLatestReview: ViewerReviewNode?
     let reviewThreads: ReviewThreadsNode?
@@ -57,7 +64,13 @@ private struct PullRequestNode: Decodable {
 
 private struct ViewerReviewNode: Decodable {
     let state: String?
+    let submittedAt: String?
     let commit: CommitInner?
+}
+
+private struct IssueCommentsNode: Decodable {
+    let totalCount: Int
+    let nodes: [AuthoredCommentNode]?
 }
 
 private struct ReviewThreadsNode: Decodable {
@@ -70,11 +83,14 @@ private struct ReviewThreadNode: Decodable {
 }
 
 private struct ThreadCommentsNode: Decodable {
-    let nodes: [ThreadCommentNode]?
+    let nodes: [AuthoredCommentNode]?
 }
 
-private struct ThreadCommentNode: Decodable {
+/// A comment (issue or review-thread) with just what we need to decide the
+/// viewer's engagement time and thread ownership.
+private struct AuthoredCommentNode: Decodable {
     let viewerDidAuthor: Bool?
+    let createdAt: String?
 }
 
 private struct ReviewsNode: Decodable {
@@ -97,6 +113,7 @@ private struct CommitNodeWrap: Decodable {
 
 private struct CommitInner: Decodable {
     let oid: String?
+    let committedDate: String?
     let statusCheckRollup: StatusCheckRollupNode?
 }
 
@@ -120,11 +137,11 @@ struct GraphQLClient {
           mergeable
           mergeStateStatus
           reviewDecision
-          commits(last: 1) { totalCount nodes { commit { oid statusCheckRollup { state } } } }
-          comments(first: 1) { totalCount }
+          commits(last: 1) { totalCount nodes { commit { oid committedDate statusCheckRollup { state } } } }
+          comments(last: 100) { totalCount nodes { viewerDidAuthor createdAt } }
           reviews(first: 100) { totalCount nodes { comments { totalCount } } }
-          viewerLatestReview { state commit { oid } }
-          reviewThreads(first: 100) { nodes { isResolved comments(last: 100) { nodes { viewerDidAuthor } } } }
+          viewerLatestReview { state submittedAt commit { oid } }
+          reviewThreads(first: 100) { nodes { isResolved comments(last: 100) { nodes { viewerDidAuthor createdAt } } } }
         }
       }
     }
@@ -178,6 +195,23 @@ struct GraphQLClient {
             guard let last = comments.last else { return false }
             return !(last.viewerDidAuthor ?? false)
         }.count
+
+        // The viewer's most recent engagement: latest of their last review and
+        // every comment they authored (issue + review-thread). Compared against
+        // the head commit date so a push the viewer has already commented on
+        // doesn't read as "unseen".
+        let iso = ISO8601DateFormatter()
+        func parse(_ raw: String?) -> Date? {
+            raw.flatMap { iso.date(from: $0) }
+        }
+        var engagementDates: [Date] = []
+        if let submitted = parse(pull.viewerLatestReview?.submittedAt) { engagementDates.append(submitted) }
+        let issueComments = pull.comments?.nodes ?? []
+        let threadComments = (pull.reviewThreads?.nodes ?? []).flatMap { $0.comments?.nodes ?? [] }
+        for comment in issueComments + threadComments where comment.viewerDidAuthor == true {
+            if let created = parse(comment.createdAt) { engagementDates.append(created) }
+        }
+
         return PRDetail(
             mergeable: mergeable,
             mergeableState: pull.mergeStateStatus,
@@ -191,7 +225,9 @@ struct GraphQLClient {
             headSHA: pull.commits?.nodes.first?.commit.oid,
             viewerLatestReviewState: pull.viewerLatestReview?.state,
             viewerReviewedHeadSHA: pull.viewerLatestReview?.commit?.oid,
-            unresolvedThreadsAwaitingViewer: unresolvedAwaitingViewer
+            unresolvedThreadsAwaitingViewer: unresolvedAwaitingViewer,
+            viewerLastEngagementAt: engagementDates.max(),
+            headCommittedAt: parse(pull.commits?.nodes.first?.commit.committedDate)
         )
     }
 }

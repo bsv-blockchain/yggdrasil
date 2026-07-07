@@ -14,16 +14,20 @@ struct GitHubAggregate: Equatable {
     /// (not approved-and-current, or a thread awaits their reply). Drives the
     /// amber "your move" REVIEW pill; derived from GitHub, not tab-open state.
     let hasActivity: Bool
+    /// The viewer has approved the current head. Drives the green REVIEW pill
+    /// (superseded by `hasActivity` — a thread awaiting them still reads amber).
+    let reviewApproved: Bool
 
     init(
         ciState: String?, reviewState: String? = nil, unread: Int,
-        newCommits: Int = 0, hasActivity: Bool = false
+        newCommits: Int = 0, hasActivity: Bool = false, reviewApproved: Bool = false
     ) {
         self.ciState = ciState
         self.reviewState = reviewState
         self.unread = unread
         self.newCommits = newCommits
         self.hasActivity = hasActivity
+        self.reviewApproved = reviewApproved
     }
 }
 
@@ -49,10 +53,14 @@ struct TabStatus: Equatable {
     let reviewActivity: Bool
     /// New commits since last opened (for the "↑N" chip). 0 when none/unseen.
     let newCommits: Int
+    /// The viewer has approved the current head — drives the green REVIEW pill.
+    /// `reviewActivity` (amber) takes precedence when both are set.
+    let reviewApproved: Bool
 
     init(
         icon: Icon, showsUnreadBadgeDot: Bool, tooltipLines: [String],
-        reviewState: String? = nil, reviewActivity: Bool = false, newCommits: Int = 0
+        reviewState: String? = nil, reviewActivity: Bool = false, newCommits: Int = 0,
+        reviewApproved: Bool = false
     ) {
         self.icon = icon
         self.showsUnreadBadgeDot = showsUnreadBadgeDot
@@ -60,6 +68,7 @@ struct TabStatus: Equatable {
         self.reviewState = reviewState
         self.reviewActivity = reviewActivity
         self.newCommits = newCommits
+        self.reviewApproved = reviewApproved
     }
 
     static func aggregate(
@@ -74,7 +83,8 @@ struct TabStatus: Equatable {
             tooltipLines: makeTooltip(claude: claude, git: git, github: github),
             reviewState: github.reviewState,
             reviewActivity: github.hasActivity,
-            newCommits: github.newCommits
+            newCommits: github.newCommits,
+            reviewApproved: github.reviewApproved
         )
     }
 

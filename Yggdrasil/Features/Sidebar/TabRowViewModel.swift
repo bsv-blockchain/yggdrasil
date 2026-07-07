@@ -64,9 +64,12 @@ struct TabRowViewModel: Equatable {
     /// with `review-`). Drives the REVIEW pill in TabRow so the user can
     /// distinguish a review session from a normal one at a glance.
     let isReview: Bool
-    /// A review tab whose PR gained commits/comments since the user last opened
-    /// it — the "your move" state that turns the REVIEW pill amber.
+    /// A review tab with an outstanding action for the viewer (author pushed
+    /// since they engaged, or a thread awaits their reply) — turns the pill amber.
     let reviewNeedsAttention: Bool
+    /// A review tab the viewer has approved at the current head — turns the pill
+    /// green. `reviewNeedsAttention` (amber) wins when both are set.
+    let reviewApproved: Bool
     /// Phase 6+: live status carrying the priority icon + tooltip lines + the
     /// unread-dot flag. nil when nothing has populated it yet.
     let liveStatus: TabStatus?
@@ -108,6 +111,8 @@ struct TabRowViewModel: Equatable {
         isReview = NewTabSheet.isReviewBranch(tab.branchName)
         reviewNeedsAttention = NewTabSheet.isReviewBranch(tab.branchName)
             && (liveStatus?.reviewActivity ?? false)
+        reviewApproved = NewTabSheet.isReviewBranch(tab.branchName)
+            && (liveStatus?.reviewApproved ?? false)
         // Repo name is redundant with the section header when grouping by repo.
         repoLine = grouped ? nil : repoName
         reviewDot = ReviewDot(reviewState: liveStatus?.reviewState)

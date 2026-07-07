@@ -119,6 +119,35 @@ final class GraphQLClientTests: XCTestCase {
         XCTAssertEqual(detail.unresolvedThreadsAwaitingViewer, 1)
     }
 
+    func testPRDetailComputesEngagementAndHeadCommitDates() async throws {
+        // The 1176 shape: I requested changes, the author pushed, then I
+        // commented after the push. viewerLastEngagementAt = my latest activity
+        // (the comment), not just my review; others' comments are ignored.
+        let json = """
+        { "data": { "repository": { "pullRequest": {
+          "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": "CHANGES_REQUESTED",
+          "commits": { "totalCount": 5, "nodes": [{ "commit": { "oid": "h", "committedDate": "2026-06-30T11:28:47Z", "statusCheckRollup": null } }] },
+          "comments": { "totalCount": 2, "nodes": [
+            { "viewerDidAuthor": false, "createdAt": "2026-07-02T09:00:00Z" },
+            { "viewerDidAuthor": true,  "createdAt": "2026-07-01T16:42:24Z" }
+          ] },
+          "reviews": { "totalCount": 1, "nodes": [] },
+          "viewerLatestReview": { "state": "CHANGES_REQUESTED", "submittedAt": "2026-06-29T11:50:56Z", "commit": { "oid": "old" } },
+          "reviewThreads": { "nodes": [] }
+        }}}}
+        """
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data(json.utf8), etag: nil, rateLimitRemaining: 4999)
+        ])
+        let detail = try await GraphQLClient(http: http).prDetail(owner: "o", repo: "r", number: 1)
+
+        let iso = ISO8601DateFormatter()
+        // My last engagement = my comment (07-01), later than my review (06-29);
+        // the other person's 07-02 comment does not count.
+        XCTAssertEqual(detail.viewerLastEngagementAt, iso.date(from: "2026-07-01T16:42:24Z"))
+        XCTAssertEqual(detail.headCommittedAt, iso.date(from: "2026-06-30T11:28:47Z"))
+    }
+
     func testPRDetailMissingViewerReviewDefaultsToNilAndZero() async throws {
         // Older mocks / PRs with no reviewThreads block still decode.
         let json = """

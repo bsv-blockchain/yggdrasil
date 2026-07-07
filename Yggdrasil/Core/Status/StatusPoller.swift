@@ -81,7 +81,8 @@ actor StatusPoller {
                     reviewState: row.reviewState,
                     unread: row.newCommentsSinceSeen,
                     newCommits: row.newCommitsSinceSeen,
-                    hasActivity: row.reviewActionOutstanding
+                    hasActivity: row.reviewActionOutstanding,
+                    reviewApproved: row.reviewApprovedByViewer
                 )
             }
         } catch {
