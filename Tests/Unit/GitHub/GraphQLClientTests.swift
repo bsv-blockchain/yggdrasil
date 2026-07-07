@@ -87,7 +87,8 @@ final class GraphQLClientTests: XCTestCase {
 
     func testPRDetailDecodesViewerReviewAndThreads() async throws {
         // viewerLatestReview + reviewThreads drive the outstanding-action pill.
-        // Threads awaiting me = unresolved with a last comment I didn't author.
+        // A thread awaits me only if I authored a comment in it AND the last
+        // comment isn't mine — bot threads / threads I never joined don't count.
         let json = """
         { "data": { "repository": { "pullRequest": {
           "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": "APPROVED",
@@ -96,7 +97,8 @@ final class GraphQLClientTests: XCTestCase {
           "reviews": { "totalCount": 1, "nodes": [] },
           "viewerLatestReview": { "state": "APPROVED", "commit": { "oid": "oldhead" } },
           "reviewThreads": { "nodes": [
-            { "isResolved": true,  "comments": { "nodes": [{ "viewerDidAuthor": false }] } },
+            { "isResolved": true,  "comments": { "nodes": [{ "viewerDidAuthor": true }, { "viewerDidAuthor": false }] } },
+            { "isResolved": false, "comments": { "nodes": [{ "viewerDidAuthor": true }, { "viewerDidAuthor": false }] } },
             { "isResolved": false, "comments": { "nodes": [{ "viewerDidAuthor": false }] } },
             { "isResolved": false, "comments": { "nodes": [{ "viewerDidAuthor": true }] } },
             { "isResolved": false, "comments": { "nodes": [] } }
@@ -111,7 +113,9 @@ final class GraphQLClientTests: XCTestCase {
         XCTAssertEqual(detail.viewerLatestReviewState, "APPROVED")
         XCTAssertEqual(detail.viewerReviewedHeadSHA, "oldhead")
         XCTAssertEqual(detail.headSHA, "newhead")
-        // Only the one unresolved thread whose last comment isn't mine counts.
+        // Only thread 2 counts: unresolved, I'm in it, someone replied after me.
+        // Thread 1 resolved; thread 3 I never joined (bot); thread 4 I spoke
+        // last; thread 5 has no comments.
         XCTAssertEqual(detail.unresolvedThreadsAwaitingViewer, 1)
     }
 

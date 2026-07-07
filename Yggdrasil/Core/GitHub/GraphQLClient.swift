@@ -124,7 +124,7 @@ struct GraphQLClient {
           comments(first: 1) { totalCount }
           reviews(first: 100) { totalCount nodes { comments { totalCount } } }
           viewerLatestReview { state commit { oid } }
-          reviewThreads(first: 100) { nodes { isResolved comments(last: 1) { nodes { viewerDidAuthor } } } }
+          reviewThreads(first: 100) { nodes { isResolved comments(last: 100) { nodes { viewerDidAuthor } } } }
         }
       }
     }
@@ -167,11 +167,15 @@ struct GraphQLClient {
         default: nil
         }
         let ciState = pull.commits?.nodes.first?.commit.statusCheckRollup?.state
-        // Threads awaiting the viewer: unresolved, with a last comment the
-        // viewer didn't author. A thread with no comments doesn't count.
+        // Threads awaiting the viewer's reply: unresolved, the viewer authored a
+        // comment in it (so it's a conversation they're part of), and the last
+        // comment isn't theirs. Excludes bot threads and threads between others
+        // the viewer never joined — those are the author's to resolve.
         let unresolvedAwaitingViewer = (pull.reviewThreads?.nodes ?? []).filter { thread in
             guard !(thread.isResolved ?? false) else { return false }
-            guard let last = thread.comments?.nodes?.last else { return false }
+            let comments = thread.comments?.nodes ?? []
+            guard comments.contains(where: { $0.viewerDidAuthor == true }) else { return false }
+            guard let last = comments.last else { return false }
             return !(last.viewerDidAuthor ?? false)
         }.count
         return PRDetail(
