@@ -84,21 +84,24 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
 
     // MARK: - Outstanding review action (pure)
 
-    /// The viewer has approved the PR *and* that approval covers the current
-    /// head (no commits landed since). A stale approval (head moved after) is
-    /// not "current".
-    var reviewApprovedCurrentHead: Bool {
-        viewerLatestReviewState == "APPROVED"
-            && viewerReviewedHeadSHA != nil
-            && viewerReviewedHeadSHA == headSHA
+    /// The viewer reviewed an earlier commit and the author has pushed since —
+    /// a re-review is due. If the viewer hasn't reviewed at all, there's nothing
+    /// directed at them yet, so this is false (not "stale").
+    var reviewStaleAfterNewCommits: Bool {
+        guard viewerLatestReviewState != nil,
+              let reviewed = viewerReviewedHeadSHA,
+              let head = headSHA else { return false }
+        return reviewed != head
     }
 
-    /// Whether there's an outstanding review action for the viewer: they
-    /// haven't approved the current head (never reviewed, commented-only,
-    /// changes-requested, or approved-then-new-commits), or an unresolved
-    /// thread awaits their reply. Drives the amber REVIEW pill — derived purely
-    /// from GitHub, so opening the tab does not clear it.
+    /// Whether there's an outstanding review action *directed at the viewer*:
+    /// the author pushed new commits after the viewer's last review (re-review),
+    /// or an unresolved thread the viewer is part of has a reply after theirs.
+    /// A never-reviewed PR, a review that still covers the current head, bot
+    /// threads, and threads the viewer never joined are all NOT outstanding.
+    /// Drives the amber REVIEW pill — derived purely from GitHub, so the viewer's
+    /// own activity never turns it amber and opening the tab does not clear it.
     var reviewActionOutstanding: Bool {
-        !reviewApprovedCurrentHead || unresolvedThreadsAwaitingViewer > 0
+        reviewStaleAfterNewCommits || unresolvedThreadsAwaitingViewer > 0
     }
 }

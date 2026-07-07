@@ -43,9 +43,9 @@ struct TabStatus: Equatable {
     /// coloured dot on the row; deliberately independent of `icon` so it never
     /// displaces the work-state icon.
     let reviewState: String?
-    /// The linked PR has an outstanding review action for the viewer. Drives the
-    /// amber "your move" REVIEW pill on review tabs; stays amber until the viewer
-    /// approves the current head / clears every thread awaiting them.
+    /// The linked PR has something directed at the viewer: the author pushed
+    /// after their last review, or a thread they're in awaits their reply. Drives
+    /// the amber "your move" REVIEW pill; the viewer's own activity never sets it.
     let reviewActivity: Bool
     /// New commits since last opened (for the "↑N" chip). 0 when none/unseen.
     let newCommits: Int

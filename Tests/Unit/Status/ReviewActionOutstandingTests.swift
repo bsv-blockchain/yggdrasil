@@ -22,37 +22,37 @@ final class ReviewActionOutstandingTests: XCTestCase {
         )
     }
 
-    func testNotReviewedIsOutstanding() {
+    func testNeverReviewedIsNotOutstanding() {
+        // Nothing is directed at you yet → blue, not amber.
         let s = status(latestReview: nil, reviewedHead: nil, head: "abc")
-        XCTAssertTrue(s.reviewActionOutstanding)
-    }
-
-    func testApprovedCurrentHeadIsDone() {
-        let s = status(latestReview: "APPROVED", reviewedHead: "abc", head: "abc")
-        XCTAssertTrue(s.reviewApprovedCurrentHead)
         XCTAssertFalse(s.reviewActionOutstanding)
     }
 
-    func testApprovedButNewCommitsIsOutstanding() {
-        // Approval covered an older head; author pushed since → re-review.
-        let s = status(latestReview: "APPROVED", reviewedHead: "old", head: "new")
-        XCTAssertTrue(s.reviewActionOutstanding)
+    func testReviewedCurrentHeadIsNotOutstanding() {
+        // Any review type covering the current head → ball's in author's court.
+        for state in ["APPROVED", "COMMENTED", "CHANGES_REQUESTED"] {
+            let s = status(latestReview: state, reviewedHead: "abc", head: "abc")
+            XCTAssertFalse(s.reviewActionOutstanding, "\(state) on current head → not outstanding")
+        }
     }
 
-    func testChangesRequestedIsOutstanding() {
-        let s = status(latestReview: "CHANGES_REQUESTED", reviewedHead: "abc", head: "abc")
-        XCTAssertTrue(s.reviewActionOutstanding)
+    func testReviewedThenNewCommitsIsOutstanding() {
+        // You reviewed an older head; author pushed since → re-review is due.
+        for state in ["APPROVED", "COMMENTED", "CHANGES_REQUESTED"] {
+            let s = status(latestReview: state, reviewedHead: "old", head: "new")
+            XCTAssertTrue(s.reviewActionOutstanding, "\(state) + new commits → outstanding")
+        }
     }
 
-    func testCommentedOnlyIsOutstanding() {
-        let s = status(latestReview: "COMMENTED", reviewedHead: "abc", head: "abc")
-        XCTAssertTrue(s.reviewActionOutstanding)
-    }
-
-    func testApprovedCurrentHeadButThreadAwaitingIsOutstanding() {
-        // Even approved-and-current, an unresolved thread where someone else
-        // spoke last is your move (reply/resolve).
+    func testThreadAwaitingIsOutstanding() {
+        // A reply after yours in a thread you're in — even if you approved.
         let s = status(latestReview: "APPROVED", reviewedHead: "abc", head: "abc", unresolvedAwaiting: 1)
+        XCTAssertTrue(s.reviewActionOutstanding)
+    }
+
+    func testNeverReviewedButThreadAwaitingIsOutstanding() {
+        // You commented in a thread (no formal review) and someone replied.
+        let s = status(latestReview: nil, reviewedHead: nil, head: "abc", unresolvedAwaiting: 1)
         XCTAssertTrue(s.reviewActionOutstanding)
     }
 }
