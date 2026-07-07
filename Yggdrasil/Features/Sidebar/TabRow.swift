@@ -117,31 +117,41 @@ struct TabRow: View {
         .help(tooltipText)
     }
 
-    /// REVIEW pill — amber with a dot when there's something directed at you
-    /// ("your move"): the author pushed commits after your last review, or an
-    /// unresolved thread you're in has a reply after yours. Blue otherwise —
-    /// including a PR you haven't reviewed yet and bot threads you never joined.
+    /// REVIEW pill, three states (precedence amber > green > blue):
+    /// - amber + dot — "your move": the author pushed after you last engaged, or
+    ///   an unresolved thread you're in has a reply after yours;
+    /// - green + check — you've approved the current head;
+    /// - blue — a review session with nothing directed at you (unreviewed, bot
+    ///   threads, threads you never joined).
     /// Derived from GitHub — your own comments never turn it amber, and opening
     /// the tab doesn't clear it.
     @ViewBuilder
     private var reviewPill: some View {
         let attention = model.reviewNeedsAttention
-        let tint = attention ? YggdrasilTheme.statusWarn(scheme) : YggdrasilTheme.accent
+        let approved = model.reviewApproved && !attention
+        let tint = attention ? YggdrasilTheme.statusWarn(scheme)
+            : approved ? YggdrasilTheme.statusOK(scheme)
+            : YggdrasilTheme.accent
+        let colored = attention || approved
         HStack(spacing: 3) {
             Text("REVIEW")
                 .font(.system(size: 9, weight: .bold))
                 .tracking(0.6)
             if attention {
                 Circle().fill(tint).frame(width: 4, height: 4)
+            } else if approved {
+                Image(systemName: "checkmark").font(.system(size: 7, weight: .bold))
             }
         }
         .padding(.horizontal, 5)
         .padding(.vertical, 1)
         .foregroundStyle(tint)
-        .background(Capsule().fill(attention ? tint.opacity(0.14) : YggdrasilTheme.accentSoft(scheme)))
+        .background(Capsule().fill(colored ? tint.opacity(0.14) : YggdrasilTheme.accentSoft(scheme)))
         .overlay(Capsule().stroke(tint.opacity(0.4), lineWidth: 0.5))
         .help(attention
-            ? "Your move — the author pushed since your review, or a thread you're in is awaiting your reply"
+            ? "Your move — the author pushed since you last engaged, or a thread you're in is awaiting your reply"
+            : approved
+            ? "Approved — you've approved the current head"
             : "Review session — nothing needs you right now")
         .accessibilityIdentifier("tabrow.reviewbadge")
     }

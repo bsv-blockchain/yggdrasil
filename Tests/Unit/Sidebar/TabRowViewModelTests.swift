@@ -210,4 +210,28 @@ final class TabRowViewModelTests: XCTestCase {
         XCTAssertFalse(model.isReview)
         XCTAssertFalse(model.reviewNeedsAttention)
     }
+
+    private func liveStatus(reviewApproved: Bool) -> TabStatus {
+        TabStatus.aggregate(
+            claude: .idle,
+            git: GitState(dirty: false, remote: .noRemote),
+            github: .init(ciState: nil, unread: 0, reviewApproved: reviewApproved)
+        )
+    }
+
+    func testReviewBranchApprovedIsApproved() {
+        let model = TabRowViewModel(
+            tab: makeTab(branch: "review-pr-655"), task: makeTask(),
+            liveStatus: liveStatus(reviewApproved: true)
+        )
+        XCTAssertTrue(model.reviewApproved)
+    }
+
+    func testNonReviewBranchNeverApproved() {
+        let model = TabRowViewModel(
+            tab: makeTab(branch: "feat/foo"), task: makeTask(),
+            liveStatus: liveStatus(reviewApproved: true)
+        )
+        XCTAssertFalse(model.reviewApproved)
+    }
 }

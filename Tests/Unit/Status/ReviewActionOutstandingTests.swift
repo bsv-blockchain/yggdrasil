@@ -1,58 +1,80 @@
 import XCTest
 @testable import Yggdrasil
 
-/// The GitHub-derived "outstanding review action for me" signal that drives the
-/// amber REVIEW pill. Independent of whether the tab was opened.
+/// The GitHub-derived signals that drive the REVIEW pill: amber when something
+/// is directed at the viewer (a push or a reply after their last engagement),
+/// green when they've approved the current head. Independent of tab-open state.
 final class ReviewActionOutstandingTests: XCTestCase {
+    private let base = Date(timeIntervalSince1970: 1_700_000_000)
+    private func at(_ offset: TimeInterval) -> Date {
+        base.addingTimeInterval(offset)
+    }
+
     private func status(
-        latestReview: String?,
-        reviewedHead: String?,
-        head: String?,
+        latestReview: String? = nil,
+        reviewedHead: String? = nil,
+        head: String? = "abc",
+        engagedAt: Date? = nil,
+        headCommittedAt: Date? = nil,
         unresolvedAwaiting: Int = 0
     ) -> GitHubStatus {
         GitHubStatus(
             taskID: 1, ciState: nil, ciURL: nil, mergeable: nil, mergeableState: nil,
             reviewState: nil, unreadCommentsCount: 0, lastSeenCommentID: nil,
-            fetchedAt: Date(timeIntervalSince1970: 0),
+            fetchedAt: base,
             commentsReviewsTotal: 0, commitsTotal: 0, headSHA: head,
             seenCommentsReviewsTotal: nil, seenCommitsTotal: nil, seenHeadSHA: nil,
             viewerLatestReviewState: latestReview,
             viewerReviewedHeadSHA: reviewedHead,
-            unresolvedThreadsAwaitingViewer: unresolvedAwaiting
+            unresolvedThreadsAwaitingViewer: unresolvedAwaiting,
+            viewerLastEngagementAt: engagedAt,
+            headCommittedAt: headCommittedAt
         )
     }
 
-    func testNeverReviewedIsNotOutstanding() {
-        // Nothing is directed at you yet → blue, not amber.
-        let s = status(latestReview: nil, reviewedHead: nil, head: "abc")
+    // MARK: - amber (outstanding)
+
+    func testNeverEngagedIsNotOutstanding() {
+        XCTAssertFalse(status(engagedAt: nil, headCommittedAt: at(0)).reviewActionOutstanding)
+    }
+
+    func testCommitAfterEngagementIsOutstanding() {
+        // Author pushed after I last engaged → re-review is my move.
+        let s = status(engagedAt: at(0), headCommittedAt: at(100))
+        XCTAssertTrue(s.commitsAfterEngagement)
+        XCTAssertTrue(s.reviewActionOutstanding)
+    }
+
+    func testEngagedAfterCommitIsNotOutstanding() {
+        // The 1176 case: author pushed, then I commented — I've looked → blue.
+        let s = status(engagedAt: at(100), headCommittedAt: at(0))
+        XCTAssertFalse(s.commitsAfterEngagement)
         XCTAssertFalse(s.reviewActionOutstanding)
     }
 
-    func testReviewedCurrentHeadIsNotOutstanding() {
-        // Any review type covering the current head → ball's in author's court.
-        for state in ["APPROVED", "COMMENTED", "CHANGES_REQUESTED"] {
-            let s = status(latestReview: state, reviewedHead: "abc", head: "abc")
-            XCTAssertFalse(s.reviewActionOutstanding, "\(state) on current head → not outstanding")
-        }
-    }
-
-    func testReviewedThenNewCommitsIsOutstanding() {
-        // You reviewed an older head; author pushed since → re-review is due.
-        for state in ["APPROVED", "COMMENTED", "CHANGES_REQUESTED"] {
-            let s = status(latestReview: state, reviewedHead: "old", head: "new")
-            XCTAssertTrue(s.reviewActionOutstanding, "\(state) + new commits → outstanding")
-        }
-    }
-
     func testThreadAwaitingIsOutstanding() {
-        // A reply after yours in a thread you're in — even if you approved.
-        let s = status(latestReview: "APPROVED", reviewedHead: "abc", head: "abc", unresolvedAwaiting: 1)
+        // A reply after mine in a thread I'm in — even having engaged since a push.
+        let s = status(engagedAt: at(100), headCommittedAt: at(0), unresolvedAwaiting: 1)
         XCTAssertTrue(s.reviewActionOutstanding)
     }
 
-    func testNeverReviewedButThreadAwaitingIsOutstanding() {
-        // You commented in a thread (no formal review) and someone replied.
-        let s = status(latestReview: nil, reviewedHead: nil, head: "abc", unresolvedAwaiting: 1)
-        XCTAssertTrue(s.reviewActionOutstanding)
+    // MARK: - green (approved current head)
+
+    func testApprovedCurrentHeadIsApproved() {
+        let s = status(latestReview: "APPROVED", reviewedHead: "abc", head: "abc",
+                       engagedAt: at(100), headCommittedAt: at(0))
+        XCTAssertTrue(s.reviewApprovedByViewer)
+        XCTAssertFalse(s.reviewActionOutstanding, "approved & nothing directed at me → not amber")
+    }
+
+    func testApprovedButStaleIsNotApproved() {
+        // Approval covered an older head → not "approved current".
+        let s = status(latestReview: "APPROVED", reviewedHead: "old", head: "new")
+        XCTAssertFalse(s.reviewApprovedByViewer)
+    }
+
+    func testCommentedIsNotApproved() {
+        let s = status(latestReview: "COMMENTED", reviewedHead: "abc", head: "abc")
+        XCTAssertFalse(s.reviewApprovedByViewer)
     }
 }

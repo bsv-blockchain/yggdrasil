@@ -236,9 +236,47 @@ final class MigrationsTests: XCTestCase {
         XCTAssertEqual(read?.viewerLatestReviewState, "APPROVED")
         XCTAssertEqual(read?.viewerReviewedHeadSHA, "head")
         XCTAssertEqual(read?.unresolvedThreadsAwaitingViewer, 2)
-        // Reviewed the current head → not stale; but 2 threads awaiting my reply
-        // → still outstanding.
-        XCTAssertFalse(read?.reviewStaleAfterNewCommits ?? true)
+        // Approved the current head → green-eligible; but 2 threads awaiting my
+        // reply → amber still wins.
+        XCTAssertTrue(read?.reviewApprovedByViewer ?? false)
+        XCTAssertTrue(read?.reviewActionOutstanding ?? false)
+    }
+
+    func testV10AddsEngagementTimestampsAndRoundTrips() throws {
+        let db = try YggdrasilDatabase.inMemory()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let engaged = now.addingTimeInterval(-100)
+        let taskID = try db.queue.write { db -> Int64 in
+            var repo = Repo(
+                id: nil, owner: "o", name: "r",
+                defaultBranch: "main", localMainPath: nil, addedAt: now
+            )
+            try repo.insert(db)
+            var task = YggdrasilTask(
+                id: nil, repoID: repo.id!, type: .pullRequest, number: 1,
+                title: "t", body: nil, state: .open, authorLogin: "a",
+                githubURL: "u", apiURL: "u",
+                createdAt: now, updatedAt: now, lastSyncedAt: now, etag: nil
+            )
+            try task.insert(db)
+            var status = GitHubStatus(
+                taskID: task.id!, ciState: nil, ciURL: nil, mergeable: nil,
+                mergeableState: nil, reviewState: nil, unreadCommentsCount: 0,
+                lastSeenCommentID: nil, fetchedAt: now,
+                commentsReviewsTotal: 0, commitsTotal: 0, headSHA: "head",
+                seenCommentsReviewsTotal: nil, seenCommitsTotal: nil, seenHeadSHA: nil,
+                viewerLatestReviewState: nil, viewerReviewedHeadSHA: nil,
+                unresolvedThreadsAwaitingViewer: 0,
+                viewerLastEngagementAt: engaged, headCommittedAt: now
+            )
+            try status.insert(db)
+            return task.id!
+        }
+        let read = try db.queue.read { db in try GitHubStatus.fetchOne(db, key: taskID) }
+        XCTAssertEqual(read?.viewerLastEngagementAt, engaged)
+        XCTAssertEqual(read?.headCommittedAt, now)
+        // Head commit is after my last engagement → outstanding.
+        XCTAssertTrue(read?.commitsAfterEngagement ?? false)
         XCTAssertTrue(read?.reviewActionOutstanding ?? false)
     }
 }

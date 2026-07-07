@@ -14,7 +14,22 @@ enum Migrations {
         migrator.registerMigration("v7", migrate: v7)
         migrator.registerMigration("v8", migrate: v8)
         migrator.registerMigration("v9", migrate: v9)
+        migrator.registerMigration("v10", migrate: v10)
         return migrator
+    }
+
+    // MARK: - v10 — Engagement/commit timestamps for the REVIEW pill
+
+    ///
+    /// The amber pill now fires only when the author pushed a commit *after* the
+    /// viewer last engaged (their last review or comment) — so a push the viewer
+    /// has already commented on doesn't nag. Store the viewer's last-engagement
+    /// time and the head commit time to compare each sync.
+    private static func v10(_ db: Database) throws {
+        try db.alter(table: "github_status") { table in
+            table.add(column: "viewer_last_engagement_at", .datetime)
+            table.add(column: "head_committed_at", .datetime)
+        }
     }
 
     // MARK: - v9 — Per-viewer review state (outstanding-action REVIEW pill)

@@ -32,6 +32,13 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
     var viewerReviewedHeadSHA: String?
     var unresolvedThreadsAwaitingViewer: Int = 0
 
+    // v10 — timestamps for the "activity since my last engagement" signal.
+    // `viewerLastEngagementAt` = latest of my last review + my last comment;
+    // `headCommittedAt` = current head commit date. The author having pushed
+    // after I last engaged is what makes a re-review my move.
+    var viewerLastEngagementAt: Date?
+    var headCommittedAt: Date?
+
     enum CodingKeys: String, CodingKey {
         case taskID = "task_id"
         case ciState = "ci_state"
@@ -51,6 +58,8 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
         case viewerLatestReviewState = "viewer_latest_review_state"
         case viewerReviewedHeadSHA = "viewer_reviewed_head_sha"
         case unresolvedThreadsAwaitingViewer = "unresolved_threads_awaiting_viewer"
+        case viewerLastEngagementAt = "viewer_last_engagement_at"
+        case headCommittedAt = "head_committed_at"
     }
 
     // MARK: - Activity since last opened (pure)
@@ -84,24 +93,32 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
 
     // MARK: - Outstanding review action (pure)
 
-    /// The viewer reviewed an earlier commit and the author has pushed since —
-    /// a re-review is due. If the viewer hasn't reviewed at all, there's nothing
-    /// directed at them yet, so this is false (not "stale").
-    var reviewStaleAfterNewCommits: Bool {
-        guard viewerLatestReviewState != nil,
-              let reviewed = viewerReviewedHeadSHA,
-              let head = headSHA else { return false }
-        return reviewed != head
+    /// The author pushed a commit after the viewer last engaged (their last
+    /// review or comment), so there's a change the viewer hasn't looked at. If
+    /// the viewer never engaged, nothing is directed at them yet → false; a
+    /// commit the viewer has since commented on is not "after" their engagement.
+    var commitsAfterEngagement: Bool {
+        guard let engaged = viewerLastEngagementAt, let head = headCommittedAt else { return false }
+        return head > engaged
     }
 
     /// Whether there's an outstanding review action *directed at the viewer*:
-    /// the author pushed new commits after the viewer's last review (re-review),
-    /// or an unresolved thread the viewer is part of has a reply after theirs.
-    /// A never-reviewed PR, a review that still covers the current head, bot
-    /// threads, and threads the viewer never joined are all NOT outstanding.
+    /// the author pushed a commit after the viewer last engaged (re-review), or
+    /// an unresolved thread the viewer is part of has a reply after theirs. A
+    /// never-engaged PR, one the viewer has engaged with since the last push,
+    /// bot threads, and threads the viewer never joined are all NOT outstanding.
     /// Drives the amber REVIEW pill — derived purely from GitHub, so the viewer's
     /// own activity never turns it amber and opening the tab does not clear it.
     var reviewActionOutstanding: Bool {
-        reviewStaleAfterNewCommits || unresolvedThreadsAwaitingViewer > 0
+        commitsAfterEngagement || unresolvedThreadsAwaitingViewer > 0
+    }
+
+    /// The viewer has approved the current head (their approval isn't stale from
+    /// a later push). Drives the green REVIEW pill. `reviewActionOutstanding`
+    /// takes precedence — a thread awaiting the viewer still reads as amber.
+    var reviewApprovedByViewer: Bool {
+        viewerLatestReviewState == "APPROVED"
+            && viewerReviewedHeadSHA != nil
+            && viewerReviewedHeadSHA == headSHA
     }
 }
