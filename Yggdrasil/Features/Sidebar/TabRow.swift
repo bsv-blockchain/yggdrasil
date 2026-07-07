@@ -117,11 +117,11 @@ struct TabRow: View {
         .help(tooltipText)
     }
 
-    /// REVIEW pill — blue when you're done (approved the current head, nothing
-    /// awaiting you), amber with a dot when there's an outstanding review action
-    /// ("your move"): not yet approved, new commits since your approval, or a
-    /// thread awaiting your reply. Derived from GitHub — opening the tab doesn't
-    /// clear it.
+    /// REVIEW pill — blue when the ball is in the author's court (you've reviewed
+    /// the current head, nothing awaiting you), amber with a dot when it's your
+    /// move: you haven't reviewed the latest commits, or a thread's last comment
+    /// is someone else's. Your own comments/reviews never turn it amber. Derived
+    /// from GitHub — opening the tab doesn't clear it.
     @ViewBuilder
     private var reviewPill: some View {
         let attention = model.reviewNeedsAttention
@@ -140,8 +140,8 @@ struct TabRow: View {
         .background(Capsule().fill(attention ? tint.opacity(0.14) : YggdrasilTheme.accentSoft(scheme)))
         .overlay(Capsule().stroke(tint.opacity(0.4), lineWidth: 0.5))
         .help(attention
-            ? "Your move — not yet approved, new commits since your review, or a thread awaiting your reply"
-            : "You're up to date — approved the current head, nothing awaiting you")
+            ? "Your move — you haven't reviewed the latest commits, or a thread is awaiting your reply"
+            : "You're up to date — you've reviewed the current changes; nothing awaiting you")
         .accessibilityIdentifier("tabrow.reviewbadge")
     }
 

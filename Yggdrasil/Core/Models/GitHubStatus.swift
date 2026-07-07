@@ -84,21 +84,25 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
 
     // MARK: - Outstanding review action (pure)
 
-    /// The viewer has approved the PR *and* that approval covers the current
-    /// head (no commits landed since). A stale approval (head moved after) is
-    /// not "current".
-    var reviewApprovedCurrentHead: Bool {
-        viewerLatestReviewState == "APPROVED"
+    /// The viewer has reviewed the current head — submitted a review of any kind
+    /// (approve / comment / request-changes) against the commit that is now
+    /// HEAD. Once they have, the ball is in the author's court until the author
+    /// pushes again; a review of an older head (commits landed since) doesn't
+    /// count.
+    var reviewCoversCurrentHead: Bool {
+        viewerLatestReviewState != nil
             && viewerReviewedHeadSHA != nil
             && viewerReviewedHeadSHA == headSHA
     }
 
-    /// Whether there's an outstanding review action for the viewer: they
-    /// haven't approved the current head (never reviewed, commented-only,
-    /// changes-requested, or approved-then-new-commits), or an unresolved
-    /// thread awaits their reply. Drives the amber REVIEW pill — derived purely
-    /// from GitHub, so opening the tab does not clear it.
+    /// Whether there's an outstanding review action for the viewer: they haven't
+    /// reviewed the current head (never reviewed, or the author pushed new
+    /// commits since their last review), or an unresolved thread's last comment
+    /// is someone else's (awaiting their reply). The viewer's OWN activity —
+    /// posting a comment, review, or reply — never flips this on. Drives the
+    /// amber REVIEW pill; derived purely from GitHub, so opening the tab does
+    /// not clear it.
     var reviewActionOutstanding: Bool {
-        !reviewApprovedCurrentHead || unresolvedThreadsAwaitingViewer > 0
+        !reviewCoversCurrentHead || unresolvedThreadsAwaitingViewer > 0
     }
 }

@@ -45,7 +45,8 @@ struct TabStatus: Equatable {
     let reviewState: String?
     /// The linked PR has an outstanding review action for the viewer. Drives the
     /// amber "your move" REVIEW pill on review tabs; stays amber until the viewer
-    /// approves the current head / clears every thread awaiting them.
+    /// has reviewed the current head / cleared every thread awaiting them. The
+    /// viewer's own comments/reviews never turn it amber.
     let reviewActivity: Bool
     /// New commits since last opened (for the "↑N" chip). 0 when none/unseen.
     let newCommits: Int

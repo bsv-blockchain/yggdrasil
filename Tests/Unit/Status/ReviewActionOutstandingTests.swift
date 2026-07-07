@@ -29,7 +29,7 @@ final class ReviewActionOutstandingTests: XCTestCase {
 
     func testApprovedCurrentHeadIsDone() {
         let s = status(latestReview: "APPROVED", reviewedHead: "abc", head: "abc")
-        XCTAssertTrue(s.reviewApprovedCurrentHead)
+        XCTAssertTrue(s.reviewCoversCurrentHead)
         XCTAssertFalse(s.reviewActionOutstanding)
     }
 
@@ -39,14 +39,27 @@ final class ReviewActionOutstandingTests: XCTestCase {
         XCTAssertTrue(s.reviewActionOutstanding)
     }
 
-    func testChangesRequestedIsOutstanding() {
-        let s = status(latestReview: "CHANGES_REQUESTED", reviewedHead: "abc", head: "abc")
-        XCTAssertTrue(s.reviewActionOutstanding)
+    func testCommentedOnCurrentHeadIsDone() {
+        // Posting a Comment review is your own action — the ball is now in the
+        // author's court, so it must NOT flag as your move. (Regression: this
+        // used to turn amber because it wasn't "APPROVED".)
+        let s = status(latestReview: "COMMENTED", reviewedHead: "abc", head: "abc")
+        XCTAssertFalse(s.reviewActionOutstanding)
     }
 
-    func testCommentedOnlyIsOutstanding() {
-        let s = status(latestReview: "COMMENTED", reviewedHead: "abc", head: "abc")
-        XCTAssertTrue(s.reviewActionOutstanding)
+    func testChangesRequestedOnCurrentHeadIsDone() {
+        // You've acted (requested changes) on the current head — waiting on the
+        // author, not your move.
+        let s = status(latestReview: "CHANGES_REQUESTED", reviewedHead: "abc", head: "abc")
+        XCTAssertFalse(s.reviewActionOutstanding)
+    }
+
+    func testReviewedThenNewCommitsIsOutstanding() {
+        // Any review type, then the author pushed → re-review is your move.
+        for state in ["COMMENTED", "CHANGES_REQUESTED", "APPROVED"] {
+            let s = status(latestReview: state, reviewedHead: "old", head: "new")
+            XCTAssertTrue(s.reviewActionOutstanding, "\(state) + new commits → outstanding")
+        }
     }
 
     func testApprovedCurrentHeadButThreadAwaitingIsOutstanding() {

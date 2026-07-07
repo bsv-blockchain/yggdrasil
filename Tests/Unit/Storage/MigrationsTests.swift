@@ -236,8 +236,8 @@ final class MigrationsTests: XCTestCase {
         XCTAssertEqual(read?.viewerLatestReviewState, "APPROVED")
         XCTAssertEqual(read?.viewerReviewedHeadSHA, "head")
         XCTAssertEqual(read?.unresolvedThreadsAwaitingViewer, 2)
-        XCTAssertTrue(read?.reviewApprovedCurrentHead ?? false)
-        // Approved & current head, but 2 threads awaiting → still outstanding.
+        XCTAssertTrue(read?.reviewCoversCurrentHead ?? false)
+        // Reviewed the current head, but 2 threads awaiting → still outstanding.
         XCTAssertTrue(read?.reviewActionOutstanding ?? false)
     }
 }
