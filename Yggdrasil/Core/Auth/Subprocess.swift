@@ -36,37 +36,20 @@ struct ProcessRunner: SubprocessRunner {
             // A child writing > 64 KB (the macOS pipe buffer default) before
             // exiting would otherwise deadlock against the parent, which doesn't
             // read until termination.
-            let stdoutAccumulator = PipeAccumulator()
-            let stderrAccumulator = PipeAccumulator()
-            stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-                let chunk = handle.availableData
-                if chunk.isEmpty {
-                    // EOF — closing the pipe ends the read loop.
-                    handle.readabilityHandler = nil
-                } else {
-                    stdoutAccumulator.append(chunk)
-                }
-            }
-            stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-                let chunk = handle.availableData
-                if chunk.isEmpty {
-                    handle.readabilityHandler = nil
-                } else {
-                    stderrAccumulator.append(chunk)
-                }
-            }
+            //
+            // Each reader serializes the handler's `availableData` and the
+            // terminationHandler's final drain under one lock, so the same
+            // descriptor is never read from two threads at once. Previously the
+            // terminationHandler called `readDataToEndOfFile` while an in-flight
+            // readability callback was still reading the same fd — that race
+            // intermittently truncated or dropped output.
+            let stdoutReader = PipeReader(handle: stdoutPipe.fileHandleForReading)
+            let stderrReader = PipeReader(handle: stderrPipe.fileHandleForReading)
 
             process.terminationHandler = { proc in
-                // Drain any data sitting in the pipe at the moment of termination.
-                stdoutPipe.fileHandleForReading.readabilityHandler = nil
-                stderrPipe.fileHandleForReading.readabilityHandler = nil
-                let remainingOut = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                if !remainingOut.isEmpty { stdoutAccumulator.append(remainingOut) }
-                let remainingErr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-                if !remainingErr.isEmpty { stderrAccumulator.append(remainingErr) }
                 let result = SubprocessResult(
-                    stdout: String(data: stdoutAccumulator.data, encoding: .utf8) ?? "",
-                    stderr: String(data: stderrAccumulator.data, encoding: .utf8) ?? "",
+                    stdout: String(data: stdoutReader.finish(), encoding: .utf8) ?? "",
+                    stderr: String(data: stderrReader.finish(), encoding: .utf8) ?? "",
                     exitCode: proc.terminationStatus
                 )
                 continuation.resume(returning: result)
@@ -81,21 +64,45 @@ struct ProcessRunner: SubprocessRunner {
     }
 }
 
-/// Thread-safe Data accumulator for the pipe readability handlers, which fire
-/// on a background queue.
-private final class PipeAccumulator: @unchecked Sendable {
+/// Accumulates one pipe's output. Installs a `readabilityHandler` to drain
+/// continuously (avoiding the 64 KB-buffer deadlock), and a `finish()` for the
+/// terminationHandler to collect the remainder. Both paths take the same lock,
+/// so the descriptor is never read concurrently — the readability callback and
+/// the final drain can't race and truncate output.
+private final class PipeReader: @unchecked Sendable {
+    private let handle: FileHandle
     private let lock = NSLock()
     private var buffer = Data()
+    private var finished = false
 
-    func append(_ chunk: Data) {
-        lock.lock()
-        defer { lock.unlock() }
-        buffer.append(chunk)
+    init(handle: FileHandle) {
+        self.handle = handle
+        handle.readabilityHandler = { [self] fileHandle in
+            lock.lock()
+            defer { lock.unlock() }
+            // A callback can still be dispatched after finish() ran; ignore it.
+            guard !finished else { fileHandle.readabilityHandler = nil
+                return
+            }
+            let chunk = fileHandle.availableData
+            if chunk.isEmpty {
+                fileHandle.readabilityHandler = nil // EOF
+            } else {
+                buffer.append(chunk)
+            }
+        }
     }
 
-    var data: Data {
+    /// Called once from the terminationHandler. Waits out any in-flight
+    /// readability callback (same lock), then drains whatever remains. The
+    /// process has already exited here, so the read reaches EOF promptly.
+    func finish() -> Data {
         lock.lock()
         defer { lock.unlock() }
+        finished = true
+        handle.readabilityHandler = nil
+        let remaining = handle.readDataToEndOfFile()
+        if !remaining.isEmpty { buffer.append(remaining) }
         return buffer
     }
 }
