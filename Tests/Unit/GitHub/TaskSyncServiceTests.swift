@@ -112,6 +112,7 @@ private func httpResult(_ data: Data) -> HTTPResult {
     HTTPResult(status: 200, body: data, etag: nil, rateLimitRemaining: 4999)
 }
 
+// swiftlint:disable type_body_length
 final class TaskSyncServiceTests: XCTestCase {
     func testFullSyncInsertsTasksForTrackedReposOnly() async throws {
         let db = try YggdrasilDatabase.inMemory()
@@ -412,4 +413,71 @@ final class TaskSyncServiceTests: XCTestCase {
         XCTAssertEqual(survivingNumbers, [101],
                        "tab-linked task survives prune; unlinked stale task is deleted")
     }
+
+    func testFullSyncRefreshesLiveTabPRMissingFromSearchLists() async throws {
+        // A review PR with a live tab that has dropped out of every search list
+        // (e.g. after you submit a review you're no longer a requested reviewer).
+        // Its github_status must still be refreshed each sync — otherwise the
+        // REVIEW pill freezes on stale pre-review data.
+        let db = try YggdrasilDatabase.inMemory()
+        let repoID = try insertRepo(db, owner: "o", name: "r")
+        let epoch = Date(timeIntervalSince1970: 0)
+        let taskID = try await db.queue.write { dbW -> Int64 in
+            var task = YggdrasilTask(
+                id: nil, repoID: repoID, type: .pullRequest, number: 828,
+                title: "PR", body: nil, state: .open, authorLogin: "author",
+                githubURL: "https://github.com/o/r/pull/828",
+                apiURL: "https://api.github.com/repos/o/r/pulls/828",
+                createdAt: epoch, updatedAt: epoch, lastSyncedAt: epoch, etag: nil
+            )
+            try task.insert(dbW)
+            // Stale: no viewer review recorded yet.
+            var status = GitHubStatus(
+                taskID: task.id!, ciState: nil, ciURL: nil, mergeable: nil, mergeableState: nil,
+                reviewState: nil, unreadCommentsCount: 0, lastSeenCommentID: nil, fetchedAt: epoch,
+                commentsReviewsTotal: 0, commitsTotal: 0, headSHA: "old",
+                seenCommentsReviewsTotal: nil, seenCommitsTotal: nil, seenHeadSHA: nil,
+                viewerLatestReviewState: nil, viewerReviewedHeadSHA: nil,
+                unresolvedThreadsAwaitingViewer: 0, viewerLastEngagementAt: nil, headCommittedAt: nil
+            )
+            try status.insert(dbW)
+            var tab = YggdrasilTab(
+                id: nil, taskID: task.id!, codingAgentID: nil, position: 0,
+                branchName: "claude-review-pr-828", worktreePath: "/tmp/x",
+                lastMainView: .agent, createdAt: epoch, lastActiveAt: epoch
+            )
+            try tab.insert(dbW)
+            return task.id!
+        }
+
+        // No assigned/review/authored results. The linked-PR refresh then fetches
+        // the PR (REST) + detail (GraphQL). Consumed in order: GET /issues → [] ;
+        // GET /repos/o/r/pulls/828 → prJSON ; POST graphql → detailJSON.
+        let prJSON = """
+        { "url":"u","html_url":"https://github.com/o/r/pull/828","number":828,"title":"PR",
+          "user":{"login":"author"},"state":"open","body":null,
+          "created_at":"2026-05-29T10:00:00Z","updated_at":"2026-05-29T11:00:00Z",
+          "assignees":[],"draft":false,"merged_at":null,"head":{"ref":"feat/x"} }
+        """
+        let detailJSON = """
+        { "data": { "repository": { "pullRequest": {
+          "mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":"APPROVED",
+          "commits":{"totalCount":1,"nodes":[{"commit":{"oid":"abc","committedDate":"2026-05-20T10:00:00Z","statusCheckRollup":null}}]},
+          "comments":{"totalCount":0,"nodes":[]},"reviews":{"totalCount":1,"nodes":[]},
+          "viewerLatestReview":{"state":"APPROVED","submittedAt":"2026-06-01T10:00:00Z","commit":{"oid":"abc"}},
+          "reviewThreads":{"nodes":[]}
+        }}}}
+        """
+        let http = CannedHTTPClient(responses: [httpResult("[]"), httpResult(prJSON), httpResult(detailJSON)])
+        try await TaskSyncService(
+            database: db, rest: RESTClient(http: http), graphql: GraphQLClient(http: http)
+        ).fullSync()
+
+        let status = try await db.queue.read { db in try GitHubStatus.fetchOne(db, key: taskID) }
+        XCTAssertEqual(status?.viewerLatestReviewState, "APPROVED", "linked PR's github_status was refreshed")
+        XCTAssertEqual(status?.headSHA, "abc")
+        XCTAssertTrue(status?.reviewApprovedByViewer ?? false, "now reflects the fresh review, not stale nil")
+    }
 }
+
+// swiftlint:enable type_body_length
