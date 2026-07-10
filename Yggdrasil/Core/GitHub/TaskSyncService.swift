@@ -92,7 +92,37 @@ actor TaskSyncService {
                 db: db, raws: relevantAssigned, repos: trackedKey, now: now
             )
         }
+        await refreshLinkedPRs(alreadyFetched: seen)
         YggdrasilLog.sync.info("Full sync complete")
+    }
+
+    /// Refresh the detail (+ `github_status`) of any PR that has a live tab but
+    /// wasn't in the assigned/review-requested/authored search results this
+    /// cycle. Without this, a review PR freezes as soon as you submit a review:
+    /// GitHub drops you from its requested-reviewers list, so it falls out of
+    /// every search list and its `github_status` — and thus the REVIEW pill —
+    /// is never refreshed again, leaving it stuck on stale pre-review data.
+    /// Best-effort per PR: a failed fetch just leaves that PR for next cycle.
+    private func refreshLinkedPRs(alreadyFetched: Set<String>) async {
+        let linked = await (try? database.queue.read { db in
+            try LinkedPRRef.fetchAll(db)
+        }) ?? []
+        for linkedPR in linked {
+            let key = Self.compositeKey(owner: linkedPR.owner, name: linkedPR.name, number: linkedPR.number)
+            guard !alreadyFetched.contains(key) else { continue }
+            guard let raw = try? await rest.pullRequest(
+                owner: linkedPR.owner, name: linkedPR.name, number: linkedPR.number
+            ) else { continue }
+            let detail = try? await graphql.prDetail(
+                owner: linkedPR.owner, repo: linkedPR.name, number: linkedPR.number
+            )
+            let now = Date()
+            try? await database.queue.write { db in
+                _ = try TaskSyncWrites.upsertSingleTask(
+                    db: db, raw: raw, repoID: linkedPR.repoID, detail: detail, now: now
+                )
+            }
+        }
     }
 
     /// Fetch one PR by number, upsert it into the task table (+ github_status
@@ -180,6 +210,41 @@ actor TaskSyncService {
             }
         }
         return result
+    }
+}
+
+/// A PR task that has a live tab, resolved to the owner/name/number needed to
+/// re-fetch it. Owner/name come from the task's GitHub URL — i.e. where the PR
+/// actually lives (the upstream, for a fork), which is what the fetch needs.
+private struct LinkedPRRef {
+    let repoID: Int64
+    let owner: String
+    let name: String
+    let number: Int
+
+    static func fetchAll(_ db: Database) throws -> [LinkedPRRef] {
+        let rows = try Row.fetchAll(db, sql: """
+        SELECT repo_id, github_url, number FROM task
+        WHERE type = ?
+          AND id IN (
+            SELECT task_id FROM tab WHERE task_id IS NOT NULL
+            UNION
+            SELECT pr_task_id FROM tab WHERE pr_task_id IS NOT NULL
+          )
+        """, arguments: [YggdrasilTask.Kind.pullRequest.rawValue])
+        return rows.compactMap { row in
+            guard let repoID = row["repo_id"] as Int64?,
+                  let number = row["number"] as Int?,
+                  let parsed = parseOwnerName(row["github_url"]) else { return nil }
+            return LinkedPRRef(repoID: repoID, owner: parsed.owner, name: parsed.name, number: number)
+        }
+    }
+
+    /// `https://github.com/<owner>/<name>/pull/<n>` → (owner, name).
+    private static func parseOwnerName(_ url: String?) -> (owner: String, name: String)? {
+        guard let url, let comps = URL(string: url)?.pathComponents, comps.count >= 3 else { return nil }
+        // pathComponents = ["/", owner, name, "pull", "<n>"]
+        return (comps[1], comps[2])
     }
 }
 
