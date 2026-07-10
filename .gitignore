@@ -31,3 +31,6 @@ Packages/
 # Logs
 *.log
 default.profraw
+
+# JetBrains IDE
+.idea/
