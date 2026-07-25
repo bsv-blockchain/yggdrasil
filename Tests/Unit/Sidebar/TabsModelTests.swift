@@ -88,6 +88,57 @@ final class TabsModelTests: XCTestCase {
         XCTAssertEqual(model.selectedID, only.id)
     }
 
+    func testMoveSelectionWalksVisibleOrderSkippingFilteredRows() throws {
+        let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
+        _ = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
+        let third = try store.insert(branchName: "c", worktreePath: "/c", agentID: nil, taskID: nil)
+        model.reload()
+        // Sidebar is showing only a and c (b filtered out).
+        model.visibleTabIDs = try [XCTUnwrap(first.id), XCTUnwrap(third.id)]
+        try model.select(XCTUnwrap(first.id))
+        model.moveSelection(by: 1)
+        XCTAssertEqual(model.selectedID, third.id, "steps to the next visible row, skipping the hidden one")
+        model.moveSelection(by: 1)
+        XCTAssertEqual(model.selectedID, first.id, "wraps within the visible set")
+    }
+
+    func testMoveSelectionUsesDisplayOrderNotPersistedOrder() throws {
+        let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
+        let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
+        model.reload()
+        // Grouping renders b above a.
+        model.visibleTabIDs = try [XCTUnwrap(second.id), XCTUnwrap(first.id)]
+        try model.select(XCTUnwrap(second.id))
+        model.moveSelection(by: 1)
+        XCTAssertEqual(model.selectedID, first.id, "follows rendered order, not the persisted list")
+    }
+
+    func testMoveSelectionFromHiddenSelectionEntersVisibleListFromNearEnd() throws {
+        let hidden = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
+        let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
+        let third = try store.insert(branchName: "c", worktreePath: "/c", agentID: nil, taskID: nil)
+        model.reload()
+        model.visibleTabIDs = try [XCTUnwrap(second.id), XCTUnwrap(third.id)]
+
+        try model.select(XCTUnwrap(hidden.id))
+        model.moveSelection(by: 1)
+        XCTAssertEqual(model.selectedID, second.id, "moving down enters at the first visible row")
+
+        try model.select(XCTUnwrap(hidden.id))
+        model.moveSelection(by: -1)
+        XCTAssertEqual(model.selectedID, third.id, "moving up enters at the last visible row")
+    }
+
+    func testMoveSelectionFallsBackToAllTabsWhenNothingRendered() throws {
+        let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
+        let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
+        model.reload()
+        XCTAssertTrue(model.visibleTabIDs.isEmpty)
+        try model.select(XCTUnwrap(first.id))
+        model.moveSelection(by: 1)
+        XCTAssertEqual(model.selectedID, second.id)
+    }
+
     func testFilteredByQueryMatchesBranchSubstring() throws {
         _ = try store.insert(branchName: "feat/foo", worktreePath: "/a", agentID: nil, taskID: nil)
         _ = try store.insert(branchName: "feat/bar", worktreePath: "/b", agentID: nil, taskID: nil)

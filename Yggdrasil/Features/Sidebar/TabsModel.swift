@@ -26,6 +26,12 @@ final class TabsModel {
     /// yet shadowed by a tab. Drives the count chip on the Open Assigned button.
     var pendingAssignedCount: Int = 0
     var selectedID: Int64?
+    /// IDs of the rows the sidebar is currently rendering, in display order —
+    /// search query, filter pill, and repo grouping all applied. `SidebarView`
+    /// keeps this in sync so ⌘⇧{ / ⌘⇧} step to the row visually adjacent to the
+    /// selection rather than walking the unfiltered persisted order. Empty means
+    /// nothing has rendered yet; traversal falls back to the full list.
+    var visibleTabIDs: [Int64] = []
 
     private let store: TabStore
     private let database: YggdrasilDatabase
@@ -184,16 +190,22 @@ final class TabsModel {
     }
 
     func moveSelection(by delta: Int) {
-        guard !tabs.isEmpty else { return }
-        let count = tabs.count
-        let currentIdx = tabs.firstIndex(where: { $0.id == selectedID }) ?? 0
+        let order = visibleTabIDs.isEmpty ? tabs.compactMap(\.id) : visibleTabIDs
+        guard !order.isEmpty else { return }
+        // A selection outside the visible set (its row is filtered out, or the
+        // search hides it) has no neighbour to step from — enter the visible
+        // list from whichever end the user is heading toward.
+        guard let current = selectedID,
+              let currentIdx = order.firstIndex(of: current) else {
+            select(delta >= 0 ? order[0] : order[order.count - 1])
+            return
+        }
         // True modulo wrap: Swift's `%` keeps the dividend's sign, so add
         // `count` before the final `%` to handle negative deltas (wrap past
         // the top back to the bottom).
+        let count = order.count
         let newIdx = ((currentIdx + delta) % count + count) % count
-        if let id = tabs[newIdx].id {
-            select(id)
-        }
+        select(order[newIdx])
     }
 
     func model(for tab: YggdrasilTab, grouped: Bool = false) -> TabRowViewModel {
