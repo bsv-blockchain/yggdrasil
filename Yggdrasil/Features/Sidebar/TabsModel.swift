@@ -29,9 +29,13 @@ final class TabsModel {
     /// IDs of the rows the sidebar is currently rendering, in display order —
     /// search query, filter pill, and repo grouping all applied. `SidebarView`
     /// keeps this in sync so ⌘⇧{ / ⌘⇧} step to the row visually adjacent to the
-    /// selection rather than walking the unfiltered persisted order. Empty means
-    /// nothing has rendered yet; traversal falls back to the full list.
-    var visibleTabIDs: [Int64] = []
+    /// selection rather than walking the unfiltered persisted order.
+    ///
+    /// `nil` means the sidebar hasn't published an order yet — traversal falls
+    /// back to the full list. An *empty* array is a real state (a search or
+    /// filter pill matching nothing), and traversal is a no-op there: there is
+    /// nothing on screen to step to.
+    var visibleTabIDs: [Int64]?
 
     private let store: TabStore
     private let database: YggdrasilDatabase
@@ -190,7 +194,11 @@ final class TabsModel {
     }
 
     func moveSelection(by delta: Int) {
-        let order = visibleTabIDs.isEmpty ? tabs.compactMap(\.id) : visibleTabIDs
+        // The published order is a snapshot from the sidebar's last render, so a
+        // row removed since (⌘W, or a background reload) can still be listed.
+        // Selecting a dead id leaves the main pane blank, so drop them here.
+        let live = Set(tabs.compactMap(\.id))
+        let order = (visibleTabIDs ?? tabs.compactMap(\.id)).filter(live.contains)
         guard !order.isEmpty else { return }
         // A selection outside the visible set (its row is filtered out, or the
         // search hides it) has no neighbour to step from — enter the visible

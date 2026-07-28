@@ -17,11 +17,19 @@ ones.
 
 ### Key semantics (not a typo)
 
+> **Corrected 2026-07-28 — the paragraph below was wrong and shipped a dead
+> shortcut in 0.5.13.** AppKit matches a key equivalent against the event's
+> `charactersIgnoringModifiers`, which **already has Shift applied**: pressing
+> Cmd+Shift+[ delivers `"{"`, so `"["` + `.shift` never matches and the menu
+> item silently never fires. Bind the **shifted** glyphs — `"{"` and `"}"` with
+> `[.command, .shift]` — as `⌘⇧I` (SidebarView) and `⌘⇧R/S/N`
+> (CodingMenuController) already do. Verified with an `NSMenu`
+> `performKeyEquivalent` probe against synthesized events. Fixed in PR #59.
+
 `⌘⇧[` is physically Cmd+Shift+`[`. Shift+`[` prints `{`, so "cmd+shift+[" and
-"cmd+{" are the same physical key press. The binding is expressed as base key
-`[` + an explicit `.shift` modifier, **not** the character `{` — AppKit matches
-key equivalents on base-key + modifier flags, so this fires on the physical
-Cmd+Shift+[ the user presses and the menu renders it as `⌘⇧[`.
+"cmd+{" are the same physical key press. ~~The binding is expressed as base key
+`[` + an explicit `.shift` modifier, **not** the character `{`~~ — see the
+correction above.
 
 Direction follows the universal convention: `⌘⇧[` = previous (left),
 `⌘⇧]` = next (right).

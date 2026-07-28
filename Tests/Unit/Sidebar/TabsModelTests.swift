@@ -129,14 +129,47 @@ final class TabsModelTests: XCTestCase {
         XCTAssertEqual(model.selectedID, third.id, "moving up enters at the last visible row")
     }
 
-    func testMoveSelectionFallsBackToAllTabsWhenNothingRendered() throws {
+    func testMoveSelectionFallsBackToAllTabsBeforeSidebarPublishesOrder() throws {
         let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
         model.reload()
-        XCTAssertTrue(model.visibleTabIDs.isEmpty)
+        XCTAssertNil(model.visibleTabIDs, "nil until the sidebar renders")
         try model.select(XCTUnwrap(first.id))
         model.moveSelection(by: 1)
         XCTAssertEqual(model.selectedID, second.id)
+    }
+
+    func testMoveSelectionIsNoOpWhenFilterHidesEveryRow() throws {
+        let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
+        _ = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
+        model.reload()
+        try model.select(XCTUnwrap(first.id))
+        // A search or filter pill matching nothing — distinct from "not rendered".
+        model.visibleTabIDs = []
+        model.moveSelection(by: 1)
+        XCTAssertEqual(model.selectedID, first.id, "nothing visible, so nothing to step to")
+        model.moveSelection(by: -1)
+        XCTAssertEqual(model.selectedID, first.id)
+    }
+
+    func testMoveSelectionSkipsStaleIDsForRemovedRows() throws {
+        let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
+        let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
+        model.reload()
+        // Published order still lists a row that has since been deleted.
+        model.visibleTabIDs = try [XCTUnwrap(first.id), 9999, XCTUnwrap(second.id)]
+        try model.select(XCTUnwrap(first.id))
+        model.moveSelection(by: 1)
+        XCTAssertEqual(model.selectedID, second.id, "steps past the id that no longer exists")
+    }
+
+    func testMoveSelectionIsNoOpWhenEveryVisibleIDIsStale() throws {
+        let only = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
+        model.reload()
+        try model.select(XCTUnwrap(only.id))
+        model.visibleTabIDs = [9998, 9999]
+        model.moveSelection(by: 1)
+        XCTAssertEqual(model.selectedID, only.id, "no live row to move to; selection stands")
     }
 
     func testFilteredByQueryMatchesBranchSubstring() throws {
