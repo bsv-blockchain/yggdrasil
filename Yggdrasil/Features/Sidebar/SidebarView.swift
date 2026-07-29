@@ -35,6 +35,18 @@ struct SidebarView: View {
         }
     }
 
+    /// The rows exactly as rendered, flattened top-to-bottom — grouping
+    /// included. Published to `TabsModel.visibleTabIDs` so ⌘⇧{ / ⌘⇧} traverse
+    /// what the eye sees.
+    private var displayOrderTabIDs: [Int64] {
+        let ordered: [YggdrasilTab] = groupByRepo
+            ? SidebarGrouping.groupByRepo(
+                tabs: filteredTabs, repoByTabID: tabsModel.repoByTabID
+            ).flatMap(\.tabs)
+            : filteredTabs
+        return ordered.compactMap(\.id)
+    }
+
     private var filteredTabs: [YggdrasilTab] {
         let bySearch = tabsModel.filtered(by: debouncedQuery)
         switch activeFilter {
@@ -77,6 +89,9 @@ struct SidebarView: View {
         .background(YggdrasilTheme.bgPane(scheme))
         .onChange(of: rawSearchQuery) { _, newValue in
             scheduleDebouncedQueryUpdate(to: newValue)
+        }
+        .onChange(of: displayOrderTabIDs, initial: true) { _, ids in
+            tabsModel.visibleTabIDs = ids
         }
         .onAppear {
             groupByRepo = AppearancePrefsPane.readGroupByRepo(services: services)
