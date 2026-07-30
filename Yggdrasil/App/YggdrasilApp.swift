@@ -13,7 +13,7 @@ struct YggdrasilApp: App {
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .newItem) {}
-            TabCommands()
+            TabCommands(appDelegate: appDelegate)
             DiagnosticsCommands()
             FindCommands()
             UpdaterCommands(updater: updater)
