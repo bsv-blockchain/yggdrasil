@@ -73,20 +73,26 @@ struct AgentPrefsPane: View {
                 label: "Name", value: agent.name,
                 placeholder: "Display name"
             ) { newValue in
-                update(id: agent.id ?? 0, name: newValue, command: agent.command, args: agent.args)
+                update(id: agent.id ?? 0, name: newValue, command: agent.command, args: agent.args, env: agent.env)
             }
             EditableField(
                 label: "Command", value: agent.command,
                 placeholder: "/path/to/binary"
             ) { newValue in
-                update(id: agent.id ?? 0, name: agent.name, command: newValue, args: agent.args)
+                update(id: agent.id ?? 0, name: agent.name, command: newValue, args: agent.args, env: agent.env)
             }
             EditableField(
                 label: "Args", value: agent.args.joined(separator: " "),
                 placeholder: "space-separated"
             ) { newValue in
                 let parts = newValue.split(separator: " ").map(String.init)
-                update(id: agent.id ?? 0, name: agent.name, command: agent.command, args: parts)
+                update(id: agent.id ?? 0, name: agent.name, command: agent.command, args: parts, env: agent.env)
+            }
+            EditableEnvironment(value: AgentEnvironment.render(agent.env)) { newValue in
+                update(
+                    id: agent.id ?? 0, name: agent.name, command: agent.command,
+                    args: agent.args, env: AgentEnvironment.parse(newValue)
+                )
             }
             Spacer()
         }
@@ -133,9 +139,9 @@ struct AgentPrefsPane: View {
         }
     }
 
-    private func update(id: Int64, name: String, command: String, args: [String]) {
+    private func update(id: Int64, name: String, command: String, args: [String], env: [String: String]) {
         do {
-            try services.agentStore.update(id: id, name: name, command: command, args: args)
+            try services.agentStore.update(id: id, name: name, command: command, args: args, env: env)
             reload()
         } catch {
             NSAlert.show("Update failed", message: String(describing: error))
@@ -163,6 +169,48 @@ private struct EditableField: View {
         }
         .onAppear {
             if !loaded { draft = value
+                loaded = true
+            }
+        }
+        .onChange(of: value) { _, newValue in
+            draft = newValue
+        }
+    }
+}
+
+/// Multi-line `KEY=VALUE` editor for the agent's environment (issue #47).
+/// `TextEditor` has no commit event of its own, so the save is an explicit
+/// button — enabled only while the text differs from what's stored.
+private struct EditableEnvironment: View {
+    let value: String
+    let onCommit: (String) -> Void
+
+    @State private var draft: String = ""
+    @State private var loaded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text("Environment").font(.system(size: 11, weight: .semibold))
+                Spacer()
+                Button("Apply") { onCommit(draft) }
+                    .controlSize(.small)
+                    .disabled(draft == value)
+            }
+            TextEditor(text: $draft)
+                .font(.system(size: 11, design: .monospaced))
+                .frame(minHeight: 66)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color.secondary.opacity(0.35), lineWidth: 0.5)
+                )
+            Text("One KEY=VALUE per line. Your shell's rc files run after these and can override them.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .onAppear {
+            if !loaded {
+                draft = value
                 loaded = true
             }
         }

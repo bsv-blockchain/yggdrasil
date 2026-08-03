@@ -108,6 +108,28 @@ final class CodingAgentRunnerTests: XCTestCase {
         XCTAssertNotNil(runner.lastExitCode, "process should have been SIGKILL'd")
     }
 
+    /// Issue #47: a profile's environment variables must actually arrive in the
+    /// agent process. Spawns a PTY child that prints one back — the pure
+    /// `AgentEnvironment.merged` tests can't prove the envp reaches the far side
+    /// of forkpty, and that's the part that matters.
+    func testProfileEnvironmentReachesTheSpawnedProcess() async throws {
+        let runner = CodingAgentRunner(
+            tabID: tabID,
+            cwd: NSTemporaryDirectory(),
+            command: "/bin/sh",
+            args: ["-c", "printf '%s' \"$YGGDRASIL_TEST_PROFILE\""],
+            env: ["YGGDRASIL_TEST_PROFILE": "work-account"],
+            sessionStore: sessionStore
+        )
+
+        try runner.start()
+        try await runner.waitUntilExited(timeout: .seconds(5))
+
+        let captured = String(data: runner.capturedOutput(), encoding: .utf8) ?? ""
+        XCTAssertTrue(captured.contains("work-account"),
+                      "env must reach the child; got: \(captured.debugDescription)")
+    }
+
     /// Session state is written at start (with pty_started_at, exit-code nil) and
     /// updated at end. Restart scenario: a fresh runner replaces the prior state.
     func testRestartReplacesPriorSessionState() async throws {

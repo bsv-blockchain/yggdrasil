@@ -323,7 +323,8 @@ struct AssignedTaskPicker: View {
                         displayName: "\(agent.name) · \(branch)",
                         cwd: worktreeURL.path,
                         command: agent.command,
-                        args: agent.args
+                        args: agent.args,
+                        env: agent.env
                     )
                 )
             }

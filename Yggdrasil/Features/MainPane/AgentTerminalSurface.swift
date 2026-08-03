@@ -18,6 +18,8 @@ struct AgentTerminalSurface: NSViewRepresentable {
     let cwd: String
     let command: String
     let args: [String]
+    /// Extra environment variables from the agent profile (issue #47).
+    let env: [String: String]
     let sessionStore: SessionStateStore
     let sessions: SessionsModel?
     /// True when this surface belongs to the currently-selected tab.
@@ -40,6 +42,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
         cwd: String,
         command: String,
         args: [String],
+        env: [String: String] = [:],
         sessionStore: SessionStateStore,
         sessions: SessionsModel? = nil,
         isActive: Bool = false
@@ -48,6 +51,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
         self.cwd = cwd
         self.command = command
         self.args = args
+        self.env = env
         self.sessionStore = sessionStore
         self.sessions = sessions
         self.isActive = isActive
@@ -55,7 +59,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
-            tabID: tabID, cwd: cwd, command: command, args: args,
+            tabID: tabID, cwd: cwd, command: command, args: args, env: env,
             sessionStore: sessionStore, sessions: sessions
         )
     }
@@ -147,6 +151,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
         let cwd: String
         let command: String
         let args: [String]
+        let env: [String: String]
         let sessionStore: SessionStateStore
         private weak var sessions: SessionsModel?
         private weak var attachedView: LocalProcessTerminalView?
@@ -163,12 +168,14 @@ struct AgentTerminalSurface: NSViewRepresentable {
 
         init(
             tabID: Int64, cwd: String, command: String, args: [String],
+            env: [String: String],
             sessionStore: SessionStateStore, sessions: SessionsModel?
         ) {
             self.tabID = tabID
             self.cwd = cwd
             self.command = command
             self.args = args
+            self.env = env
             self.sessionStore = sessionStore
             self.sessions = sessions
             super.init()
@@ -232,10 +239,18 @@ struct AgentTerminalSurface: NSViewRepresentable {
             let quotedArgs = resolvedArgs.map(CodingAgentRunner.shellQuote).joined(separator: " ")
             let colorfgbg = initialScheme == .light ? "0;15" : "15;0"
             let payload = "export COLORFGBG='\(colorfgbg)'; exec \(quotedCmd) \(quotedArgs)"
+            // Profile environment goes through the PTY's envp, not the `-c`
+            // payload: shell argv is readable by any local process via `ps`,
+            // and these values are typically account tokens. nil keeps
+            // SwiftTerm's own defaults for profiles with no overrides.
+            let environment = AgentEnvironment.merged(
+                defaults: Terminal.getEnvironmentVariables(termName: "xterm-256color"),
+                overrides: env
+            )
             view.startProcess(
                 executable: userShell,
                 args: ["-l", "-i", "-c", payload],
-                environment: nil,
+                environment: environment,
                 execName: nil,
                 currentDirectory: cwd
             )
@@ -243,6 +258,11 @@ struct AgentTerminalSurface: NSViewRepresentable {
             sessions?.registerLivePID(pid, for: tabID)
             YggdrasilLog.pty
                 .info("Spawned agent pid=\(self.pid, privacy: .public) command=\(self.command, privacy: .public)")
+            if !env.isEmpty {
+                // Names only — values are tokens.
+                YggdrasilLog.pty
+                    .info("Agent env overrides: \(self.env.keys.sorted().joined(separator: ", "), privacy: .public)")
+            }
         }
 
         func terminate() {

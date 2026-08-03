@@ -15,7 +15,21 @@ enum Migrations {
         migrator.registerMigration("v8", migrate: v8)
         migrator.registerMigration("v9", migrate: v9)
         migrator.registerMigration("v10", migrate: v10)
+        migrator.registerMigration("v11", migrate: v11)
         return migrator
+    }
+
+    // MARK: - v11 — Per-agent environment variables (issue #47)
+
+    ///
+    /// A coding-agent profile can now carry extra environment variables, so one
+    /// machine can hold e.g. a personal and a work Claude profile that differ
+    /// only by the variable selecting the account. Same JSON-in-a-column shape
+    /// as `args_json`; existing rows default to "no overrides".
+    private static func v11(_ db: Database) throws {
+        try db.alter(table: "coding_agent") { table in
+            table.add(column: "env_json", .text).notNull().defaults(to: "{}")
+        }
     }
 
     // MARK: - v10 — Engagement/commit timestamps for the REVIEW pill

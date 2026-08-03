@@ -26,14 +26,16 @@ struct CodingAgentStore {
     }
 
     /// Inserts a new profile at the end of the list (max(position) + 1).
-    func add(name: String, command: String, args: [String]) throws -> CodingAgent {
+    func add(
+        name: String, command: String, args: [String], env: [String: String] = [:]
+    ) throws -> CodingAgent {
         try database.queue.write { db in
             let maxPosition = try Int.fetchOne(
                 db, sql: "SELECT COALESCE(MAX(position), -1) FROM coding_agent"
             ) ?? -1
             let now = Date()
             var agent = CodingAgent(
-                id: nil, name: name, command: command, args: args,
+                id: nil, name: name, command: command, args: args, env: env,
                 isDefault: false, position: maxPosition + 1,
                 createdAt: now, updatedAt: now
             )
@@ -67,19 +69,25 @@ struct CodingAgentStore {
         }
     }
 
-    /// In-place edit of name/command/args. Refreshes `updated_at`.
-    func update(id: Int64, name: String, command: String, args: [String]) throws {
+    /// In-place edit of name/command/args/env. Refreshes `updated_at`.
+    ///
+    /// `env` has no default on purpose: it replaces the stored environment
+    /// wholesale, so a caller that forgets to pass the current value would wipe
+    /// it. Make every edit path state what the environment should be.
+    func update(id: Int64, name: String, command: String, args: [String], env: [String: String]) throws {
         try database.queue.write { db in
             let argsData = try JSONEncoder().encode(args)
             let argsJSON = String(data: argsData, encoding: .utf8) ?? "[]"
+            let envData = try JSONEncoder().encode(env)
+            let envJSON = String(data: envData, encoding: .utf8) ?? "{}"
             let now = Date()
             let rowsAffected = try db.execute(
                 sql: """
                 UPDATE coding_agent
-                SET name = ?, command = ?, args_json = ?, updated_at = ?
+                SET name = ?, command = ?, args_json = ?, env_json = ?, updated_at = ?
                 WHERE id = ?
                 """,
-                arguments: [name, command, argsJSON, now, id]
+                arguments: [name, command, argsJSON, envJSON, now, id]
             )
             _ = rowsAffected
             let count = try Int.fetchOne(

@@ -10,6 +10,21 @@ struct OpenSession: Identifiable, Hashable {
     let cwd: String
     let command: String
     let args: [String]
+    /// Extra environment variables from the agent profile (issue #47). Empty
+    /// for sessions with no agent behind them, e.g. "Open Shell".
+    let env: [String: String]
+
+    init(
+        id: Int64, displayName: String, cwd: String,
+        command: String, args: [String], env: [String: String] = [:]
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.cwd = cwd
+        self.command = command
+        self.args = args
+        self.env = env
+    }
 }
 
 /// Source of truth for the windows's visible session tabs. `+ New Session` appends;
