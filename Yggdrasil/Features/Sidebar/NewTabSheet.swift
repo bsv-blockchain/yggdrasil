@@ -353,7 +353,8 @@ struct NewTabSheet: View {
                         displayName: "\(agent.name) · \(finalBranch)",
                         cwd: worktreeURL.path,
                         command: agent.command,
-                        args: agent.args
+                        args: agent.args,
+                        env: agent.env
                     )
                 )
             }

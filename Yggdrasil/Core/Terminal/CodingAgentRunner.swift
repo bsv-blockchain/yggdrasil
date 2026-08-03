@@ -18,6 +18,8 @@ final class CodingAgentRunner: NSObject, @unchecked Sendable {
     let cwd: String
     let command: String
     let args: [String]
+    /// Extra environment variables from the agent profile (issue #47).
+    let env: [String: String]
     private let sessionStore: SessionStateStore
     private let killAfter: Duration
 
@@ -36,6 +38,7 @@ final class CodingAgentRunner: NSObject, @unchecked Sendable {
         cwd: String,
         command: String,
         args: [String],
+        env: [String: String] = [:],
         sessionStore: SessionStateStore,
         killAfter: Duration = .seconds(5)
     ) {
@@ -43,6 +46,7 @@ final class CodingAgentRunner: NSObject, @unchecked Sendable {
         self.cwd = cwd
         self.command = command
         self.args = args
+        self.env = env
         self.sessionStore = sessionStore
         self.killAfter = killAfter
         super.init()
@@ -75,7 +79,16 @@ final class CodingAgentRunner: NSObject, @unchecked Sendable {
         // plus `exec` keeps the shell out of the agent's signal path while
         // still picking up the user's PATH.
         let userShell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-        process.startProcess(executable: userShell, args: ["-l", "-i", "-c", cdAndExec])
+        // Profile environment rides the PTY's envp rather than the `-c` payload:
+        // shell argv is visible to every local process via `ps` and these values
+        // are usually tokens. See `AgentEnvironment`.
+        let environment = AgentEnvironment.merged(
+            defaults: Terminal.getEnvironmentVariables(termName: "xterm-256color"),
+            overrides: env
+        )
+        process.startProcess(
+            executable: userShell, args: ["-l", "-i", "-c", cdAndExec], environment: environment
+        )
         pid = process.shellPid
     }
 

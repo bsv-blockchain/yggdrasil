@@ -87,11 +87,74 @@ final class CodingAgentStoreTests: XCTestCase {
         // Sleep a hair so updatedAt definitely advances.
         Thread.sleep(forTimeInterval: 0.01)
 
-        try store.update(id: XCTUnwrap(original.id), name: "Claude", command: "claude-beta", args: ["--v2"])
+        try store.update(
+            id: XCTUnwrap(original.id), name: "Claude", command: "claude-beta", args: ["--v2"], env: [:]
+        )
         let after = try XCTUnwrap(try store.list().first { $0.name == "Claude" })
 
         XCTAssertEqual(after.command, "claude-beta")
         XCTAssertEqual(after.args, ["--v2"])
         XCTAssertGreaterThan(after.updatedAt, before)
+    }
+
+    // MARK: - Per-agent environment (issue #47)
+
+    func testSeededClaudeHasNoEnvironmentOverrides() throws {
+        let claude = try XCTUnwrap(try store.getDefault())
+        XCTAssertEqual(claude.env, [:])
+    }
+
+    func testAddPersistsEnvironmentOverrides() throws {
+        let work = try store.add(
+            name: "Claude (work)", command: "claude", args: [],
+            env: ["CLAUDE_PROFILE": "work", "ANTHROPIC_BASE_URL": "https://work.example"]
+        )
+        XCTAssertEqual(work.env, ["CLAUDE_PROFILE": "work", "ANTHROPIC_BASE_URL": "https://work.example"])
+
+        let reloaded = try XCTUnwrap(try store.list().first { $0.name == "Claude (work)" })
+        XCTAssertEqual(reloaded.env, work.env, "env must survive the round trip through env_json")
+    }
+
+    func testAddWithoutEnvDefaultsToEmpty() throws {
+        let codex = try store.add(name: "Codex", command: "codex", args: [])
+        XCTAssertEqual(codex.env, [:])
+    }
+
+    func testUpdateReplacesTheEnvironmentWholesale() throws {
+        let agent = try store.add(name: "Codex", command: "codex", args: [], env: ["OLD": "1"])
+        let id = try XCTUnwrap(agent.id)
+
+        try store.update(id: id, name: "Codex", command: "codex", args: [], env: ["NEW": "2"])
+        XCTAssertEqual(try XCTUnwrap(try store.get(id: id)).env, ["NEW": "2"])
+
+        try store.update(id: id, name: "Codex", command: "codex", args: [], env: [:])
+        XCTAssertEqual(try XCTUnwrap(try store.get(id: id)).env, [:], "clearing the editor clears the env")
+    }
+
+    func testUpdateLeavesOmittedColumnsAlone() throws {
+        // Each edit path writes only the field it changed, so two commits racing
+        // over the same row (a text field committing as the Apply button steals
+        // focus) can't revert each other with a stale snapshot.
+        let agent = try store.add(
+            name: "Codex", command: "codex", args: ["--auto"], env: ["TOKEN": "keep-me"]
+        )
+        let id = try XCTUnwrap(agent.id)
+
+        try store.update(id: id, name: "Codex CLI")
+        var after = try XCTUnwrap(try store.get(id: id))
+        XCTAssertEqual(after.name, "Codex CLI")
+        XCTAssertEqual(after.command, "codex")
+        XCTAssertEqual(after.args, ["--auto"])
+        XCTAssertEqual(after.env, ["TOKEN": "keep-me"])
+
+        try store.update(id: id, env: ["TOKEN": "new"])
+        after = try XCTUnwrap(try store.get(id: id))
+        XCTAssertEqual(after.name, "Codex CLI", "the env commit must not revert the name")
+        XCTAssertEqual(after.args, ["--auto"])
+        XCTAssertEqual(after.env, ["TOKEN": "new"])
+    }
+
+    func testUpdateOnNonexistentIdThrows() {
+        XCTAssertThrowsError(try store.update(id: 999, name: "nope"))
     }
 }

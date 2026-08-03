@@ -50,7 +50,8 @@ enum SidebarActions {
                 displayName: "\(agent.name) \u{00b7} \(tab.branchName)",
                 cwd: tab.worktreePath,
                 command: agent.command,
-                args: agent.args
+                args: agent.args,
+                env: agent.env
             ))
         }
     }

@@ -3,6 +3,33 @@ import XCTest
 @testable import Yggdrasil
 
 final class MigrationsTests: XCTestCase {
+    /// Issue #47 ships a schema change, so the interesting case isn't a fresh
+    /// database — it's the one already on disk from the previous release.
+    func testV11AddsEnvToAgentsCreatedByAnEarlierRelease() throws {
+        let queue = try DatabaseQueue()
+        let migrator = Migrations.register()
+        // An install running the previous release.
+        try migrator.migrate(queue, upTo: "v10")
+        let now = Date()
+        try queue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO coding_agent
+                    (name, command, args_json, is_default, position, created_at, updated_at)
+                VALUES ('Codex', 'codex', '[]', 0, 1, ?, ?)
+                """,
+                arguments: [now, now]
+            )
+        }
+
+        // Launching this build migrates forward in place.
+        try migrator.migrate(queue)
+
+        let agents = try queue.read { db in try CodingAgent.fetchAll(db) }
+        XCTAssertEqual(agents.count, 2, "seeded Claude + the pre-existing Codex row survive")
+        XCTAssertTrue(agents.allSatisfy(\.env.isEmpty), "pre-existing profiles start with no overrides")
+    }
+
     func testV1CreatesAllRequiredTables() throws {
         let db = try YggdrasilDatabase.inMemory()
         let tables = try db.queue.read { db in

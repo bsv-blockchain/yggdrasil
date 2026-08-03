@@ -119,6 +119,7 @@ struct MainPaneView: View {
                     cwd: session.cwd,
                     command: session.command,
                     args: session.args,
+                    env: session.env,
                     sessionStore: services.sessionStore,
                     sessions: services.sessions,
                     isActive: services.tabs.selectedID == selectedTab.id
@@ -170,7 +171,8 @@ struct MainPaneView: View {
                     displayName: "\(agent.name) · \(selectedTab.branchName)",
                     cwd: selectedTab.worktreePath,
                     command: agent.command,
-                    args: agent.args
+                    args: agent.args,
+                    env: agent.env
                 )
             )
             services.sessions.selectedID = tabID
