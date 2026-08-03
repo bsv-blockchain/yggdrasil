@@ -1332,7 +1332,7 @@
 			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.2.0;
+				minimumVersion = 1.15.0;
 			};
 		};
 		837FF6FB9BFEB4591BCD5E16 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
