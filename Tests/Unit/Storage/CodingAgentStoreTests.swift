@@ -130,4 +130,31 @@ final class CodingAgentStoreTests: XCTestCase {
         try store.update(id: id, name: "Codex", command: "codex", args: [], env: [:])
         XCTAssertEqual(try XCTUnwrap(try store.get(id: id)).env, [:], "clearing the editor clears the env")
     }
+
+    func testUpdateLeavesOmittedColumnsAlone() throws {
+        // Each edit path writes only the field it changed, so two commits racing
+        // over the same row (a text field committing as the Apply button steals
+        // focus) can't revert each other with a stale snapshot.
+        let agent = try store.add(
+            name: "Codex", command: "codex", args: ["--auto"], env: ["TOKEN": "keep-me"]
+        )
+        let id = try XCTUnwrap(agent.id)
+
+        try store.update(id: id, name: "Codex CLI")
+        var after = try XCTUnwrap(try store.get(id: id))
+        XCTAssertEqual(after.name, "Codex CLI")
+        XCTAssertEqual(after.command, "codex")
+        XCTAssertEqual(after.args, ["--auto"])
+        XCTAssertEqual(after.env, ["TOKEN": "keep-me"])
+
+        try store.update(id: id, env: ["TOKEN": "new"])
+        after = try XCTUnwrap(try store.get(id: id))
+        XCTAssertEqual(after.name, "Codex CLI", "the env commit must not revert the name")
+        XCTAssertEqual(after.args, ["--auto"])
+        XCTAssertEqual(after.env, ["TOKEN": "new"])
+    }
+
+    func testUpdateOnNonexistentIdThrows() {
+        XCTAssertThrowsError(try store.update(id: 999, name: "nope"))
+    }
 }

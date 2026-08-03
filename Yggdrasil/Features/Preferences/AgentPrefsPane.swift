@@ -73,30 +73,30 @@ struct AgentPrefsPane: View {
                 label: "Name", value: agent.name,
                 placeholder: "Display name"
             ) { newValue in
-                update(id: agent.id ?? 0, name: newValue, command: agent.command, args: agent.args, env: agent.env)
+                update(id: agent.id ?? 0, name: newValue)
             }
             EditableField(
                 label: "Command", value: agent.command,
                 placeholder: "/path/to/binary"
             ) { newValue in
-                update(id: agent.id ?? 0, name: agent.name, command: newValue, args: agent.args, env: agent.env)
+                update(id: agent.id ?? 0, command: newValue)
             }
             EditableField(
                 label: "Args", value: agent.args.joined(separator: " "),
                 placeholder: "space-separated"
             ) { newValue in
-                let parts = newValue.split(separator: " ").map(String.init)
-                update(id: agent.id ?? 0, name: agent.name, command: agent.command, args: parts, env: agent.env)
+                update(id: agent.id ?? 0, args: newValue.split(separator: " ").map(String.init))
             }
-            EditableEnvironment(value: AgentEnvironment.render(agent.env)) { newValue in
-                update(
-                    id: agent.id ?? 0, name: agent.name, command: agent.command,
-                    args: agent.args, env: AgentEnvironment.parse(newValue)
-                )
+            EditableEnvironment(env: agent.env) { newEnv in
+                update(id: agent.id ?? 0, env: newEnv)
             }
             Spacer()
         }
         .padding(.leading, 8)
+        // Identity per agent: the sub-editors hold the in-progress text in
+        // @State, and without this a draft typed against one profile survives
+        // the switch to another and gets applied to it.
+        .id(agent.id)
     }
 
     // MARK: - Actions
@@ -139,7 +139,10 @@ struct AgentPrefsPane: View {
         }
     }
 
-    private func update(id: Int64, name: String, command: String, args: [String], env: [String: String]) {
+    private func update(
+        id: Int64, name: String? = nil, command: String? = nil,
+        args: [String]? = nil, env: [String: String]? = nil
+    ) {
         do {
             try services.agentStore.update(id: id, name: name, command: command, args: args, env: env)
             reload()
@@ -182,20 +185,27 @@ private struct EditableField: View {
 /// `TextEditor` has no commit event of its own, so the save is an explicit
 /// button — enabled only while the text differs from what's stored.
 private struct EditableEnvironment: View {
-    let value: String
-    let onCommit: (String) -> Void
+    let env: [String: String]
+    let onCommit: ([String: String]) -> Void
 
     @State private var draft: String = ""
     @State private var loaded = false
+
+    /// What the stored environment looks like in the editor. `parse` is lossy
+    /// (comments and ordering don't survive, unusable lines are dropped), so
+    /// this — not the raw draft — is what "unchanged" means.
+    private var rendered: String {
+        AgentEnvironment.render(env)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack {
                 Text("Environment").font(.system(size: 11, weight: .semibold))
                 Spacer()
-                Button("Apply") { onCommit(draft) }
+                Button("Apply") { apply() }
                     .controlSize(.small)
-                    .disabled(draft == value)
+                    .disabled(draft == rendered)
             }
             TextEditor(text: $draft)
                 .font(.system(size: 11, design: .monospaced))
@@ -204,18 +214,33 @@ private struct EditableEnvironment: View {
                     RoundedRectangle(cornerRadius: 5)
                         .stroke(Color.secondary.opacity(0.35), lineWidth: 0.5)
                 )
-            Text("One KEY=VALUE per line. Your shell's rc files run after these and can override them.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            Text(
+                """
+                One KEY=VALUE per line, stored unencrypted in the app database. \
+                Your shell's rc files run after these and can override them.
+                """
+            )
+            .font(.caption2)
+            .foregroundStyle(.secondary)
         }
         .onAppear {
             if !loaded {
-                draft = value
+                draft = rendered
                 loaded = true
             }
         }
-        .onChange(of: value) { _, newValue in
+        .onChange(of: rendered) { _, newValue in
             draft = newValue
         }
+    }
+
+    /// Commits, then snaps the editor back to what was actually kept. Without
+    /// this an edit that parses to the stored value — a comment-only line, a
+    /// reorder, an unusable line — leaves Apply enabled forever on text that was
+    /// silently discarded.
+    private func apply() {
+        let parsed = AgentEnvironment.parse(draft)
+        onCommit(parsed)
+        draft = AgentEnvironment.render(parsed)
     }
 }

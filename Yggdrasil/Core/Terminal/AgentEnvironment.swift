@@ -16,18 +16,36 @@ enum AgentEnvironment {
     /// line; blank lines and `#` comments are ignored, and lines that can't be
     /// a variable (no `=`, empty key, whitespace in the key) are dropped rather
     /// than passed through as junk.
+    ///
+    /// Splits on `isNewline` rather than the literal `"\n"`: Swift treats CRLF
+    /// as one grapheme, so a `"\n"` separator doesn't match it at all and text
+    /// pasted from a CRLF source (a `.env` from a Windows checkout, a copied
+    /// mail/wiki block) would collapse into a single bogus pair. Trims with
+    /// `.whitespacesAndNewlines` for the same reason — `.whitespaces` is Zs +
+    /// tab and excludes CR. A matched pair of surrounding quotes is stripped
+    /// too, since the text people paste is usually a `.env` file.
     static func parse(_ text: String) -> [String: String] {
         var result: [String: String] = [:]
-        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
+        for rawLine in text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
             if line.isEmpty || line.hasPrefix("#") { continue }
             guard let separator = line.firstIndex(of: "=") else { continue }
-            let key = line[line.startIndex ..< separator].trimmingCharacters(in: .whitespaces)
+            let key = line[line.startIndex ..< separator].trimmingCharacters(in: .whitespacesAndNewlines)
             guard !key.isEmpty, !key.contains(where: \.isWhitespace) else { continue }
-            let value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
-            result[key] = value
+            let value = line[line.index(after: separator)...]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            result[key] = unquoted(value)
         }
         return result
+    }
+
+    /// Drops one matched pair of surrounding `"` or `'`. An unmatched or
+    /// interior quote is part of the value and stays.
+    private static func unquoted(_ value: String) -> String {
+        guard value.count >= 2, let first = value.first, let last = value.last,
+              first == last, first == "\"" || first == "'"
+        else { return value }
+        return String(value.dropFirst().dropLast())
     }
 
     /// Inverse of `parse`, sorted by key so the editor doesn't reshuffle itself

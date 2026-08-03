@@ -71,31 +71,56 @@ struct CodingAgentStore {
 
     /// In-place edit of name/command/args/env. Refreshes `updated_at`.
     ///
-    /// `env` has no default on purpose: it replaces the stored environment
-    /// wholesale, so a caller that forgets to pass the current value would wipe
-    /// it. Make every edit path state what the environment should be.
-    func update(id: Int64, name: String, command: String, args: [String], env: [String: String]) throws {
+    /// A nil argument leaves that column alone; a non-nil one replaces it
+    /// wholesale (so `env: [:]` clears the environment). Callers pass only what
+    /// they changed — writing the whole row from a snapshot means two commits
+    /// landing close together, e.g. a text field committing as the Apply button
+    /// steals focus, each carry the other's stale values and one reverts the
+    /// other.
+    func update(
+        id: Int64,
+        name: String? = nil,
+        command: String? = nil,
+        args: [String]? = nil,
+        env: [String: String]? = nil
+    ) throws {
         try database.queue.write { db in
-            let argsData = try JSONEncoder().encode(args)
-            let argsJSON = String(data: argsData, encoding: .utf8) ?? "[]"
-            let envData = try JSONEncoder().encode(env)
-            let envJSON = String(data: envData, encoding: .utf8) ?? "{}"
-            let now = Date()
-            let rowsAffected = try db.execute(
-                sql: """
-                UPDATE coding_agent
-                SET name = ?, command = ?, args_json = ?, env_json = ?, updated_at = ?
-                WHERE id = ?
-                """,
-                arguments: [name, command, argsJSON, envJSON, now, id]
-            )
-            _ = rowsAffected
             let count = try Int.fetchOne(
                 db, sql: "SELECT COUNT(*) FROM coding_agent WHERE id = ?", arguments: [id]
             ) ?? 0
             guard count == 1 else {
                 throw CodingAgentStoreError.agentNotFound(id)
             }
+
+            var assignments: [String] = []
+            var values: [DatabaseValueConvertible] = []
+            if let name {
+                assignments.append("name = ?")
+                values.append(name)
+            }
+            if let command {
+                assignments.append("command = ?")
+                values.append(command)
+            }
+            if let args {
+                let data = try JSONEncoder().encode(args)
+                assignments.append("args_json = ?")
+                values.append(String(data: data, encoding: .utf8) ?? "[]")
+            }
+            if let env {
+                let data = try JSONEncoder().encode(env)
+                assignments.append("env_json = ?")
+                values.append(String(data: data, encoding: .utf8) ?? "{}")
+            }
+            guard !assignments.isEmpty else { return }
+
+            assignments.append("updated_at = ?")
+            values.append(Date())
+            values.append(id)
+            try db.execute(
+                sql: "UPDATE coding_agent SET \(assignments.joined(separator: ", ")) WHERE id = ?",
+                arguments: StatementArguments(values)
+            )
         }
     }
 }

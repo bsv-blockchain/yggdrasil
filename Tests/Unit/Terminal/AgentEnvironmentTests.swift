@@ -43,6 +43,28 @@ final class AgentEnvironmentTests: XCTestCase {
         XCTAssertEqual(AgentEnvironment.parse("   \n\n"), [:])
     }
 
+    func testParseStripsCarriageReturnsFromCRLFText() {
+        // Pasting from a CRLF source (a .env from a Windows checkout, a copied
+        // mail/wiki block) must not leave a \r on the tail of the value — that
+        // spawns the agent with a trailing control byte and an opaque auth error.
+        let parsed = AgentEnvironment.parse("ANTHROPIC_AUTH_TOKEN=sk-ant-123\r\nCLAUDE_PROFILE=work\r\n")
+        XCTAssertEqual(parsed, ["ANTHROPIC_AUTH_TOKEN": "sk-ant-123", "CLAUDE_PROFILE": "work"])
+    }
+
+    func testParseStripsMatchedSurroundingQuotesFromTheValue() {
+        // `.env` files quote values; pasting one shouldn't export the quotes.
+        XCTAssertEqual(AgentEnvironment.parse("FOO=\"bar\""), ["FOO": "bar"])
+        XCTAssertEqual(AgentEnvironment.parse("FOO='bar'"), ["FOO": "bar"])
+        XCTAssertEqual(AgentEnvironment.parse("FOO=\"\""), ["FOO": ""])
+    }
+
+    func testParseKeepsQuotesThatArentAMatchedPair() {
+        XCTAssertEqual(AgentEnvironment.parse("FOO=\"bar"), ["FOO": "\"bar"])
+        XCTAssertEqual(AgentEnvironment.parse("FOO=a\"b"), ["FOO": "a\"b"])
+        XCTAssertEqual(AgentEnvironment.parse("FOO='bar\""), ["FOO": "'bar\""])
+        XCTAssertEqual(AgentEnvironment.parse("FOO=\""), ["FOO": "\""])
+    }
+
     // MARK: - render
 
     func testRenderSortsByKeySoTheEditorDoesntReshuffle() {
