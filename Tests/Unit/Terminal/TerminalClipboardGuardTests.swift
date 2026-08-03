@@ -10,17 +10,17 @@ import XCTest
 /// would compile and quietly break the app).
 private final class ProcessDelegateSpy: LocalProcessTerminalViewDelegate {
     var title: String?
-    var size: (cols: Int, rows: Int)?
+    var directory: String?
 
-    func sizeChanged(source _: LocalProcessTerminalView, newCols: Int, newRows: Int) {
-        size = (newCols, newRows)
-    }
+    func sizeChanged(source _: LocalProcessTerminalView, newCols _: Int, newRows _: Int) {}
 
     func setTerminalTitle(source _: LocalProcessTerminalView, title: String) {
         self.title = title
     }
 
-    func hostCurrentDirectoryUpdate(source _: TerminalView, directory _: String?) {}
+    func hostCurrentDirectoryUpdate(source _: TerminalView, directory: String?) {
+        self.directory = directory
+    }
 
     func processTerminated(source _: TerminalView, exitCode _: Int32?) {}
 }
@@ -49,16 +49,20 @@ final class TerminalClipboardGuardTests: XCTestCase {
         XCTAssertNil(view.terminalDelegate?.clipboardRead(source: view))
     }
 
+    /// Only callbacks that don't depend on a live PTY are asserted here:
+    /// `LocalProcessTerminalView.sizeChanged` starts with `guard process.running`
+    /// and `send` writes to the child fd, so neither reaches the process
+    /// delegate in a unit test. Title and cwd forward unconditionally, which is
+    /// enough to prove the interposition didn't swallow the chain.
     func testOtherCallbacksStillReachTheProcessDelegate() {
         let view = makeView()
         let spy = ProcessDelegateSpy()
         view.processDelegate = spy
 
         view.terminalDelegate?.setTerminalTitle(source: view, title: "yggdrasil")
-        view.terminalDelegate?.sizeChanged(source: view, newCols: 120, newRows: 40)
+        view.terminalDelegate?.hostCurrentDirectoryUpdate(source: view, directory: "/tmp/ygg")
 
         XCTAssertEqual(spy.title, "yggdrasil")
-        XCTAssertEqual(spy.size?.cols, 120)
-        XCTAssertEqual(spy.size?.rows, 40)
+        XCTAssertEqual(spy.directory, "/tmp/ygg")
     }
 }
