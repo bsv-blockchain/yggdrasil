@@ -72,8 +72,9 @@ struct AgentTerminalSurface: NSViewRepresentable {
         let view = DroppableTerminalView(frame: .zero)
         AgentTerminalSurface.applyTheme(to: view, scheme: effectiveScheme)
         // Initial state: mouse reporting off (no agent is reading the mouse at
-        // launch). `TerminalMouseInterceptor` then keeps this in sync with the
-        // live `mouseMode` on every mouse/scroll event:
+        // launch). `TerminalMouseInterceptor` (mouse events) and
+        // `DroppableTerminalView.linefeed` (output) then keep this in sync with
+        // the live `mouseMode`:
         //  - OFF when the agent isn't reading the mouse → SwiftTerm keeps the
         //    native text selection alive across streaming output (it clears the
         //    selection on each line feed while reporting is on).

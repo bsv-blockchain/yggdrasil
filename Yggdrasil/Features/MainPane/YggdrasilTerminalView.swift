@@ -61,47 +61,27 @@ enum TerminalKeyInterceptor {
     }
 }
 
-/// Bridges the mouse to the agent for things SwiftTerm doesn't do on its own,
-/// via a global event monitor (SwiftTerm's `scrollWheel`/`mouseDown` are
-/// `public`, not `open`, so they can't be overridden — same approach as
-/// `TerminalKeyInterceptor`). Two jobs:
+/// Keeps SwiftTerm's `allowMouseReporting` in sync with the live `mouseMode`,
+/// via a global event monitor. When the agent is reading the mouse we want
+/// clicks/drags forwarded (so click-to-expand and the agent's own selection
+/// work); otherwise we want it off so SwiftTerm preserves the native text
+/// selection across streaming output (it clears the selection on each line feed
+/// while reporting is on). `mouseModeChanged` is `public`, not `open`, so it
+/// can't be overridden — hence re-syncing on every mouse event, which lands
+/// before the view handles it. `DroppableTerminalView.linefeed` does the same
+/// on the output path.
 ///
-/// 1. **Wheel forwarding.** SwiftTerm's `scrollWheel` only ever moves its own
-///    native scrollback and never forwards to the app. A full-screen TUI in the
-///    alternate buffer (e.g. Claude Code's fullscreen renderer) has no native
-///    scrollback, so the wheel did nothing. We translate the wheel into
-///    mouse-wheel events when the app reads the mouse, or cursor up/down keys in
-///    a non-mouse alt buffer (standard "alternate scroll", à la xterm/iTerm).
-///
-/// 2. **Keeping `allowMouseReporting` in sync with the live `mouseMode`.** When
-///    the agent is reading the mouse we want clicks/drags forwarded (so
-///    click-to-expand and the agent's own selection work); otherwise we want it
-///    off so SwiftTerm preserves the native text selection across streaming
-///    output (it clears the selection on each line feed while reporting is on).
-///    `mouseModeChanged` isn't overridable either, so we re-sync the flag on
-///    every mouse/scroll event — always correct by the time the view handles it.
+/// This monitor never consumes an event. Wheel forwarding used to live here,
+/// because SwiftTerm 1.13's `scrollWheel` only moved its own native scrollback
+/// and never forwarded to the app, leaving a fullscreen TUI in the alternate
+/// buffer with a dead wheel. As of 1.15.0 upstream does that job, and does it
+/// better: precise trackpad deltas accumulated against cell height, real
+/// modifier flags in the button encoding, a `yDisp`-corrected cell, alternate
+/// scroll for a non-mouse alt buffer, and Shift to bypass reporting for native
+/// scrollback. Swallowing the event here would put the worse path back.
 @MainActor
 enum TerminalMouseInterceptor {
     private static var monitor: Any?
-
-    /// What to do with a wheel notch, given the focused terminal's state. Pure
-    /// so the routing is unit-testable; the side-effecting send lives in `handle`.
-    enum Action: Equatable {
-        /// Let SwiftTerm scroll its native scrollback (normal buffer, no mouse).
-        case native
-        /// Forward as a mouse-wheel button (the app reads the mouse).
-        case mouseWheel(upward: Bool)
-        /// Alternate-scroll: cursor up/down keys (alt buffer, no mouse).
-        case arrowKeys(upward: Bool, applicationCursor: Bool)
-    }
-
-    static func action(
-        mouseTracking: Bool, alternateBuffer: Bool, upward: Bool, applicationCursor: Bool
-    ) -> Action {
-        if mouseTracking { return .mouseWheel(upward: upward) }
-        if alternateBuffer { return .arrowKeys(upward: upward, applicationCursor: applicationCursor) }
-        return .native
-    }
 
     static func install() {
         guard monitor == nil else { return }
@@ -110,85 +90,111 @@ enum TerminalMouseInterceptor {
             .rightMouseDown, .otherMouseDown
         ]
         monitor = NSEvent.addLocalMonitorForEvents(matching: mask) { event in
-            handle(event) ? nil : event
+            resyncMouseReporting(for: event)
+            return event
         }
     }
 
-    /// True only when we forwarded a *scroll* to the agent (event should be
-    /// swallowed). Mouse-button events are never swallowed — we only re-sync
-    /// `allowMouseReporting` and let the view handle them.
-    private static func handle(_ event: NSEvent) -> Bool {
+    /// Points the hit terminal's `allowMouseReporting` at its live `mouseMode`.
+    /// The event always passes through: SwiftTerm's `scrollWheel`, `mouseDown`,
+    /// `mouseUp` and `mouseDragged` all read the flag themselves.
+    ///
+    /// Hover is deliberately absent from the mask. `MacTerminalView.mouseMoved`
+    /// gates motion reports on `mouseMode.sendMotionEvent()` alone — true only
+    /// in mode 1003, i.e. only when the agent asked for hover — so this flag is
+    /// not what gates them, and hit-testing every mouse move to keep it current
+    /// would cost far more than it buys.
+    private static func resyncMouseReporting(for event: NSEvent) {
         guard let window = event.window ?? NSApp.keyWindow,
               let hit = window.contentView?.hitTest(event.locationInWindow),
               let view = TerminalKeyInterceptor.closestTerminalView(from: hit)
-        else { return false }
-
-        let terminal = view.getTerminal()
-        // Keep mouse forwarding aligned with whether the agent reads the mouse.
-        view.allowMouseReporting = terminal.mouseMode != .off
-
-        // Only scroll-wheel events are bridged/swallowed below; button events
-        // were handled by the re-sync above and pass through to the view.
-        guard event.type == .scrollWheel, event.deltaY != 0 else { return false }
-
-        let upward = event.deltaY > 0
-        let action = action(
-            mouseTracking: terminal.mouseMode != .off,
-            alternateBuffer: terminal.isCurrentBufferAlternate,
-            upward: upward,
-            applicationCursor: terminal.applicationCursor
-        )
-        // One notch per ~line of delta, capped so a hard flick doesn't fling.
-        let notches = max(1, min(5, Int(abs(event.deltaY).rounded(.up))))
-
-        switch action {
-        case .native:
-            return false
-        case let .mouseWheel(upward):
-            let point = view.convert(event.locationInWindow, from: nil)
-            let (col, row) = cell(at: point, in: view, terminal: terminal)
-            let flags = terminal.encodeButton(
-                button: upward ? 4 : 5, release: false, shift: false, meta: false, control: false
-            )
-            for _ in 0 ..< notches {
-                terminal.sendEvent(buttonFlags: flags, x: col, y: row)
-            }
-            return true
-        case let .arrowKeys(upward, applicationCursor):
-            let seq: [UInt8] = applicationCursor
-                ? (upward ? [0x1B, 0x4F, 0x41] : [0x1B, 0x4F, 0x42]) // SS3 A / B
-                : (upward ? [0x1B, 0x5B, 0x41] : [0x1B, 0x5B, 0x42]) // CSI A / B
-            for _ in 0 ..< notches {
-                view.send(seq)
-            }
-            return true
-        }
-    }
-
-    /// Approximate terminal cell under `point` (view coords). SwiftTerm's exact
-    /// hit-test is internal; cols/rows + bounds give a good-enough wheel
-    /// position (apps scroll on the wheel button regardless of the exact cell).
-    private static func cell(
-        at point: CGPoint, in view: LocalProcessTerminalView, terminal: Terminal
-    ) -> (col: Int, row: Int) {
-        let cols = max(1, terminal.cols)
-        let rows = max(1, terminal.rows)
-        let width = view.bounds.width
-        let height = view.bounds.height
-        guard width > 0, height > 0 else { return (0, 0) }
-        let col = min(max(0, Int(point.x / (width / CGFloat(cols)))), cols - 1)
-        // AppKit's y is bottom-up; terminal row 0 is at the top.
-        let row = min(max(0, Int((height - point.y) / (height / CGFloat(rows)))), rows - 1)
-        return (col, row)
+        else { return }
+        view.allowMouseReporting = view.getTerminal().mouseMode != .off
     }
 }
 
-/// `LocalProcessTerminalView` subclass with two enhancements:
+/// Denies OSC 52 clipboard **reads** while forwarding every other
+/// `TerminalViewDelegate` callback to the terminal view itself.
+///
+/// SwiftTerm 1.15.0 answers `ESC ] 52 ; c ; ? BEL` by asking its delegate for
+/// the clipboard and writing the base64 of whatever comes back into the PTY
+/// (`Terminal.oscClipboard`). `TerminalViewDelegate`'s own default denies that,
+/// but `LocalProcessTerminalView.clipboardRead` overrides it with an
+/// unconditional `NSPasteboard.general` read — and the view is its own
+/// `terminalDelegate`, so a plain subclass would inherit an always-allow
+/// policy. Any bytes an agent prints (fetched web content, a build log, a file
+/// it was asked to `cat`) could then echo the user's clipboard straight back
+/// into the agent's stdin, and from there into model context. Clipboards hold
+/// passwords and tokens.
+///
+/// `clipboardRead` is `public`, not `open`, so it can't be overridden from a
+/// subclass; interposing on `terminalDelegate` is what's left. Returning nil is
+/// the documented deny — `Terminal.oscClipboard` then sends no response at all.
+final class ClipboardReadDenyingDelegate: TerminalViewDelegate {
+    /// Weak both ways round: the view retains this proxy, and SwiftTerm's own
+    /// `terminalDelegate` reference is weak.
+    private weak var target: LocalProcessTerminalView?
+
+    init(target: LocalProcessTerminalView) {
+        self.target = target
+    }
+
+    /// The whole point of the class: the process never gets the clipboard.
+    func clipboardRead(source _: TerminalView) -> Data? {
+        nil
+    }
+
+    // MARK: - Everything else forwards unchanged
+
+    func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
+        target?.sizeChanged(source: source, newCols: newCols, newRows: newRows)
+    }
+
+    func setTerminalTitle(source: TerminalView, title: String) {
+        target?.setTerminalTitle(source: source, title: title)
+    }
+
+    func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
+        target?.hostCurrentDirectoryUpdate(source: source, directory: directory)
+    }
+
+    func send(source: TerminalView, data: ArraySlice<UInt8>) {
+        target?.send(source: source, data: data)
+    }
+
+    func scrolled(source: TerminalView, position: Double) {
+        target?.scrolled(source: source, position: position)
+    }
+
+    func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {
+        target?.requestOpenLink(source: source, link: link, params: params)
+    }
+
+    func bell(source: TerminalView) {
+        target?.bell(source: source)
+    }
+
+    func clipboardCopy(source: TerminalView, content: Data) {
+        target?.clipboardCopy(source: source, content: content)
+    }
+
+    func iTermContent(source: TerminalView, content: ArraySlice<UInt8>) {
+        target?.iTermContent(source: source, content: content)
+    }
+
+    func rangeChanged(source: TerminalView, startY: Int, endY: Int) {
+        target?.rangeChanged(source: source, startY: startY, endY: endY)
+    }
+}
+
+/// `LocalProcessTerminalView` subclass with these enhancements:
 ///
 /// 1. **File drag-and-drop** — paths from Finder are shell-quoted and sent
 ///    to the PTY at the prompt. Matches iTerm2/Warp/Terminal.app.
 ///
-/// 2. **Don't snap to bottom on output while the user is reading history.**
+/// 2. **OSC 52 clipboard reads refused** — see `ClipboardReadDenyingDelegate`.
+///
+/// 3. **Don't snap to bottom on output while the user is reading history.**
 ///    SwiftTerm's `Terminal.scroll()` snaps the viewport to `yBase` on every
 ///    new line — its internal `userScrolling` gate is never set in 1.x and is
 ///    module-internal, so we can't suppress the snap. Instead we record where
@@ -218,15 +224,36 @@ final class DroppableTerminalView: LocalProcessTerminalView {
     /// can tell an output snap from a genuine user scroll — deterministically,
     /// by call path, rather than via an NSEvent-timing flag.
     private var inOutputScroll = false
+    /// Retains the delegate proxy that refuses clipboard reads — SwiftTerm's
+    /// `terminalDelegate` reference is weak, so nothing else would.
+    private var clipboardReadGuard: ClipboardReadDenyingDelegate?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         registerForDraggedTypes([.fileURL])
+        finishInit()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         registerForDraggedTypes([.fileURL])
+        finishInit()
+    }
+
+    /// Wiring shared by both initialisers, applied after `super.init` has had
+    /// its say (`LocalProcessTerminalView.init` points `terminalDelegate` at
+    /// itself, which the clipboard guard has to take over).
+    private func finishInit() {
+        // SwiftTerm 1.15.0 changed the default from `.legacy` to `.overlay`,
+        // which restyles the scrollbar and — because `reservedScrollerWidth`
+        // drops to 0 when the scroller is hidden — shifts the width the cell
+        // grid is computed from. Pin the pre-1.15 look so a mouse-reporting fix
+        // doesn't drag an appearance change along; adopting `.overlay` is a
+        // deliberate decision for its own change.
+        scrollerStyle = .legacy
+        let guardDelegate = ClipboardReadDenyingDelegate(target: self)
+        clipboardReadGuard = guardDelegate
+        terminalDelegate = guardDelegate
     }
 
     // MARK: - Scroll follow
@@ -261,6 +288,18 @@ final class DroppableTerminalView: LocalProcessTerminalView {
     /// tail) when at/after the bottom, otherwise the fractional position to pin.
     static func frozenTarget(forScrollPosition pos: Double) -> Double? {
         pos >= 1.0 ? nil : pos
+    }
+
+    // MARK: - Mouse reporting sync
+
+    /// SwiftTerm reads `allowMouseReporting` here — and only here — to decide
+    /// whether streaming output should clear the native selection. Since
+    /// `mouseModeChanged` can't be overridden, `TerminalMouseInterceptor` keeps
+    /// the flag current from mouse events; this covers the output path, so a
+    /// mode change mid-stream is honoured without waiting for the user to click.
+    override func linefeed(source: Terminal) {
+        allowMouseReporting = source.mouseMode != .off
+        super.linefeed(source: source)
     }
 
     // MARK: - Image-aware paste
