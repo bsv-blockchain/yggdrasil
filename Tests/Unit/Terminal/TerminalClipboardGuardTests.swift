@@ -85,15 +85,23 @@ final class TerminalClipboardGuardTests: XCTestCase {
     /// real pasteboard because `clipboardCopy(source: Terminal, content:)` is
     /// `public`, not `open`, so a test subclass can't intercept it; the guard
     /// dropping the write is the only thing standing between the sequence and
-    /// `NSPasteboard.general`. Nothing here writes to the pasteboard, so a
-    /// passing run leaves the user's clipboard untouched.
+    /// `NSPasteboard.general`.
+    ///
+    /// The assertion is on `changeCount`, not on the contents. Any write bumps
+    /// it — `LocalProcessTerminalView.clipboardCopy` calls `clearContents()`
+    /// before setting the string — and reading it can't disturb what the user
+    /// copied. Asserting on contents made the test self-poisoning: a regression
+    /// would leave the payload sitting on the real pasteboard, so the test went
+    /// on failing after the guard was fixed, until someone manually copied
+    /// something else.
     func testOSC52WriteDoesNotReachTheSystemPasteboard() {
         let view = RecordingTerminalView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
+        let changeCountBefore = NSPasteboard.general.changeCount
         // base64("pwned-by-osc52") — the payload half of the same OSC.
         view.feed(text: "\u{1b}]52;c;cHduZWQtYnktb3NjNTI=\u{07}")
-        XCTAssertNotEqual(
-            NSPasteboard.general.string(forType: .string),
-            "pwned-by-osc52",
+        XCTAssertEqual(
+            NSPasteboard.general.changeCount,
+            changeCountBefore,
             "OSC 52 write reached the system pasteboard"
         )
     }
