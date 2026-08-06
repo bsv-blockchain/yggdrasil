@@ -61,61 +61,6 @@ enum TerminalKeyInterceptor {
     }
 }
 
-/// Keeps SwiftTerm's `allowMouseReporting` in sync with the live `mouseMode`,
-/// via a global event monitor. When the agent is reading the mouse we want
-/// clicks/drags forwarded (so click-to-expand and the agent's own selection
-/// work); otherwise we want it off so SwiftTerm preserves the native text
-/// selection across streaming output (it clears the selection on each line feed
-/// while reporting is on). `mouseModeChanged` is `public`, not `open`, so it
-/// can't be overridden — hence re-syncing on every mouse event, which lands
-/// before the view handles it. `DroppableTerminalView.linefeed` does the same
-/// on the output path.
-///
-/// This monitor never consumes an event. Wheel forwarding used to live here,
-/// because SwiftTerm 1.13's `scrollWheel` only moved its own native scrollback
-/// and never forwarded to the app, leaving a fullscreen TUI in the alternate
-/// buffer with a dead wheel. As of 1.15.0 upstream does that job, and does it
-/// better: precise trackpad deltas accumulated against cell height, real
-/// modifier flags in the button encoding, a `yDisp`-corrected cell, alternate
-/// scroll for a non-mouse alt buffer, and `shiftBypassesMouseReporting` (Shift
-/// with no `mouseShiftCapture`) to route a notch past mouse reporting — to
-/// native scrollback in the normal buffer, to cursor keys in the alternate one,
-/// which has no scrollback to reach. Swallowing the event here, as this monitor
-/// used to, put all of that back to the worse path.
-@MainActor
-enum TerminalMouseInterceptor {
-    private static var monitor: Any?
-
-    static func install() {
-        guard monitor == nil else { return }
-        let mask: NSEvent.EventTypeMask = [
-            .scrollWheel, .leftMouseDown, .leftMouseDragged, .leftMouseUp,
-            .rightMouseDown, .otherMouseDown
-        ]
-        monitor = NSEvent.addLocalMonitorForEvents(matching: mask) { event in
-            resyncMouseReporting(for: event)
-            return event
-        }
-    }
-
-    /// Points the hit terminal's `allowMouseReporting` at its live `mouseMode`.
-    /// The event always passes through: SwiftTerm's `scrollWheel`, `mouseDown`,
-    /// `mouseUp` and `mouseDragged` all read the flag themselves.
-    ///
-    /// Hover is deliberately absent from the mask. `MacTerminalView.mouseMoved`
-    /// gates motion reports on `mouseMode.sendMotionEvent()` alone — true only
-    /// in mode 1003, i.e. only when the agent asked for hover — so this flag is
-    /// not what gates them, and hit-testing every mouse move to keep it current
-    /// would cost far more than it buys.
-    private static func resyncMouseReporting(for event: NSEvent) {
-        guard let window = event.window ?? NSApp.keyWindow,
-              let hit = window.contentView?.hitTest(event.locationInWindow),
-              let view = TerminalKeyInterceptor.closestTerminalView(from: hit)
-        else { return }
-        view.allowMouseReporting = view.getTerminal().mouseMode != .off
-    }
-}
-
 /// Cuts OSC 52 off from the pasteboard in both directions, while forwarding
 /// every other `TerminalViewDelegate` callback to the terminal view itself.
 ///
@@ -158,7 +103,15 @@ final class ClipboardGuardDelegate: TerminalViewDelegate {
 
     /// …and never sets it either. Deliberately not forwarded to `target`,
     /// whose implementation writes straight to `NSPasteboard.general`.
-    func clipboardCopy(source _: TerminalView, content _: Data) {}
+    ///
+    /// Logged because the denial is silent from the user's side and catches the
+    /// benign case too: `nvim`/`tmux`/`ssh` yanking to the system clipboard over
+    /// OSC 52 just does nothing. When someone reports that, this line is what
+    /// distinguishes "we refused it" from "the sequence never arrived". The
+    /// payload is deliberately not logged — only its size.
+    func clipboardCopy(source _: TerminalView, content: Data) {
+        YggdrasilLog.pty.debug("OSC 52 clipboard write refused (\(content.count, privacy: .public) bytes)")
+    }
 
     // MARK: - Everything else forwards unchanged
 
@@ -324,9 +277,18 @@ class DroppableTerminalView: LocalProcessTerminalView {
     /// The other reader: `linefeed` decides per line whether streaming output
     /// clears the native selection. Syncing here covers a mode change *within* a
     /// chunk, which `dataReceived` is too late for. `mouseModeChanged` is
-    /// `public`, not `open`, so it can't be hooked directly — between these two
-    /// and `TerminalMouseInterceptor` (mouse events), every path that can change
-    /// `mouseMode` is covered.
+    /// `public`, not `open`, so it can't be hooked directly — but these two
+    /// cover every path there is: `mouseMode` only moves when the emulator
+    /// parses a mode sequence, nothing here calls `feed` directly, and
+    /// `softReset` leaves `mouseMode` alone.
+    ///
+    /// A global mouse-event monitor used to re-sync the flag as well. It was
+    /// redundant once `dataReceived` carried the invariant, and its hit test
+    /// picked the wrong view anyway: every tab is mounted in the window's
+    /// `ZStack`, and `NSView.hitTest` ignores both `alphaValue` and SwiftUI's
+    /// `allowsHitTesting`, so it resolved to the frontmost tab rather than the
+    /// selected one. Wheel handling had already moved to upstream's
+    /// `scrollWheel` in 1.15.0; there is nothing left for a monitor to do.
     override func linefeed(source: Terminal) {
         allowMouseReporting = source.mouseMode != .off
         super.linefeed(source: source)
