@@ -77,8 +77,11 @@ enum TerminalKeyInterceptor {
 /// buffer with a dead wheel. As of 1.15.0 upstream does that job, and does it
 /// better: precise trackpad deltas accumulated against cell height, real
 /// modifier flags in the button encoding, a `yDisp`-corrected cell, alternate
-/// scroll for a non-mouse alt buffer, and Shift to bypass reporting for native
-/// scrollback. Swallowing the event here would put the worse path back.
+/// scroll for a non-mouse alt buffer, and `shiftBypassesMouseReporting` (Shift
+/// with no `mouseShiftCapture`) to route a notch past mouse reporting — to
+/// native scrollback in the normal buffer, to cursor keys in the alternate one,
+/// which has no scrollback to reach. Swallowing the event here, as this monitor
+/// used to, put all of that back to the worse path.
 @MainActor
 enum TerminalMouseInterceptor {
     private static var monitor: Any?
@@ -113,24 +116,33 @@ enum TerminalMouseInterceptor {
     }
 }
 
-/// Denies OSC 52 clipboard **reads** while forwarding every other
-/// `TerminalViewDelegate` callback to the terminal view itself.
+/// Cuts OSC 52 off from the pasteboard in both directions, while forwarding
+/// every other `TerminalViewDelegate` callback to the terminal view itself.
 ///
-/// SwiftTerm 1.15.0 answers `ESC ] 52 ; c ; ? BEL` by asking its delegate for
-/// the clipboard and writing the base64 of whatever comes back into the PTY
-/// (`Terminal.oscClipboard`). `TerminalViewDelegate`'s own default denies that,
-/// but `LocalProcessTerminalView.clipboardRead` overrides it with an
-/// unconditional `NSPasteboard.general` read — and the view is its own
+/// **Reads.** SwiftTerm 1.15.0 answers `ESC ] 52 ; c ; ? BEL` by asking its
+/// delegate for the clipboard and writing the base64 of whatever comes back
+/// into the PTY (`Terminal.oscClipboard`). `TerminalViewDelegate`'s own default
+/// denies that, but `LocalProcessTerminalView.clipboardRead` overrides it with
+/// an unconditional `NSPasteboard.general` read — and the view is its own
 /// `terminalDelegate`, so a plain subclass would inherit an always-allow
 /// policy. Any bytes an agent prints (fetched web content, a build log, a file
 /// it was asked to `cat`) could then echo the user's clipboard straight back
 /// into the agent's stdin, and from there into model context. Clipboards hold
 /// passwords and tokens.
 ///
-/// `clipboardRead` is `public`, not `open`, so it can't be overridden from a
-/// subclass; interposing on `terminalDelegate` is what's left. Returning nil is
-/// the documented deny — `Terminal.oscClipboard` then sends no response at all.
-final class ClipboardReadDenyingDelegate: TerminalViewDelegate {
+/// **Writes.** The mirror image, and the same threat model: printed bytes can
+/// silently replace whatever the user had copied. 1.15.0 widened the reach —
+/// 1.13's `oscClipboard` required a literal `c;` prefix, 1.15's takes any
+/// selection characters before the first `;` and treats an empty one as `c`.
+/// Nothing in Yggdrasil needs an agent to drive the pasteboard, so it's denied
+/// too; ⌘C and the context menu are unaffected, they don't route through here.
+///
+/// Neither `clipboardRead` nor `clipboardCopy` is `open`, so neither can be
+/// overridden from a subclass — interposing on `terminalDelegate` is what's
+/// left. Both callbacks route through it (`MacTerminalView.swift:3004-3010`).
+/// Returning nil for the read is the documented deny: `Terminal.oscClipboard`
+/// then sends no response at all.
+final class ClipboardGuardDelegate: TerminalViewDelegate {
     /// Weak both ways round: the view retains this proxy, and SwiftTerm's own
     /// `terminalDelegate` reference is weak.
     private weak var target: LocalProcessTerminalView?
@@ -139,10 +151,14 @@ final class ClipboardReadDenyingDelegate: TerminalViewDelegate {
         self.target = target
     }
 
-    /// The whole point of the class: the process never gets the clipboard.
+    /// The process never gets the clipboard.
     func clipboardRead(source _: TerminalView) -> Data? {
         nil
     }
+
+    /// …and never sets it either. Deliberately not forwarded to `target`,
+    /// whose implementation writes straight to `NSPasteboard.general`.
+    func clipboardCopy(source _: TerminalView, content _: Data) {}
 
     // MARK: - Everything else forwards unchanged
 
@@ -174,10 +190,6 @@ final class ClipboardReadDenyingDelegate: TerminalViewDelegate {
         target?.bell(source: source)
     }
 
-    func clipboardCopy(source: TerminalView, content: Data) {
-        target?.clipboardCopy(source: source, content: content)
-    }
-
     func iTermContent(source: TerminalView, content: ArraySlice<UInt8>) {
         target?.iTermContent(source: source, content: content)
     }
@@ -192,7 +204,7 @@ final class ClipboardReadDenyingDelegate: TerminalViewDelegate {
 /// 1. **File drag-and-drop** — paths from Finder are shell-quoted and sent
 ///    to the PTY at the prompt. Matches iTerm2/Warp/Terminal.app.
 ///
-/// 2. **OSC 52 clipboard reads refused** — see `ClipboardReadDenyingDelegate`.
+/// 2. **OSC 52 clipboard reads and writes refused** — see `ClipboardGuardDelegate`.
 ///
 /// 3. **Don't snap to bottom on output while the user is reading history.**
 ///    SwiftTerm's `Terminal.scroll()` snaps the viewport to `yBase` on every
@@ -211,7 +223,7 @@ final class ClipboardReadDenyingDelegate: TerminalViewDelegate {
 ///      `inOutputScroll`; only a direct user scroll updates the parked
 ///      position.
 @MainActor
-final class DroppableTerminalView: LocalProcessTerminalView {
+class DroppableTerminalView: LocalProcessTerminalView {
     /// nil = follow tail; Double in [0, 1) = the position the user pinned
     /// the viewport at while reading history. Stored as a fractional
     /// position rather than a row index so it survives scrollback trim.
@@ -226,7 +238,7 @@ final class DroppableTerminalView: LocalProcessTerminalView {
     private var inOutputScroll = false
     /// Retains the delegate proxy that refuses clipboard reads — SwiftTerm's
     /// `terminalDelegate` reference is weak, so nothing else would.
-    private var clipboardReadGuard: ClipboardReadDenyingDelegate?
+    private var clipboardGuard: ClipboardGuardDelegate?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -251,8 +263,8 @@ final class DroppableTerminalView: LocalProcessTerminalView {
         // doesn't drag an appearance change along; adopting `.overlay` is a
         // deliberate decision for its own change.
         scrollerStyle = .legacy
-        let guardDelegate = ClipboardReadDenyingDelegate(target: self)
-        clipboardReadGuard = guardDelegate
+        let guardDelegate = ClipboardGuardDelegate(target: self)
+        clipboardGuard = guardDelegate
         terminalDelegate = guardDelegate
     }
 
@@ -300,6 +312,10 @@ final class DroppableTerminalView: LocalProcessTerminalView {
     /// chunk that carries no line feed would otherwise leave the flag stale
     /// until the next line feed or mouse event, and the following chunk's
     /// `feedPrepare` would clear a selection it should have left alone.
+    ///
+    /// `LocalProcess` posts this on `DispatchQueue.main` — it's constructed
+    /// without a custom queue (`MacLocalTerminalView.swift:86`) — so this stays
+    /// on the main actor like every other override here.
     override func dataReceived(slice: ArraySlice<UInt8>) {
         super.dataReceived(slice: slice)
         allowMouseReporting = getTerminal().mouseMode != .off
