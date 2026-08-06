@@ -73,7 +73,7 @@ final class TerminalClipboardGuardTests: XCTestCase {
         view.feed(text: "\u{1b}]52;c;?\u{07}")
         XCTAssertTrue(
             view.responses.isEmpty,
-            "OSC 52 read answered with: \(String(decoding: view.responses, as: UTF8.self))"
+            "OSC 52 read answered with: \(String(bytes: view.responses, encoding: .utf8) ?? "<non-utf8>")"
         )
 
         view.feed(text: "\u{1b}[c")
