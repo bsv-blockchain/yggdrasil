@@ -292,11 +292,25 @@ final class DroppableTerminalView: LocalProcessTerminalView {
 
     // MARK: - Mouse reporting sync
 
-    /// SwiftTerm reads `allowMouseReporting` here — and only here — to decide
-    /// whether streaming output should clear the native selection. Since
-    /// `mouseModeChanged` can't be overridden, `TerminalMouseInterceptor` keeps
-    /// the flag current from mouse events; this covers the output path, so a
-    /// mode change mid-stream is honoured without waiting for the user to click.
+    /// Output arrives here before anything is parsed. Syncing on the way *out*
+    /// is what keeps the flag honest across chunk boundaries: SwiftTerm reads
+    /// `allowMouseReporting` in two places, and one of them —
+    /// `AppleTerminalView.feedPrepare()` — runs at the top of every `feed`,
+    /// before a single byte of that chunk has been looked at. A mode change in a
+    /// chunk that carries no line feed would otherwise leave the flag stale
+    /// until the next line feed or mouse event, and the following chunk's
+    /// `feedPrepare` would clear a selection it should have left alone.
+    override func dataReceived(slice: ArraySlice<UInt8>) {
+        super.dataReceived(slice: slice)
+        allowMouseReporting = getTerminal().mouseMode != .off
+    }
+
+    /// The other reader: `linefeed` decides per line whether streaming output
+    /// clears the native selection. Syncing here covers a mode change *within* a
+    /// chunk, which `dataReceived` is too late for. `mouseModeChanged` is
+    /// `public`, not `open`, so it can't be hooked directly — between these two
+    /// and `TerminalMouseInterceptor` (mouse events), every path that can change
+    /// `mouseMode` is covered.
     override func linefeed(source: Terminal) {
         allowMouseReporting = source.mouseMode != .off
         super.linefeed(source: source)
