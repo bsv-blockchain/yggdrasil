@@ -195,7 +195,7 @@ final class TabsModel {
 
     func moveSelection(by delta: Int) {
         // The published order is a snapshot from the sidebar's last render, so a
-        // row removed since (⌘W, or a background reload) can still be listed.
+        // row removed since (⌘⇧W, or a background reload) can still be listed.
         // Selecting a dead id leaves the main pane blank, so drop them here.
         let live = Set(tabs.compactMap(\.id))
         let order = (visibleTabIDs ?? tabs.compactMap(\.id)).filter(live.contains)

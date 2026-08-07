@@ -147,7 +147,7 @@ get their proper brand icons automatically).
 | My Issues (wide table view) | `⌘⇧I` |
 | Force sync now | `⌘⇧S` |
 | Previous / Next tab | `⌥↑` / `⌥↓` |
-| Close tab | `⌘W` |
+| Close tab | `⌘⇧W` |
 | Show sidebar / hide sidebar | `⌘⌃S` (system) |
 | Preferences | `⌘,` |
 

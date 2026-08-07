@@ -52,6 +52,12 @@ struct WindowFrameAutosaver: NSViewRepresentable {
 /// The frame-autosave wiring, factored out so it's unit-testable without a
 /// SwiftUI hierarchy.
 enum WindowFrameAutosave {
+    /// Autosave name of the main sessions window. Doubles as that window's
+    /// identity: the auxiliary picker scenes and Preferences share the same
+    /// service graph, so window-scoped menu commands need a way to tell which
+    /// window is in front.
+    static let mainWindowName = "YggdrasilMainWindow"
+
     /// Begin autosaving `window`'s frame under `name` and apply any frame
     /// previously saved under it. `setFrameUsingName` is a no-op on first
     /// launch (nothing saved yet).
@@ -59,5 +65,11 @@ enum WindowFrameAutosave {
     static func enable(on window: NSWindow, name: String) {
         window.setFrameAutosaveName(name)
         window.setFrameUsingName(name)
+    }
+
+    /// Whether `autosaveName` belongs to the main sessions window. Aux windows
+    /// carry no autosave name, so anything else — including nil — is not it.
+    static func isMainWindow(autosaveName: String?) -> Bool {
+        autosaveName == mainWindowName
     }
 }
