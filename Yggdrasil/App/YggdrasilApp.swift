@@ -60,7 +60,7 @@ struct RootView: View {
         }
         .frame(minWidth: 900, minHeight: 600)
         .accessibilityIdentifier("yggdrasil.root")
-        .background(WindowFrameAutosaver(autosaveName: "YggdrasilMainWindow"))
+        .background(WindowFrameAutosaver(autosaveName: WindowFrameAutosave.mainWindowName))
         .task {
             // Start Sparkle's scheduled update checks once, in production only.
             // The test bundle is hosted in the real app, so this view runs
@@ -100,18 +100,6 @@ struct SidebarSessionsLayout: View {
             }
         }
         .background(YggdrasilTheme.bg(scheme))
-        .background {
-            // Keep ⌥↑ / ⌥↓ tab navigation alive now that the visible View-menu
-            // items carry ⌘⇧[ / ⌘⇧]. Zero-size and hidden, but present in the
-            // responder chain while the window is open; same action as the menu
-            // commands (SidebarActions.selectTab).
-            Button("") { SidebarActions.selectTab(by: -1, services: services) }
-                .keyboardShortcut(.upArrow, modifiers: [.option])
-                .hidden()
-            Button("") { SidebarActions.selectTab(by: 1, services: services) }
-                .keyboardShortcut(.downArrow, modifiers: [.option])
-                .hidden()
-        }
     }
 
     @ViewBuilder

@@ -76,11 +76,47 @@ enum SidebarActions {
         }
     }
 
+    /// The three-way remove-tab prompt, in the order the buttons are presented.
+    ///
+    /// Order is load-bearing: NSAlert binds Return to the *first* button, so the
+    /// destructive option must never lead. It used to, and once the View-menu
+    /// "Close Tab…" item started dispatching, a reflexive close-then-Return ran
+    /// `git worktree remove --force` on the selected worktree with no undo.
+    /// `hasDestructiveAction` only colours the button — it does not move it out
+    /// of the default slot.
+    enum RemoveTabChoice: CaseIterable {
+        /// DB row + session; the worktree stays on disk.
+        case tabOnly
+        /// Also runs `git worktree remove --force`.
+        case tabAndWorktree
+        case cancel
+
+        var title: String {
+            switch self {
+            case .tabOnly: "Remove Tab Only"
+            case .tabAndWorktree: "Remove Tab + Worktree"
+            case .cancel: "Cancel"
+            }
+        }
+
+        var isDestructive: Bool {
+            self == .tabAndWorktree
+        }
+
+        /// Read a `runModal()` response back through `allCases`, which is also
+        /// what the buttons were added from — the two cannot drift apart.
+        /// Anything unrecognised is treated as Cancel.
+        static func from(response: NSApplication.ModalResponse) -> RemoveTabChoice {
+            switch response {
+            case .alertFirstButtonReturn: allCases[0]
+            case .alertSecondButtonReturn: allCases[1]
+            default: .cancel
+            }
+        }
+    }
+
     /// Confirm-then-delete a tab. Tears down any running session and (optionally)
-    /// removes the worktree on disk. Three-way prompt:
-    ///   - Remove Tab Only — DB row + session, worktree stays on disk.
-    ///   - Remove Tab + Worktree — also runs `git worktree remove --force`.
-    ///   - Cancel.
+    /// removes the worktree on disk. See `RemoveTabChoice` for the prompt.
     static func removeTab(id: Int64, services: AppServices) {
         guard let tab = services.tabs.tabs.first(where: { $0.id == id }) else { return }
         let alert = NSAlert()
@@ -94,19 +130,16 @@ enum SidebarActions {
         discards any uncommitted work inside it.
         """
         alert.alertStyle = .warning
-        let removeAndDeleteButton = alert.addButton(withTitle: "Remove Tab + Worktree")
-        alert.addButton(withTitle: "Remove Tab Only")
-        alert.addButton(withTitle: "Cancel")
-        // First button is the default; make the destructive option visually marked.
-        removeAndDeleteButton.hasDestructiveAction = true
+        for choice in RemoveTabChoice.allCases {
+            alert.addButton(withTitle: choice.title).hasDestructiveAction = choice.isDestructive
+        }
 
-        let response = alert.runModal()
-        switch response {
-        case .alertFirstButtonReturn:
-            performRemoval(id: id, tab: tab, deleteWorktree: true, services: services)
-        case .alertSecondButtonReturn:
+        switch RemoveTabChoice.from(response: alert.runModal()) {
+        case .tabOnly:
             performRemoval(id: id, tab: tab, deleteWorktree: false, services: services)
-        default:
+        case .tabAndWorktree:
+            performRemoval(id: id, tab: tab, deleteWorktree: true, services: services)
+        case .cancel:
             return
         }
     }
@@ -178,9 +211,9 @@ enum SidebarActions {
     }
 
     /// Move sidebar tab selection by `delta` (wrapping at both ends) and mirror
-    /// the new selection onto the live-session host. Shared by the View-menu
-    /// commands (⌘⇧[ / ⌘⇧]) and the hidden arrow-key buttons (⌥↑ / ⌥↓) so the
-    /// move-then-sync stays in one place.
+    /// the new selection onto the live-session host. Driven by the View-menu
+    /// Previous/Next Session commands (⌥↑ / ⌥↓), keeping the move-then-sync in
+    /// one place.
     static func selectTab(by delta: Int, services: AppServices) {
         services.tabs.moveSelection(by: delta)
         if let id = services.tabs.selectedID {
