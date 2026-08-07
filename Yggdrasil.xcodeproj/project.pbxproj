@@ -71,6 +71,7 @@
 		4F10AF7B1CA082C26E3BDE7C /* Clibgit2 in Frameworks */ = {isa = PBXBuildFile; productRef = B95C7CBB5969F9856E882084 /* Clibgit2 */; };
 		4F7A0286534CE1B8A021E704 /* RESTClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73854E9178E174B970B0EAE4 /* RESTClientTests.swift */; };
 		4F83E454B10A81CA113644D7 /* GitStateProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E39389CC1E8E55A0BB9139F /* GitStateProbe.swift */; };
+		4FE13D085AE2D4B867972E10 /* TerminalClipboardGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B377CF0E5C3F9CA48E19E72 /* TerminalClipboardGuardTests.swift */; };
 		504F3D8BF230EFD2587A55D7 /* GitRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF7ECA20BFD0B9110356C0C /* GitRunnerTests.swift */; };
 		528F58BCEE60F9B3F1F7EFCD /* AuthServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC30EFE3FE078DC6168F0AD /* AuthServiceTests.swift */; };
 		5649B3E59A7EE6B973AC8E75 /* GitHubError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080EED4B2FA272A17FA4FEE8 /* GitHubError.swift */; };
@@ -90,6 +91,7 @@
 		7488BB4471858CAE7341486B /* Subprocess.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA7EE5A957004D99E791FF2D /* Subprocess.swift */; };
 		74C152AAC39D7108FE5BC4BD /* DiffEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3658E313884CEE797A94D59 /* DiffEngine.swift */; };
 		76642A91AD7739574F27C910 /* TaskSyncServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA6EE609F1B67BB1A30B48F9 /* TaskSyncServiceTests.swift */; };
+		77921471A9544F9A11F2536C /* TerminalMouseReportingSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C85F23B216AB8BB583AC06 /* TerminalMouseReportingSyncTests.swift */; };
 		78C3DD92A39FB9D8C15B69FA /* UpdaterCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CA146517D5AD0BA9210B449 /* UpdaterCommands.swift */; };
 		7A20D8905A8233E41667FF18 /* CodingMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B3B12085F0CA95C6A059DCD /* CodingMenuController.swift */; };
 		7AB9655B92BB8DCB0727F8F0 /* MigrationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9118B23EDBB71CED83EDB88 /* MigrationsTests.swift */; };
@@ -266,6 +268,7 @@
 		9652BDCE37E52D0F9D613C9A /* WorktreeManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeManagerTests.swift; sourceTree = "<group>"; };
 		984816FB566D23BDE9C40076 /* StartupValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupValidatorTests.swift; sourceTree = "<group>"; };
 		990F6605EDD80703D108886D /* PreferencesScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesScene.swift; sourceTree = "<group>"; };
+		9B377CF0E5C3F9CA48E19E72 /* TerminalClipboardGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalClipboardGuardTests.swift; sourceTree = "<group>"; };
 		9CF3A58689FCE476DAB8A711 /* DebugMenuPrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugMenuPrompts.swift; sourceTree = "<group>"; };
 		9F402C4B789EBF05316BFF0A /* CodingAgentRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingAgentRunnerTests.swift; sourceTree = "<group>"; };
 		9FBAF586200697B6C5E93A84 /* TabStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabStatusTests.swift; sourceTree = "<group>"; };
@@ -319,6 +322,7 @@
 		DEA57CACB3BC2B8317C73272 /* TabRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabRow.swift; sourceTree = "<group>"; };
 		DEC30EFE3FE078DC6168F0AD /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
 		DF09246D0350967D23CBB7F5 /* TabStatusModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabStatusModel.swift; sourceTree = "<group>"; };
+		E1C85F23B216AB8BB583AC06 /* TerminalMouseReportingSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalMouseReportingSyncTests.swift; sourceTree = "<group>"; };
 		E3658E313884CEE797A94D59 /* DiffEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffEngine.swift; sourceTree = "<group>"; };
 		E3D75BDE3A007C358FFF93E0 /* RESTClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RESTClient.swift; sourceTree = "<group>"; };
 		EA7EE5A957004D99E791FF2D /* Subprocess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subprocess.swift; sourceTree = "<group>"; };
@@ -508,7 +512,9 @@
 				3608459737EDC4326ADCB9DF /* AgentResumeFlagTests.swift */,
 				9F402C4B789EBF05316BFF0A /* CodingAgentRunnerTests.swift */,
 				2E0E0DC8AEEA33E8ACA1DCB0 /* OutputRingBufferTests.swift */,
+				9B377CF0E5C3F9CA48E19E72 /* TerminalClipboardGuardTests.swift */,
 				BD26DD19E2BF2BE2214B7964 /* TerminalImagePasteTests.swift */,
+				E1C85F23B216AB8BB583AC06 /* TerminalMouseReportingSyncTests.swift */,
 				AC7ED4461BDBE347067823D7 /* TerminalPaletteTests.swift */,
 				BE663150935518DED4069E3E /* TerminalScrollFollowTests.swift */,
 			);
@@ -962,7 +968,9 @@
 				D7546A140D0F2D32A5C6AF93 /* TabStoreTests.swift in Sources */,
 				8771F772F18DDEEA655CF22F /* TabsModelTests.swift in Sources */,
 				76642A91AD7739574F27C910 /* TaskSyncServiceTests.swift in Sources */,
+				4FE13D085AE2D4B867972E10 /* TerminalClipboardGuardTests.swift in Sources */,
 				1A9FA0943A18F3D5D08CC564 /* TerminalImagePasteTests.swift in Sources */,
+				77921471A9544F9A11F2536C /* TerminalMouseReportingSyncTests.swift in Sources */,
 				E4286CA80F3A5B2A3A199853 /* TerminalPaletteTests.swift in Sources */,
 				D67887262839E0981B72591E /* TerminalScrollFollowTests.swift in Sources */,
 				080A247F1F44A69FA34640F0 /* UpdaterConfigTests.swift in Sources */,
@@ -1339,8 +1347,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.2.0;
+				kind = upToNextMinorVersion;
+				minimumVersion = 1.15.0;
 			};
 		};
 		837FF6FB9BFEB4591BCD5E16 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {

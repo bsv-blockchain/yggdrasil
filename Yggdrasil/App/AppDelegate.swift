@@ -69,12 +69,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // input interceptor we keep — scroll-wheel + selection now work
         // natively via SwiftTerm since we dropped tmux mouse-mode.
         TerminalKeyInterceptor.install()
-        // Bridges the mouse to full-screen / mouse-reading agents (e.g. Claude
-        // Code's fullscreen renderer): forwards the wheel (which SwiftTerm never
-        // sends to the app) and keeps mouse reporting in sync with the agent's
-        // live mouse mode so clicks/selection work without breaking native
-        // selection when the agent isn't reading the mouse.
-        TerminalMouseInterceptor.install()
 
         // Install the AppKit "Coding" menu after the main menu bar is built.
         // SwiftUI sets up the bar during its own scene init; defer one tick

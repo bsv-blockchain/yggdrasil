@@ -20,46 +20,8 @@ final class TerminalScrollFollowTests: XCTestCase {
         XCTAssertEqual(DroppableTerminalView.frozenTarget(forScrollPosition: 0.0), 0.0)
     }
 
-    // MARK: - Scroll routing (native scrollback vs forward-to-agent)
-
-    func testMouseTrackingForwardsAsMouseWheel() {
-        // The agent reads the mouse → forward the wheel, even in the normal buffer.
-        XCTAssertEqual(
-            TerminalMouseInterceptor.action(
-                mouseTracking: true, alternateBuffer: false, upward: true, applicationCursor: false
-            ),
-            .mouseWheel(upward: true)
-        )
-        XCTAssertEqual(
-            TerminalMouseInterceptor.action(
-                mouseTracking: true, alternateBuffer: true, upward: false, applicationCursor: true
-            ),
-            .mouseWheel(upward: false)
-        )
-    }
-
-    func testAlternateBufferWithoutMouseSendsArrowKeys() {
-        XCTAssertEqual(
-            TerminalMouseInterceptor.action(
-                mouseTracking: false, alternateBuffer: true, upward: true, applicationCursor: false
-            ),
-            .arrowKeys(upward: true, applicationCursor: false)
-        )
-        XCTAssertEqual(
-            TerminalMouseInterceptor.action(
-                mouseTracking: false, alternateBuffer: true, upward: false, applicationCursor: true
-            ),
-            .arrowKeys(upward: false, applicationCursor: true)
-        )
-    }
-
-    func testNormalBufferNoMouseUsesNativeScrollback() {
-        // A plain shell keeps SwiftTerm's native scrollback (+ the scroll-follow).
-        XCTAssertEqual(
-            TerminalMouseInterceptor.action(
-                mouseTracking: false, alternateBuffer: false, upward: true, applicationCursor: false
-            ),
-            .native
-        )
-    }
+    // Wheel routing used to be tested here against
+    // `TerminalMouseInterceptor.action`. SwiftTerm 1.15.0's own `scrollWheel`
+    // does that routing (and more), so the interceptor no longer duplicates it
+    // and those cases now belong to upstream.
 }

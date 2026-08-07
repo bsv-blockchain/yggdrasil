@@ -20,7 +20,16 @@ configs:
 packages:
   SwiftTerm:
     url: https://github.com/migueldeicaza/SwiftTerm
-    from: "1.2.0"
+    # 1.15.0 is the floor for correct mouse reporting on macOS 26: 1.14.0 fixed
+    # the SGR motion→release mis-encoding and the phantom hover clicks
+    # (upstream #584), 1.15.0 fixed hover rows ignoring the scroll offset.
+    #
+    # Pinned to the minor, not the major, because `ClipboardGuardDelegate`
+    # forwards a hand-written list of `TerminalViewDelegate` requirements and 5
+    # of the 11 have protocol-extension defaults — a member added in a future
+    # 1.x would compile clean here and silently stop reaching the view. Bump
+    # deliberately, re-checking that list against the protocol.
+    minorVersion: "1.15.0"
   GRDB:
     url: https://github.com/groue/GRDB.swift
     from: "6.29.0"
