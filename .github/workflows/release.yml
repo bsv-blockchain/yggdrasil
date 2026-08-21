@@ -218,10 +218,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
+
+          # Notes come from the body of the tagged commit — the release process
+          # puts the changelog in the `chore(release): bump to X.Y.Z` commit, so
+          # the published notes are the changelog without a manual step. Set at
+          # creation only: a re-run must not clobber notes edited afterwards.
+          # HEAD, not "$TAG^{commit}": the checkout is already at the tagged
+          # commit, and a shallow fetch may not materialise the tag object —
+          # under `set -e` that would fail the step after a 20-minute build.
+          NOTES="$(git log -1 --format=%b HEAD)"
+          [[ -n "$(printf '%s' "$NOTES" | tr -d '[:space:]')" ]] || NOTES="Release $TAG"
+
+          # Create as a draft, upload, and only then publish. `SUFeedURL` is
+          # `releases/latest/download/appcast.xml`, so a release that is already
+          # published but has no assets yet would make every running client's
+          # update check 404 for the length of the upload.
           gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" --draft --title "Yggdrasil $TAG" --notes "Release $TAG"
+            gh release create "$TAG" --draft --title "Yggdrasil $TAG" --notes "$NOTES"
           gh release upload "$TAG" dist/*.dmg dist/SHA256SUMS dist/appcast.xml --clobber
+          gh release edit "$TAG" --draft=false --latest
 
       - name: Clean up keychain
         if: always()
