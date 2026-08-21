@@ -211,6 +211,41 @@ final class TabRowViewModelTests: XCTestCase {
         XCTAssertFalse(model.reviewNeedsAttention)
     }
 
+    private func liveStatus(threadsAwaitingReply: Int) -> TabStatus {
+        TabStatus.aggregate(
+            claude: .idle,
+            git: GitState(dirty: false, remote: .noRemote),
+            github: .init(ciState: nil, unread: 0, threadsAwaitingReply: threadsAwaitingReply)
+        )
+    }
+
+    func testAuthoredPRTabWithThreadsNeedsReply() {
+        let model = TabRowViewModel(
+            tab: makeTab(branch: "claude-pr-655"), task: makeTask(),
+            liveStatus: liveStatus(threadsAwaitingReply: 4)
+        )
+        XCTAssertFalse(model.isReview)
+        XCTAssertTrue(model.replyNeedsAttention)
+    }
+
+    func testAuthoredPRTabWithoutThreadsDoesNotNeedReply() {
+        let model = TabRowViewModel(
+            tab: makeTab(branch: "claude-pr-655"), task: makeTask(),
+            liveStatus: liveStatus(threadsAwaitingReply: 0)
+        )
+        XCTAssertFalse(model.replyNeedsAttention)
+    }
+
+    func testReviewTabNeverShowsTheReplyPill() {
+        // A review tab already has the REVIEW pill; don't stack a second one.
+        let model = TabRowViewModel(
+            tab: makeTab(branch: "review-pr-655"), task: makeTask(),
+            liveStatus: liveStatus(threadsAwaitingReply: 4)
+        )
+        XCTAssertTrue(model.isReview)
+        XCTAssertFalse(model.replyNeedsAttention)
+    }
+
     private func liveStatus(reviewApproved: Bool) -> TabStatus {
         TabStatus.aggregate(
             claude: .idle,

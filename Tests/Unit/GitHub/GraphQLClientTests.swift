@@ -161,6 +161,60 @@ final class GraphQLClientTests: XCTestCase {
         XCTAssertFalse(detail.viewerReviewRequested)
     }
 
+    func testPRDetailCountsAllUnresolvedThreadsOnMyOwnPR() async throws {
+        // On a PR I authored, an unresolved thread whose last comment isn't mine
+        // is my move even if I never replied in it — the 1385 case. Bot threads
+        // count too: they're mine to address or resolve.
+        let json = """
+        { "data": { "repository": { "pullRequest": {
+          "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": "REVIEW_REQUIRED",
+          "viewerDidAuthor": true,
+          "commits": { "totalCount": 1, "nodes": [{ "commit": { "oid": "h", "statusCheckRollup": null } }] },
+          "comments": { "totalCount": 0 }, "reviews": { "totalCount": 0, "nodes": [] },
+          "reviewThreads": { "nodes": [
+            { "isResolved": false, "comments": { "nodes": [{ "viewerDidAuthor": false }] } },
+            { "isResolved": false, "comments": { "nodes": [{ "viewerDidAuthor": false }, { "viewerDidAuthor": false }] } },
+            { "isResolved": false, "comments": { "nodes": [{ "viewerDidAuthor": false }, { "viewerDidAuthor": true }] } },
+            { "isResolved": true,  "comments": { "nodes": [{ "viewerDidAuthor": false }] } },
+            { "isResolved": false, "comments": { "nodes": [] } }
+          ] }
+        }}}}
+        """
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data(json.utf8), etag: nil, rateLimitRemaining: 4999)
+        ])
+        let detail = try await GraphQLClient(http: http).prDetail(owner: "o", repo: "r", number: 1)
+
+        XCTAssertTrue(detail.viewerDidAuthor)
+        // Threads 1 + 2 await me. Thread 3 I answered last; thread 4 resolved;
+        // thread 5 empty.
+        XCTAssertEqual(detail.unresolvedThreadsAwaitingViewer, 2)
+    }
+
+    func testPRDetailOnSomeoneElsesPRStillRequiresMeInTheThread() async throws {
+        // Reviewer side is unchanged: a thread I never joined is the author's to
+        // resolve, not mine.
+        let json = """
+        { "data": { "repository": { "pullRequest": {
+          "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": "REVIEW_REQUIRED",
+          "viewerDidAuthor": false,
+          "commits": { "totalCount": 1, "nodes": [{ "commit": { "oid": "h", "statusCheckRollup": null } }] },
+          "comments": { "totalCount": 0 }, "reviews": { "totalCount": 0, "nodes": [] },
+          "reviewThreads": { "nodes": [
+            { "isResolved": false, "comments": { "nodes": [{ "viewerDidAuthor": false }] } },
+            { "isResolved": false, "comments": { "nodes": [{ "viewerDidAuthor": true }, { "viewerDidAuthor": false }] } }
+          ] }
+        }}}}
+        """
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data(json.utf8), etag: nil, rateLimitRemaining: 4999)
+        ])
+        let detail = try await GraphQLClient(http: http).prDetail(owner: "o", repo: "r", number: 1)
+
+        XCTAssertFalse(detail.viewerDidAuthor)
+        XCTAssertEqual(detail.unresolvedThreadsAwaitingViewer, 1)
+    }
+
     func testPRDetailComputesEngagementAndHeadCommitDates() async throws {
         // The 1176 shape: I requested changes, the author pushed, then I
         // commented after the push. viewerLastEngagementAt = my latest activity
@@ -207,6 +261,7 @@ final class GraphQLClientTests: XCTestCase {
         XCTAssertNil(detail.viewerReviewedHeadSHA)
         XCTAssertEqual(detail.unresolvedThreadsAwaitingViewer, 0)
         XCTAssertFalse(detail.viewerReviewRequested)
+        XCTAssertFalse(detail.viewerDidAuthor)
     }
 
     func testPostsToGraphQLEndpointWithVariables() async throws {
