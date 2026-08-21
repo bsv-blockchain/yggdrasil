@@ -36,6 +36,8 @@ struct TabRow: View {
                 HStack(spacing: 6) {
                     if model.isReview {
                         reviewPill
+                    } else if model.replyNeedsAttention {
+                        replyPill
                     }
                     Text(model.titleLine)
                         .font(.system(size: 12.5, weight: .medium))
@@ -156,6 +158,28 @@ struct TabRow: View {
             ? "Approved — you've approved the current head"
             : "Review session — nothing needs you right now")
         .accessibilityIdentifier("tabrow.reviewbadge")
+    }
+
+    /// REPLY pill — amber only, shown on a PR you wrote when unresolved review
+    /// threads are awaiting your answer. Unlike REVIEW there's no idle state:
+    /// the pill is absent when nothing is waiting on you.
+    @ViewBuilder
+    private var replyPill: some View {
+        let tint = YggdrasilTheme.statusWarn(scheme)
+        let count = model.liveStatus?.threadsAwaitingReply ?? 0
+        HStack(spacing: 3) {
+            Text("REPLY")
+                .font(.system(size: 9, weight: .bold))
+                .tracking(0.6)
+            Circle().fill(tint).frame(width: 4, height: 4)
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1)
+        .foregroundStyle(tint)
+        .background(Capsule().fill(tint.opacity(0.14)))
+        .overlay(Capsule().stroke(tint.opacity(0.4), lineWidth: 0.5))
+        .help("Your move — \(count) unresolved thread(s) on your PR are awaiting your reply")
+        .accessibilityIdentifier("tabrow.replybadge")
     }
 
     @ViewBuilder

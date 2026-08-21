@@ -82,7 +82,9 @@ actor StatusPoller {
                     unread: row.newCommentsSinceSeen,
                     newCommits: row.newCommitsSinceSeen,
                     hasActivity: row.reviewActionOutstanding,
-                    reviewApproved: row.reviewApprovedByViewer
+                    reviewApproved: row.reviewApprovedByViewer,
+                    threadsAwaitingReply: row.authorReplyOutstanding
+                        ? row.unresolvedThreadsAwaitingViewer : 0
                 )
             }
         } catch {

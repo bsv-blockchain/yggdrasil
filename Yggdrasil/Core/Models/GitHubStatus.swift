@@ -44,6 +44,11 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
     /// author pushed fixes; GitHub clears it once the viewer submits a review.
     var viewerReviewRequested: Bool = false
 
+    /// v13 — the viewer wrote this PR. Gates the amber REPLY pill: on your own
+    /// PR an unresolved thread is yours to answer, and the reviewer-side signals
+    /// (which fire on the author's own pushes) must not apply.
+    var viewerDidAuthorPR: Bool = false
+
     enum CodingKeys: String, CodingKey {
         case taskID = "task_id"
         case ciState = "ci_state"
@@ -66,6 +71,7 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
         case viewerLastEngagementAt = "viewer_last_engagement_at"
         case headCommittedAt = "head_committed_at"
         case viewerReviewRequested = "viewer_review_requested"
+        case viewerDidAuthorPR = "viewer_did_author_pr"
     }
 
     // MARK: - Activity since last opened (pure)
@@ -119,6 +125,16 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
     /// opening the tab does not clear it.
     var reviewActionOutstanding: Bool {
         viewerReviewRequested || commitsAfterEngagement || unresolvedThreadsAwaitingViewer > 0
+    }
+
+    /// Whether the viewer owes a reply on a PR they wrote: an unresolved review
+    /// thread whose last comment isn't theirs (counted without requiring them to
+    /// have joined the thread — see `unresolvedThreadsAwaitingViewer`). Drives
+    /// the amber REPLY pill. Deliberately *not* `reviewActionOutstanding`: on
+    /// your own PR, pushing a commit moves the head past your last comment,
+    /// which would otherwise read as somebody waiting on you.
+    var authorReplyOutstanding: Bool {
+        viewerDidAuthorPR && unresolvedThreadsAwaitingViewer > 0
     }
 
     /// The viewer has approved the current head (their approval isn't stale from

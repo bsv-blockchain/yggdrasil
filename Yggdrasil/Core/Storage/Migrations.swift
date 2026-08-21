@@ -17,7 +17,21 @@ enum Migrations {
         migrator.registerMigration("v10", migrate: v10)
         migrator.registerMigration("v11", migrate: v11)
         migrator.registerMigration("v12", migrate: v12)
+        migrator.registerMigration("v13", migrate: v13)
         return migrator
+    }
+
+    // MARK: - v13 — PR authorship (REPLY pill)
+
+    ///
+    /// Unresolved review threads on a PR the viewer wrote were invisible: the
+    /// thread count only included threads the viewer had already replied in, and
+    /// authored-PR tabs showed no pill at all. Store whether the viewer wrote the
+    /// PR so the count can use the author-side rule and the REPLY pill can fire.
+    private static func v13(_ db: Database) throws {
+        try db.alter(table: "github_status") { table in
+            table.add(column: "viewer_did_author_pr", .boolean).notNull().defaults(to: false)
+        }
     }
 
     // MARK: - v12 — Open review request for the viewer (REVIEW pill)
