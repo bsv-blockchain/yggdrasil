@@ -215,6 +215,56 @@ final class GraphQLClientTests: XCTestCase {
         XCTAssertEqual(detail.unresolvedThreadsAwaitingViewer, 1)
     }
 
+    func testPRDetailTakesLatestReviewRequestTimeForTheViewer() async throws {
+        // When I was (re-)asked. Compared against my last engagement so a
+        // request I've already answered stops reading as "your move".
+        let json = """
+        { "data": { "repository": { "pullRequest": {
+          "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": "REVIEW_REQUIRED",
+          "viewerDidAuthor": false,
+          "commits": { "totalCount": 1, "nodes": [{ "commit": { "oid": "h", "statusCheckRollup": null } }] },
+          "comments": { "totalCount": 0 }, "reviews": { "totalCount": 0, "nodes": [] },
+          "reviewRequests": { "nodes": [{ "requestedReviewer": { "isViewer": true } }] },
+          "timelineItems": { "nodes": [
+            { "createdAt": "2026-08-07T12:52:06Z", "requestedReviewer": { "isViewer": true } },
+            { "createdAt": "2026-08-19T09:00:00Z", "requestedReviewer": { "isViewer": false } },
+            { "createdAt": "2026-08-20T12:38:59Z", "requestedReviewer": { "isViewer": true } }
+          ] }
+        }}}}
+        """
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data(json.utf8), etag: nil, rateLimitRemaining: 4999)
+        ])
+        let detail = try await GraphQLClient(http: http).prDetail(owner: "o", repo: "r", number: 1)
+
+        XCTAssertTrue(detail.viewerReviewRequested)
+        // Latest of *my* request events; someone else's 08-19 request is ignored.
+        XCTAssertEqual(
+            detail.viewerReviewRequestedAt,
+            ISO8601DateFormatter().date(from: "2026-08-20T12:38:59Z")
+        )
+    }
+
+    func testPRDetailReviewRequestTimeNilWhenNeverRequestedFromMe() async throws {
+        let json = """
+        { "data": { "repository": { "pullRequest": {
+          "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": null,
+          "viewerDidAuthor": false,
+          "commits": { "totalCount": 1, "nodes": [{ "commit": { "oid": "h", "statusCheckRollup": null } }] },
+          "comments": { "totalCount": 0 }, "reviews": { "totalCount": 0, "nodes": [] },
+          "timelineItems": { "nodes": [
+            { "createdAt": "2026-08-19T09:00:00Z", "requestedReviewer": { "isViewer": false } }
+          ] }
+        }}}}
+        """
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data(json.utf8), etag: nil, rateLimitRemaining: 4999)
+        ])
+        let detail = try await GraphQLClient(http: http).prDetail(owner: "o", repo: "r", number: 1)
+        XCTAssertFalse(detail.viewerReviewRequested)
+        XCTAssertNil(detail.viewerReviewRequestedAt)
+    }
+
     func testPRDetailComputesEngagementAndHeadCommitDates() async throws {
         // The 1176 shape: I requested changes, the author pushed, then I
         // commented after the push. viewerLastEngagementAt = my latest activity
@@ -261,6 +311,7 @@ final class GraphQLClientTests: XCTestCase {
         XCTAssertNil(detail.viewerReviewedHeadSHA)
         XCTAssertEqual(detail.unresolvedThreadsAwaitingViewer, 0)
         XCTAssertFalse(detail.viewerReviewRequested)
+        XCTAssertNil(detail.viewerReviewRequestedAt)
         XCTAssertFalse(detail.viewerDidAuthor)
     }
 

@@ -17,7 +17,8 @@ final class ReviewActionOutstandingTests: XCTestCase {
         engagedAt: Date? = nil,
         headCommittedAt: Date? = nil,
         unresolvedAwaiting: Int = 0,
-        reviewRequested: Bool = false
+        reviewRequested: Bool = false,
+        requestedAt: Date? = nil
     ) -> GitHubStatus {
         GitHubStatus(
             taskID: 1, ciState: nil, ciURL: nil, mergeable: nil, mergeableState: nil,
@@ -30,7 +31,8 @@ final class ReviewActionOutstandingTests: XCTestCase {
             unresolvedThreadsAwaitingViewer: unresolvedAwaiting,
             viewerLastEngagementAt: engagedAt,
             headCommittedAt: headCommittedAt,
-            viewerReviewRequested: reviewRequested
+            viewerReviewRequested: reviewRequested,
+            viewerReviewRequestedAt: requestedAt
         )
     }
 
@@ -57,7 +59,55 @@ final class ReviewActionOutstandingTests: XCTestCase {
     func testOpenReviewRequestIsOutstanding() {
         // GitHub says "awaiting requested review from you" and I've never
         // reviewed → my move, regardless of any timestamp heuristic.
-        let s = status(reviewRequested: true)
+        let s = status(reviewRequested: true, requestedAt: at(0))
+        XCTAssertTrue(s.reviewActionOutstanding)
+    }
+
+    func testRequestIsNotOutstandingOnceIActedOnIt() {
+        // The 1486 case: I was asked on the 11th and commented on the 21st.
+        // The request is still open on GitHub (I never submitted a formal
+        // review), but the last move was mine → nothing needs me.
+        let s = status(engagedAt: at(1000), reviewRequested: true, requestedAt: at(0))
+        XCTAssertFalse(s.reviewRequestOutstanding)
+        XCTAssertFalse(s.reviewActionOutstanding)
+    }
+
+    func testRequestNewerThanMyEngagementIsOutstanding() {
+        // Re-requested after I last spoke → back to me.
+        let s = status(engagedAt: at(0), reviewRequested: true, requestedAt: at(1000))
+        XCTAssertTrue(s.reviewRequestOutstanding)
+        XCTAssertTrue(s.reviewActionOutstanding)
+    }
+
+    func testRequestWithNoEngagementIsOutstanding() {
+        // The 1390 case: asked, never engaged.
+        let s = status(engagedAt: nil, reviewRequested: true, requestedAt: at(0))
+        XCTAssertTrue(s.reviewRequestOutstanding)
+    }
+
+    func testRequestWithUnknownRequestTimeIsOutstanding() {
+        // Rows written before the request timestamp existed, and PRs whose
+        // request predates the fetched timeline: fail toward "your move".
+        let s = status(engagedAt: at(1000), reviewRequested: true, requestedAt: nil)
+        XCTAssertTrue(s.reviewRequestOutstanding)
+    }
+
+    func testStaleRequestTimeWithoutOpenRequestIsNotOutstanding() {
+        // Request was withdrawn: the timestamp may linger, the bool is what
+        // says whether anything is open.
+        let s = status(engagedAt: at(0), reviewRequested: false, requestedAt: at(1000))
+        XCTAssertFalse(s.reviewRequestOutstanding)
+        XCTAssertFalse(s.reviewActionOutstanding)
+    }
+
+    func testPushAfterMyEngagementStillOutstandingDespiteOldRequest() {
+        // I answered the request, then the author pushed → my move again, via
+        // the commit rule rather than the request rule.
+        let s = status(
+            engagedAt: at(1000), headCommittedAt: at(2000),
+            reviewRequested: true, requestedAt: at(0)
+        )
+        XCTAssertFalse(s.reviewRequestOutstanding)
         XCTAssertTrue(s.reviewActionOutstanding)
     }
 
@@ -66,7 +116,8 @@ final class ReviewActionOutstandingTests: XCTestCase {
         // re-requested review. My comment postdates the head commit, so the
         // timestamp rule says nothing — the open request is what makes it mine.
         let s = status(latestReview: "CHANGES_REQUESTED", reviewedHead: "old", head: "new",
-                       engagedAt: at(100), headCommittedAt: at(0), reviewRequested: true)
+                       engagedAt: at(100), headCommittedAt: at(0), reviewRequested: true,
+                       requestedAt: at(200))
         XCTAssertFalse(s.commitsAfterEngagement)
         XCTAssertTrue(s.reviewActionOutstanding)
     }
@@ -74,7 +125,7 @@ final class ReviewActionOutstandingTests: XCTestCase {
     func testApprovedButReRequestedIsOutstanding() {
         // Stale-but-current approval plus a fresh request → amber wins over green.
         let s = status(latestReview: "APPROVED", reviewedHead: "abc", head: "abc",
-                       reviewRequested: true)
+                       reviewRequested: true, requestedAt: at(0))
         XCTAssertTrue(s.reviewApprovedByViewer)
         XCTAssertTrue(s.reviewActionOutstanding)
     }

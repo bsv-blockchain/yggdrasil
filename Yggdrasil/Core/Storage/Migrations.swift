@@ -18,7 +18,21 @@ enum Migrations {
         migrator.registerMigration("v11", migrate: v11)
         migrator.registerMigration("v12", migrate: v12)
         migrator.registerMigration("v13", migrate: v13)
+        migrator.registerMigration("v14", migrate: v14)
         return migrator
+    }
+
+    // MARK: - v14 — When the review was requested (REVIEW pill)
+
+    ///
+    /// v12 made any open review request read as "your move", which nags forever
+    /// on a request answered with a comment: GitHub only clears a request when
+    /// the viewer submits a formal review. Store when the request was made so it
+    /// can be compared against the viewer's last engagement.
+    private static func v14(_ db: Database) throws {
+        try db.alter(table: "github_status") { table in
+            table.add(column: "viewer_review_requested_at", .datetime)
+        }
     }
 
     // MARK: - v13 — PR authorship (REPLY pill)
