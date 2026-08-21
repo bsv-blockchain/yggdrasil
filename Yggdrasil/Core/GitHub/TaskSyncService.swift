@@ -379,7 +379,8 @@ enum TaskSyncWrites {
             viewerReviewedHeadSHA: detail.viewerReviewedHeadSHA,
             unresolvedThreadsAwaitingViewer: detail.unresolvedThreadsAwaitingViewer,
             viewerLastEngagementAt: detail.viewerLastEngagementAt,
-            headCommittedAt: detail.headCommittedAt
+            headCommittedAt: detail.headCommittedAt,
+            viewerReviewRequested: detail.viewerReviewRequested
         )
         try status.save(db)
     }

@@ -118,8 +118,10 @@ struct TabRow: View {
     }
 
     /// REVIEW pill, three states (precedence amber > green > blue):
-    /// - amber + dot — "your move": the author pushed after you last engaged, or
-    ///   an unresolved thread you're in has a reply after yours;
+    /// - amber + dot — "your move": GitHub has an open review request for you
+    ///   (incl. a re-request after the author pushed fixes), the author pushed
+    ///   after you last engaged, or an unresolved thread you're in has a reply
+    ///   after yours;
     /// - green + check — you've approved the current head;
     /// - blue — a review session with nothing directed at you (unreviewed, bot
     ///   threads, threads you never joined).
@@ -149,7 +151,7 @@ struct TabRow: View {
         .background(Capsule().fill(colored ? tint.opacity(0.14) : YggdrasilTheme.accentSoft(scheme)))
         .overlay(Capsule().stroke(tint.opacity(0.4), lineWidth: 0.5))
         .help(attention
-            ? "Your move — the author pushed since you last engaged, or a thread you're in is awaiting your reply"
+            ? "Your move — your review is requested, the author pushed since you last engaged, or a thread you're in is awaiting your reply"
             : approved
             ? "Approved — you've approved the current head"
             : "Review session — nothing needs you right now")
