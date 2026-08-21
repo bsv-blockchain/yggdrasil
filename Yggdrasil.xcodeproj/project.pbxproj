@@ -27,6 +27,7 @@
 		14FBF3ED9C9E52E9ED8611AD /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC4D78DD45A5F9D613077301 /* Migrations.swift */; };
 		15CA2C4826B709C8A5408DE4 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39A3F996A99BE839DF3BAB2E /* SettingsStore.swift */; };
 		179BD7CA4057108527897A1F /* AgentIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC4E52B15FA3225091E11087 /* AgentIdentity.swift */; };
+		190AFF1A847ACE26B8ED305F /* MigrationV14Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B84C92CD42A8F67748FA479F /* MigrationV14Tests.swift */; };
 		1A9FA0943A18F3D5D08CC564 /* TerminalImagePasteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD26DD19E2BF2BE2214B7964 /* TerminalImagePasteTests.swift */; };
 		1B2A4F992FDAEBBE34A6712C /* FixtureGitRepo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CF555299DF2CF8D391A777A /* FixtureGitRepo.swift */; };
 		1B982FBB4E43911C40294A87 /* TabStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FBAF586200697B6C5E93A84 /* TabStatusTests.swift */; };
@@ -293,6 +294,7 @@
 		B4763684B5AE9E80D155A44C /* SessionsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsModel.swift; sourceTree = "<group>"; };
 		B501D1E9394345FFA10742B2 /* YggdrasilButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilButtonStyle.swift; sourceTree = "<group>"; };
 		B62666C4EF4D517E80E8FB97 /* PRAuthored.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRAuthored.swift; sourceTree = "<group>"; };
+		B84C92CD42A8F67748FA479F /* MigrationV14Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationV14Tests.swift; sourceTree = "<group>"; };
 		B9AF4BA8572678F249A60386 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		BA8E73AFC818DB9C164D07FF /* BackoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffTests.swift; sourceTree = "<group>"; };
 		BB294B77DDC7413F8D9551B1 /* Clibgit2 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Clibgit2; path = Vendor/Clibgit2; sourceTree = SOURCE_ROOT; };
@@ -767,6 +769,7 @@
 				C0C6F9E02BB1B5D10BB95BAC /* MigrationV2Tests.swift */,
 				1C4F793FA8907648E69D3562 /* MigrationV12Tests.swift */,
 				8E513EE2221EB2393C18C2BD /* MigrationV13Tests.swift */,
+				B84C92CD42A8F67748FA479F /* MigrationV14Tests.swift */,
 				2A8A112A91F42061FC56C62A /* SessionStateStoreTests.swift */,
 				3822992A97D0625D635CAE36 /* SettingsStoreTests.swift */,
 			);
@@ -963,6 +966,7 @@
 				D0F5C4E4CB2D5C4D40B0B072 /* IssueDetailsPickerFilterTests.swift in Sources */,
 				C3D9F8C04E5FF36DC85A2818 /* MigrationV12Tests.swift in Sources */,
 				CE10B0629BD63FA8F3CFD5D8 /* MigrationV13Tests.swift in Sources */,
+				190AFF1A847ACE26B8ED305F /* MigrationV14Tests.swift in Sources */,
 				CE86ADE572BB3E89F23D11BF /* MigrationV2Tests.swift in Sources */,
 				7AB9655B92BB8DCB0727F8F0 /* MigrationsTests.swift in Sources */,
 				DEEF67781B6F9FAD73BB4529 /* NewTabSheetParseTests.swift in Sources */,

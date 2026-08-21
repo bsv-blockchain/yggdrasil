@@ -49,6 +49,12 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
     /// (which fire on the author's own pushes) must not apply.
     var viewerDidAuthorPR: Bool = false
 
+    /// v14 — when the viewer was last asked to review. An open request only
+    /// means "your move" while it's newer than the viewer's last engagement:
+    /// answering a request with a comment (rather than a formal review) leaves
+    /// it open on GitHub forever, and that must not nag indefinitely.
+    var viewerReviewRequestedAt: Date?
+
     enum CodingKeys: String, CodingKey {
         case taskID = "task_id"
         case ciState = "ci_state"
@@ -72,6 +78,7 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
         case headCommittedAt = "head_committed_at"
         case viewerReviewRequested = "viewer_review_requested"
         case viewerDidAuthorPR = "viewer_did_author_pr"
+        case viewerReviewRequestedAt = "viewer_review_requested_at"
     }
 
     // MARK: - Activity since last opened (pure)
@@ -114,9 +121,22 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
         return head > engaged
     }
 
+    /// An open review request the viewer hasn't acted on since it was made.
+    /// GitHub only clears a request when the viewer submits a *formal* review,
+    /// so a request answered with a plain comment stays open — comparing
+    /// against `viewerLastEngagementAt` is what keeps that from nagging forever.
+    /// With no known request time (rows written before v14, or a request older
+    /// than the fetched timeline) it fails toward "your move".
+    var reviewRequestOutstanding: Bool {
+        guard viewerReviewRequested else { return false }
+        guard let requestedAt = viewerReviewRequestedAt else { return true }
+        guard let engaged = viewerLastEngagementAt else { return true }
+        return requestedAt > engaged
+    }
+
     /// Whether there's an outstanding review action *directed at the viewer*:
-    /// GitHub has an open review request for them (a first request, or one
-    /// re-requested after the author pushed fixes), the author pushed a commit
+    /// GitHub has an open review request for them that they haven't answered
+    /// since it was made, the author pushed a commit
     /// after the viewer last engaged, or an unresolved thread the viewer is part
     /// of has a reply after theirs. With no open request: a PR the viewer has
     /// engaged with since the last push, bot threads, and threads the viewer
@@ -124,7 +144,7 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
     /// purely from GitHub, so the viewer's own activity never turns it amber and
     /// opening the tab does not clear it.
     var reviewActionOutstanding: Bool {
-        viewerReviewRequested || commitsAfterEngagement || unresolvedThreadsAwaitingViewer > 0
+        reviewRequestOutstanding || commitsAfterEngagement || unresolvedThreadsAwaitingViewer > 0
     }
 
     /// Whether the viewer owes a reply on a PR they wrote: an unresolved review

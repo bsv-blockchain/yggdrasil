@@ -39,6 +39,10 @@ struct PRDetail: Equatable {
     let viewerReviewRequested: Bool
     /// The viewer wrote this PR, so unresolved threads on it are theirs to answer.
     let viewerDidAuthor: Bool
+    /// When the viewer was last asked to review — the latest
+    /// `ReviewRequestedEvent` naming them. nil if they've never been asked (or
+    /// the request predates the fetched timeline window).
+    let viewerReviewRequestedAt: Date?
 }
 
 // MARK: - GraphQL response envelope
@@ -71,6 +75,17 @@ private struct PullRequestNode: Decodable {
     let viewerLatestReview: ViewerReviewNode?
     let reviewThreads: ReviewThreadsNode?
     let reviewRequests: ReviewRequestsNode?
+    let timelineItems: TimelineItemsNode?
+}
+
+private struct TimelineItemsNode: Decodable {
+    let nodes: [ReviewRequestedEventNode]?
+}
+
+/// A `ReviewRequestedEvent` — who was asked, and when.
+private struct ReviewRequestedEventNode: Decodable {
+    let createdAt: String?
+    let requestedReviewer: RequestedReviewerNode?
 }
 
 private struct ReviewRequestsNode: Decodable {
@@ -169,6 +184,9 @@ struct GraphQLClient {
           viewerLatestReview { state submittedAt commit { oid } }
           reviewThreads(first: 100) { nodes { isResolved comments(last: 100) { nodes { viewerDidAuthor createdAt } } } }
           reviewRequests(first: 100) { nodes { requestedReviewer { ... on User { isViewer } } } }
+          timelineItems(last: 100, itemTypes: [REVIEW_REQUESTED_EVENT]) {
+            nodes { ... on ReviewRequestedEvent { createdAt requestedReviewer { ... on User { isViewer } } } }
+          }
         }
       }
     }
@@ -259,7 +277,11 @@ struct GraphQLClient {
             headCommittedAt: parse(pull.commits?.nodes.first?.commit.committedDate),
             viewerReviewRequested: (pull.reviewRequests?.nodes ?? [])
                 .contains { $0.requestedReviewer?.isViewer == true },
-            viewerDidAuthor: didAuthor
+            viewerDidAuthor: didAuthor,
+            viewerReviewRequestedAt: (pull.timelineItems?.nodes ?? [])
+                .filter { $0.requestedReviewer?.isViewer == true }
+                .compactMap { parse($0.createdAt) }
+                .max()
         )
     }
 }
