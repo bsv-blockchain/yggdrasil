@@ -119,6 +119,48 @@ final class GraphQLClientTests: XCTestCase {
         XCTAssertEqual(detail.unresolvedThreadsAwaitingViewer, 1)
     }
 
+    func testPRDetailDecodesViewerReviewRequest() async throws {
+        // An open review request for the viewer — what a re-requested review
+        // creates — is the authoritative "your move" signal.
+        let json = """
+        { "data": { "repository": { "pullRequest": {
+          "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": "CHANGES_REQUESTED",
+          "commits": { "totalCount": 1, "nodes": [{ "commit": { "oid": "h", "statusCheckRollup": null } }] },
+          "comments": { "totalCount": 0 }, "reviews": { "totalCount": 0, "nodes": [] },
+          "reviewRequests": { "nodes": [
+            { "requestedReviewer": { "login": "someone", "isViewer": false } },
+            { "requestedReviewer": { "login": "me", "isViewer": true } },
+            { "requestedReviewer": {} }
+          ] }
+        }}}}
+        """
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data(json.utf8), etag: nil, rateLimitRemaining: 4999)
+        ])
+        let detail = try await GraphQLClient(http: http).prDetail(owner: "o", repo: "r", number: 1)
+        XCTAssertTrue(detail.viewerReviewRequested)
+    }
+
+    func testPRDetailWithoutViewerReviewRequestIsFalse() async throws {
+        // Only other people (and a team, which has no isViewer) are requested.
+        let json = """
+        { "data": { "repository": { "pullRequest": {
+          "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": null,
+          "commits": { "totalCount": 1, "nodes": [{ "commit": { "oid": "h", "statusCheckRollup": null } }] },
+          "comments": { "totalCount": 0 }, "reviews": { "totalCount": 0, "nodes": [] },
+          "reviewRequests": { "nodes": [
+            { "requestedReviewer": { "login": "someone", "isViewer": false } },
+            { "requestedReviewer": { "name": "some-team" } }
+          ] }
+        }}}}
+        """
+        let http = CannedHTTPClient(responses: [
+            HTTPResult(status: 200, body: Data(json.utf8), etag: nil, rateLimitRemaining: 4999)
+        ])
+        let detail = try await GraphQLClient(http: http).prDetail(owner: "o", repo: "r", number: 1)
+        XCTAssertFalse(detail.viewerReviewRequested)
+    }
+
     func testPRDetailComputesEngagementAndHeadCommitDates() async throws {
         // The 1176 shape: I requested changes, the author pushed, then I
         // commented after the push. viewerLastEngagementAt = my latest activity
@@ -164,6 +206,7 @@ final class GraphQLClientTests: XCTestCase {
         XCTAssertNil(detail.viewerLatestReviewState)
         XCTAssertNil(detail.viewerReviewedHeadSHA)
         XCTAssertEqual(detail.unresolvedThreadsAwaitingViewer, 0)
+        XCTAssertFalse(detail.viewerReviewRequested)
     }
 
     func testPostsToGraphQLEndpointWithVariables() async throws {

@@ -39,6 +39,11 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
     var viewerLastEngagementAt: Date?
     var headCommittedAt: Date?
 
+    /// v11 — GitHub's own "awaiting requested review from you": an open review
+    /// request for the viewer. Set by a first request or a re-request after the
+    /// author pushed fixes; GitHub clears it once the viewer submits a review.
+    var viewerReviewRequested: Bool = false
+
     enum CodingKeys: String, CodingKey {
         case taskID = "task_id"
         case ciState = "ci_state"
@@ -60,6 +65,7 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
         case unresolvedThreadsAwaitingViewer = "unresolved_threads_awaiting_viewer"
         case viewerLastEngagementAt = "viewer_last_engagement_at"
         case headCommittedAt = "head_committed_at"
+        case viewerReviewRequested = "viewer_review_requested"
     }
 
     // MARK: - Activity since last opened (pure)
@@ -103,14 +109,16 @@ struct GitHubStatus: Codable, FetchableRecord, PersistableRecord, Equatable {
     }
 
     /// Whether there's an outstanding review action *directed at the viewer*:
-    /// the author pushed a commit after the viewer last engaged (re-review), or
-    /// an unresolved thread the viewer is part of has a reply after theirs. A
-    /// never-engaged PR, one the viewer has engaged with since the last push,
-    /// bot threads, and threads the viewer never joined are all NOT outstanding.
-    /// Drives the amber REVIEW pill — derived purely from GitHub, so the viewer's
-    /// own activity never turns it amber and opening the tab does not clear it.
+    /// GitHub has an open review request for them (a first request, or one
+    /// re-requested after the author pushed fixes), the author pushed a commit
+    /// after the viewer last engaged, or an unresolved thread the viewer is part
+    /// of has a reply after theirs. With no open request: a PR the viewer has
+    /// engaged with since the last push, bot threads, and threads the viewer
+    /// never joined are NOT outstanding. Drives the amber REVIEW pill — derived
+    /// purely from GitHub, so the viewer's own activity never turns it amber and
+    /// opening the tab does not clear it.
     var reviewActionOutstanding: Bool {
-        commitsAfterEngagement || unresolvedThreadsAwaitingViewer > 0
+        viewerReviewRequested || commitsAfterEngagement || unresolvedThreadsAwaitingViewer > 0
     }
 
     /// The viewer has approved the current head (their approval isn't stale from

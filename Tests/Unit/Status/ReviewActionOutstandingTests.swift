@@ -16,7 +16,8 @@ final class ReviewActionOutstandingTests: XCTestCase {
         head: String? = "abc",
         engagedAt: Date? = nil,
         headCommittedAt: Date? = nil,
-        unresolvedAwaiting: Int = 0
+        unresolvedAwaiting: Int = 0,
+        reviewRequested: Bool = false
     ) -> GitHubStatus {
         GitHubStatus(
             taskID: 1, ciState: nil, ciURL: nil, mergeable: nil, mergeableState: nil,
@@ -28,7 +29,8 @@ final class ReviewActionOutstandingTests: XCTestCase {
             viewerReviewedHeadSHA: reviewedHead,
             unresolvedThreadsAwaitingViewer: unresolvedAwaiting,
             viewerLastEngagementAt: engagedAt,
-            headCommittedAt: headCommittedAt
+            headCommittedAt: headCommittedAt,
+            viewerReviewRequested: reviewRequested
         )
     }
 
@@ -50,6 +52,35 @@ final class ReviewActionOutstandingTests: XCTestCase {
         let s = status(engagedAt: at(100), headCommittedAt: at(0))
         XCTAssertFalse(s.commitsAfterEngagement)
         XCTAssertFalse(s.reviewActionOutstanding)
+    }
+
+    func testOpenReviewRequestIsOutstanding() {
+        // GitHub says "awaiting requested review from you" and I've never
+        // reviewed → my move, regardless of any timestamp heuristic.
+        let s = status(reviewRequested: true)
+        XCTAssertTrue(s.reviewActionOutstanding)
+    }
+
+    func testReRequestAfterMyEngagementIsOutstanding() {
+        // The reported case: I reviewed/commented, the author pushed fixes and
+        // re-requested review. My comment postdates the head commit, so the
+        // timestamp rule says nothing — the open request is what makes it mine.
+        let s = status(latestReview: "CHANGES_REQUESTED", reviewedHead: "old", head: "new",
+                       engagedAt: at(100), headCommittedAt: at(0), reviewRequested: true)
+        XCTAssertFalse(s.commitsAfterEngagement)
+        XCTAssertTrue(s.reviewActionOutstanding)
+    }
+
+    func testApprovedButReRequestedIsOutstanding() {
+        // Stale-but-current approval plus a fresh request → amber wins over green.
+        let s = status(latestReview: "APPROVED", reviewedHead: "abc", head: "abc",
+                       reviewRequested: true)
+        XCTAssertTrue(s.reviewApprovedByViewer)
+        XCTAssertTrue(s.reviewActionOutstanding)
+    }
+
+    func testNoOpenRequestAndNothingElseIsNotOutstanding() {
+        XCTAssertFalse(status(reviewRequested: false).reviewActionOutstanding)
     }
 
     func testThreadAwaitingIsOutstanding() {

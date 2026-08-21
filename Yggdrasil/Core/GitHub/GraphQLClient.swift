@@ -30,6 +30,11 @@ struct PRDetail: Equatable {
     let viewerLastEngagementAt: Date?
     /// Commit date of the current head. Compared against `viewerLastEngagementAt`.
     let headCommittedAt: Date?
+    /// GitHub has an open review request for the viewer ("awaiting requested
+    /// review from you") — set by a first request or a re-request after the
+    /// author pushed fixes, and cleared by GitHub once the viewer reviews.
+    /// Team-based requests don't count: `isViewer` only exists on a User.
+    let viewerReviewRequested: Bool
 }
 
 // MARK: - GraphQL response envelope
@@ -60,6 +65,21 @@ private struct PullRequestNode: Decodable {
     let reviews: ReviewsNode?
     let viewerLatestReview: ViewerReviewNode?
     let reviewThreads: ReviewThreadsNode?
+    let reviewRequests: ReviewRequestsNode?
+}
+
+private struct ReviewRequestsNode: Decodable {
+    let nodes: [ReviewRequestNode]?
+}
+
+private struct ReviewRequestNode: Decodable {
+    let requestedReviewer: RequestedReviewerNode?
+}
+
+/// A requested reviewer. `isViewer` is absent for Teams (and other non-User
+/// reviewers), which is why it's optional.
+private struct RequestedReviewerNode: Decodable {
+    let isViewer: Bool?
 }
 
 private struct ViewerReviewNode: Decodable {
@@ -142,6 +162,7 @@ struct GraphQLClient {
           reviews(first: 100) { totalCount nodes { comments { totalCount } } }
           viewerLatestReview { state submittedAt commit { oid } }
           reviewThreads(first: 100) { nodes { isResolved comments(last: 100) { nodes { viewerDidAuthor createdAt } } } }
+          reviewRequests(first: 100) { nodes { requestedReviewer { ... on User { isViewer } } } }
         }
       }
     }
@@ -227,7 +248,9 @@ struct GraphQLClient {
             viewerReviewedHeadSHA: pull.viewerLatestReview?.commit?.oid,
             unresolvedThreadsAwaitingViewer: unresolvedAwaitingViewer,
             viewerLastEngagementAt: engagementDates.max(),
-            headCommittedAt: parse(pull.commits?.nodes.first?.commit.committedDate)
+            headCommittedAt: parse(pull.commits?.nodes.first?.commit.committedDate),
+            viewerReviewRequested: (pull.reviewRequests?.nodes ?? [])
+                .contains { $0.requestedReviewer?.isViewer == true }
         )
     }
 }

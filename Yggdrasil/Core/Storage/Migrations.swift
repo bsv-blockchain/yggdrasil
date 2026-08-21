@@ -16,7 +16,21 @@ enum Migrations {
         migrator.registerMigration("v9", migrate: v9)
         migrator.registerMigration("v10", migrate: v10)
         migrator.registerMigration("v11", migrate: v11)
+        migrator.registerMigration("v12", migrate: v12)
         return migrator
+    }
+
+    // MARK: - v12 — Open review request for the viewer (REVIEW pill)
+
+    ///
+    /// The timestamp heuristic misses the case GitHub is most explicit about:
+    /// the author pushed fixes and re-requested review, but the viewer had
+    /// commented after the head commit landed, so nothing looked outstanding.
+    /// Store GitHub's own "awaiting requested review from you" bit.
+    private static func v12(_ db: Database) throws {
+        try db.alter(table: "github_status") { table in
+            table.add(column: "viewer_review_requested", .boolean).notNull().defaults(to: false)
+        }
     }
 
     // MARK: - v11 — Per-agent environment variables (issue #47)
