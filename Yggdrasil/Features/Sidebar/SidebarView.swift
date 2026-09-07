@@ -2,9 +2,9 @@ import SwiftUI
 
 // swiftlint:disable type_body_length file_length
 /// Sidebar — redesigned per `Yggdrasil.html`:
-/// - Header: blue gradient Yggdrasil mark + workspace name + "N tabs · M active"
+/// - Header: blue gradient Yggdrasil mark + workspace name + "N tabs · M need you"
 /// - Search field with ⌘K hint chip
-/// - Filter pills (All / Active / PRs / Issues)
+/// - Filter pills (All / Needs me / PRs / Issues)
 /// - "+" button → NewTabSheet (Phase 4) — to be replaced by AgentPicker in P9 T7
 /// - Rich `TabRow` rows
 struct SidebarView: View {
@@ -27,7 +27,7 @@ struct SidebarView: View {
 
     enum Filter: String, CaseIterable, Identifiable {
         case all = "All"
-        case active = "Active"
+        case needsMe = "Needs me"
         case prs = "PRs"
         case issues = "Issues"
         var id: String {
@@ -51,12 +51,8 @@ struct SidebarView: View {
         let bySearch = tabsModel.filtered(by: debouncedQuery)
         switch activeFilter {
         case .all: return bySearch
-        case .active:
-            return bySearch.filter {
-                guard let id = $0.id else { return false }
-                let icon = services.tabStatus.status(forTabID: id).icon
-                return icon == .running || icon == .awaitingInput
-            }
+        case .needsMe:
+            return bySearch.filter(needsAttention)
         case .prs:
             return bySearch.filter { tab in
                 guard let id = tab.id, let task = tabsModel.tasksByTabID[id] else { return false }
@@ -148,13 +144,25 @@ struct SidebarView: View {
 
     private var workspaceSubtitle: String {
         let total = tabsModel.tabs.count
-        let active = tabsModel.tabs.filter { tab in
-            guard let id = tab.id else { return false }
-            let icon = services.tabStatus.status(forTabID: id).icon
-            return icon == .running || icon == .awaitingInput
-        }.count
         if total == 0 { return "no tabs" }
-        return "\(total) tab\(total == 1 ? "" : "s") · \(active) active"
+        let waiting = needsAttentionCount
+        let tabs = "\(total) tab\(total == 1 ? "" : "s")"
+        return waiting == 0 ? "\(tabs) · nothing waiting" : "\(tabs) · \(waiting) need you"
+    }
+
+    /// True when the row is waiting on the user. Reads the same live status the
+    /// row renders, so the filter and the amber pills can never disagree.
+    private func needsAttention(_ tab: YggdrasilTab) -> Bool {
+        guard let id = tab.id else { return false }
+        return TabRowViewModel.needsAttention(
+            branchName: tab.branchName, status: services.tabStatus.status(forTabID: id)
+        )
+    }
+
+    /// How many tabs are waiting on the user — shown on the "Needs me" pill so
+    /// the count is visible without selecting the filter first.
+    private var needsAttentionCount: Int {
+        tabsModel.tabs.filter(needsAttention).count
     }
 
     // MARK: - Search + filters
@@ -194,13 +202,19 @@ struct SidebarView: View {
         .padding(.horizontal, 12)
     }
 
+    /// "Needs me" carries its count; the other pills are just their name.
+    private func pillLabel(_ filter: Filter) -> String {
+        guard filter == .needsMe, needsAttentionCount > 0 else { return filter.rawValue }
+        return "\(filter.rawValue) \(needsAttentionCount)"
+    }
+
     private var filterPills: some View {
         HStack(spacing: 4) {
             ForEach(Filter.allCases) { filter in
                 Button {
                     activeFilter = filter
                 } label: {
-                    Text(filter.rawValue)
+                    Text(pillLabel(filter))
                         .font(.system(size: 11, weight: activeFilter == filter ? .semibold : .medium))
                         .foregroundStyle(
                             activeFilter == filter ? YggdrasilTheme.text(scheme) : YggdrasilTheme.textMute(scheme)
@@ -478,10 +492,14 @@ struct SidebarView: View {
 
     private var noMatchesState: some View {
         VStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
+            Image(systemName: activeFilter == .needsMe && debouncedQuery.isEmpty
+                ? "checkmark.circle"
+                : "magnifyingglass")
                 .font(.system(size: 24))
                 .foregroundStyle(YggdrasilTheme.textFaint(scheme))
-            Text("No matches")
+            Text(activeFilter == .needsMe && debouncedQuery.isEmpty
+                ? "Nothing waiting on you"
+                : "No matches")
                 .font(.callout)
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
         }
