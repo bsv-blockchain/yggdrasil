@@ -124,6 +124,27 @@ struct TabRowViewModel: Equatable {
         reviewDot = ReviewDot(reviewState: liveStatus?.reviewState)
     }
 
+    /// True when this row is waiting on the user — the predicate behind the
+    /// sidebar's "Needs me" filter. Deliberately mirrors what the row renders:
+    /// an amber REVIEW/REPLY pill (both of which are gated on the branch kind),
+    /// a Claude session stopped for input or errored, or red CI on a PR the
+    /// viewer wrote. Informational signals — unread comments, a dirty worktree,
+    /// a working agent — never qualify; include them and the filter matches
+    /// every tab.
+    static func needsAttention(branchName: String, status: TabStatus?) -> Bool {
+        guard let status else { return false }
+        if NewTabSheet.isReviewBranch(branchName) {
+            if status.reviewActivity { return true }
+        } else if status.threadsAwaitingReply > 0 {
+            return true
+        }
+        switch status.icon {
+        case .awaitingInput, .errored: return true
+        case .ciFailing: return status.viewerDidAuthorPR
+        default: return false
+        }
+    }
+
     /// Map the aggregator's icon onto the row's enum. Returns nil to mean
     /// "use the default" so callers can fall back to .idle when liveStatus is nil.
     private static func mapIcon(_ icon: TabStatus.Icon?) -> StatusIcon? {

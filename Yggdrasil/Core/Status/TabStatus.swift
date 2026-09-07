@@ -20,11 +20,14 @@ struct GitHubAggregate: Equatable {
     /// Unresolved review threads awaiting the viewer's reply on a PR they wrote.
     /// Drives the amber REPLY pill; 0 on PRs they didn't write.
     let threadsAwaitingReply: Int
+    /// The viewer wrote the linked PR. Gates signals that are only their move on
+    /// their own PR — red CI is the author's problem, not the reviewer's.
+    let viewerDidAuthorPR: Bool
 
     init(
         ciState: String?, reviewState: String? = nil, unread: Int,
         newCommits: Int = 0, hasActivity: Bool = false, reviewApproved: Bool = false,
-        threadsAwaitingReply: Int = 0
+        threadsAwaitingReply: Int = 0, viewerDidAuthorPR: Bool = false
     ) {
         self.ciState = ciState
         self.reviewState = reviewState
@@ -33,6 +36,7 @@ struct GitHubAggregate: Equatable {
         self.hasActivity = hasActivity
         self.reviewApproved = reviewApproved
         self.threadsAwaitingReply = threadsAwaitingReply
+        self.viewerDidAuthorPR = viewerDidAuthorPR
     }
 }
 
@@ -64,11 +68,14 @@ struct TabStatus: Equatable {
     /// Unresolved threads awaiting the viewer's reply on a PR they wrote —
     /// drives the amber REPLY pill on authored-PR tabs.
     let threadsAwaitingReply: Int
+    /// The viewer wrote the linked PR — gates the author-only signals.
+    let viewerDidAuthorPR: Bool
 
     init(
         icon: Icon, showsUnreadBadgeDot: Bool, tooltipLines: [String],
         reviewState: String? = nil, reviewActivity: Bool = false, newCommits: Int = 0,
-        reviewApproved: Bool = false, threadsAwaitingReply: Int = 0
+        reviewApproved: Bool = false, threadsAwaitingReply: Int = 0,
+        viewerDidAuthorPR: Bool = false
     ) {
         self.icon = icon
         self.showsUnreadBadgeDot = showsUnreadBadgeDot
@@ -78,6 +85,7 @@ struct TabStatus: Equatable {
         self.newCommits = newCommits
         self.reviewApproved = reviewApproved
         self.threadsAwaitingReply = threadsAwaitingReply
+        self.viewerDidAuthorPR = viewerDidAuthorPR
     }
 
     static func aggregate(
@@ -94,7 +102,8 @@ struct TabStatus: Equatable {
             reviewActivity: github.hasActivity,
             newCommits: github.newCommits,
             reviewApproved: github.reviewApproved,
-            threadsAwaitingReply: github.threadsAwaitingReply
+            threadsAwaitingReply: github.threadsAwaitingReply,
+            viewerDidAuthorPR: github.viewerDidAuthorPR
         )
     }
 

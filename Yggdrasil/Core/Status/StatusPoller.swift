@@ -84,7 +84,8 @@ actor StatusPoller {
                     hasActivity: row.reviewActionOutstanding,
                     reviewApproved: row.reviewApprovedByViewer,
                     threadsAwaitingReply: row.authorReplyOutstanding
-                        ? row.unresolvedThreadsAwaitingViewer : 0
+                        ? row.unresolvedThreadsAwaitingViewer : 0,
+                    viewerDidAuthorPR: row.viewerDidAuthorPR
                 )
             }
         } catch {
