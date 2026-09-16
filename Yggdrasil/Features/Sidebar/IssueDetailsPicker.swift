@@ -24,7 +24,12 @@ struct IssueDetailsPicker: View {
     ]
     @State private var error: String?
     @State private var loading: Bool = false
-    @State private var openingIssueID: String?
+    /// Issues currently being opened. A set, not a single id, so setting one
+    /// up (worktree creation, possibly a fetch) doesn't freeze the others.
+    @State private var openingIssueIDs: Set<String> = []
+    @State private var agents: [CodingAgent] = []
+    /// nil until the user picks one, which means "use the default".
+    @State private var selectedAgentID: Int64?
     @State private var selection: Row.ID?
 
     /// Local-DB snapshot needed to compute linked-PR + repo metadata.
@@ -245,9 +250,10 @@ struct IssueDetailsPicker: View {
             if let id = selection,
                let row = rows.first(where: { $0.id == id }) {
                 if canOpen(row) {
+                    AgentChooser(agents: agents, selectedAgentID: $selectedAgentID, scheme: scheme)
                     Button("Open as Tab") { Task { await open(row) } }
                         .keyboardShortcut(.return, modifiers: [])
-                        .disabled(openingIssueID != nil)
+                        .disabled(openingIssueIDs.contains(row.id))
                 } else {
                     Text("Repo not tracked — add it in Preferences → Repos to open as a tab.")
                         .font(.callout)
@@ -298,6 +304,7 @@ struct IssueDetailsPicker: View {
         error = nil
         defer { loading = false }
         do {
+            agents = (try? services.agentStore.list()) ?? []
             // GitHub-side fetch — every assigned issue across the user's
             // entire GitHub account, not limited by our tracked-repo set.
             let raws = try await services.restClient.allAssignedIssues()
@@ -373,9 +380,10 @@ struct IssueDetailsPicker: View {
     /// Open as a tab — only works for tracked repos (we need a localMainPath
     /// to create a worktree). For others, the footer surfaces a hint.
     private func open(_ row: Row) async {
-        guard openingIssueID == nil else { return }
-        openingIssueID = row.id
-        defer { openingIssueID = nil }
+        // Only guards against double-firing the same issue; others stay live.
+        guard !openingIssueIDs.contains(row.id) else { return }
+        openingIssueIDs.insert(row.id)
+        defer { openingIssueIDs.remove(row.id) }
         do {
             let repos = try await services.database.queue.read { db in try Repo.fetchAll(db) }
             guard let repo = repos.first(where: { $0.owner == row.owner && $0.name == row.repoName }),
@@ -383,7 +391,11 @@ struct IssueDetailsPicker: View {
                 error = "\(row.repoFull) isn't tracked locally. Add it in Preferences → Repos."
                 return
             }
-            guard let agent = try (services.agentStore.getDefault() ?? services.agentStore.list().first) else {
+            guard let agent = try AgentChooser.resolveAgent(
+                selectedID: selectedAgentID,
+                agents: agents,
+                defaultAgent: services.agentStore.getDefault()
+            ) else {
                 error = "No coding agent configured."
                 return
             }
@@ -419,7 +431,9 @@ struct IssueDetailsPicker: View {
                 )
             }
             services.triggerSyncNow()
-            dismiss()
+            // No `dismiss()` — same reasoning as AssignedTaskPicker: opening
+            // one issue usually means opening several, and a window that
+            // closes itself has to be reopened for each one.
         } catch {
             self.error = String(describing: error)
         }
@@ -459,42 +473,3 @@ struct IssueDetailsPicker: View {
 }
 
 // swiftlint:enable type_body_length
-
-/// Coloured chip for a single GitHub label. Background uses the label's hex
-/// color at low alpha so dark + light themes both read.
-struct LabelChip: View {
-    let data: Data
-    let scheme: ColorScheme
-
-    struct Data: Hashable {
-        let name: String
-        let color: String
-    }
-
-    var body: some View {
-        Text(data.name)
-            .font(.system(size: 9.5, weight: .semibold))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .foregroundStyle(textColor)
-            .background(
-                Capsule().fill(parsedColor.opacity(0.22))
-            )
-            .overlay(
-                Capsule().stroke(parsedColor.opacity(0.45), lineWidth: 0.5)
-            )
-    }
-
-    private var parsedColor: Color {
-        var hex: UInt64 = 0
-        Scanner(string: data.color).scanHexInt64(&hex)
-        let red = Double((hex >> 16) & 0xFF) / 255.0
-        let green = Double((hex >> 8) & 0xFF) / 255.0
-        let blue = Double(hex & 0xFF) / 255.0
-        return Color(red: red, green: green, blue: blue)
-    }
-
-    private var textColor: Color {
-        scheme == .dark ? Color.white.opacity(0.9) : Color.black.opacity(0.75)
-    }
-}

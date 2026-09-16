@@ -83,7 +83,15 @@ struct AssignedTaskPicker: View {
     @State private var rows: [Row] = []
     @State private var search: String = ""
     @State private var error: String?
-    @State private var openingTaskID: Int64?
+    /// Tasks currently being opened. A set, not a single id: setting up a
+    /// worktree can take seconds (a PR head fetch on a large repo), and a
+    /// single-slot guard made every other row unclickable for that whole time.
+    /// `WorktreeManager` holds a per-repo flock, so concurrent opens queue at
+    /// the git level rather than racing.
+    @State private var openingTaskIDs: Set<Int64> = []
+    @State private var agents: [CodingAgent] = []
+    /// nil until the user picks one, which means "use the default".
+    @State private var selectedAgentID: Int64?
 
     /// One picker row. Bundles the task + its owning repo so the body view
     /// doesn't have to re-query per render.
@@ -160,9 +168,13 @@ struct AssignedTaskPicker: View {
                     emptyState
                 } else {
                     ForEach(filteredRows) { row in
-                        TaskRow(row: row, isOpening: openingTaskID == row.task.id, scheme: scheme)
-                            .contentShape(Rectangle())
-                            .onTapGesture { Task { await open(row) } }
+                        TaskRow(
+                            row: row,
+                            isOpening: openingTaskIDs.contains(row.task.id ?? 0),
+                            scheme: scheme
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture { Task { await open(row) } }
                         Divider().opacity(0.5)
                     }
                 }
@@ -203,6 +215,7 @@ struct AssignedTaskPicker: View {
                     .accessibilityIdentifier("assignedpicker.error")
             }
             Spacer()
+            AgentChooser(agents: agents, selectedAgentID: $selectedAgentID, scheme: scheme)
             Button("Close") { dismiss() }
                 .keyboardShortcut(.cancelAction)
         }
@@ -222,6 +235,7 @@ struct AssignedTaskPicker: View {
 
     private func reload() {
         do {
+            agents = try services.agentStore.list()
             rows = try services.database.queue.read { db -> [Row] in
                 // Tasks not currently shadowed by any tab — as a tab's primary
                 // task OR as an issue tab's linked PR (pr_task_id), so a PR
@@ -287,17 +301,21 @@ struct AssignedTaskPicker: View {
     }
 
     private func open(_ row: Row) async {
-        guard openingTaskID == nil, let taskID = row.task.id else { return }
-        openingTaskID = taskID
+        // Only guards against double-firing the same row; other rows stay live.
+        guard let taskID = row.task.id, !openingTaskIDs.contains(taskID) else { return }
+        openingTaskIDs.insert(taskID)
         error = nil
-        defer { openingTaskID = nil }
+        defer { openingTaskIDs.remove(taskID) }
         do {
             guard row.repo.localMainPath != nil else {
                 error = "Repo \(row.repo.fullName) has no local clone. Set it in Preferences → Repos."
                 return
             }
-            guard let agent = try (services.agentStore.getDefault() ?? services.agentStore.list().first)
-            else {
+            guard let agent = try AgentChooser.resolveAgent(
+                selectedID: selectedAgentID,
+                agents: agents,
+                defaultAgent: services.agentStore.getDefault()
+            ) else {
                 error = "No coding agent configured."
                 return
             }
@@ -332,7 +350,13 @@ struct AssignedTaskPicker: View {
             // badges catch up immediately rather than waiting for the
             // next scheduled tick.
             services.triggerSyncNow()
-            dismiss()
+            // Deliberately no `dismiss()`. Opening one task usually means
+            // opening several — a window that closes itself after each row
+            // has to be reopened to start the next one. `reload()` drops the
+            // row we just opened (the query excludes tasks already shadowed
+            // by a tab), so the list shrinks as you work through it and the
+            // user closes the window when they're done.
+            reload()
         } catch {
             self.error = String(describing: error)
         }
