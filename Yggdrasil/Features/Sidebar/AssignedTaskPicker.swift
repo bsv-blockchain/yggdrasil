@@ -326,11 +326,18 @@ struct AssignedTaskPicker: View {
             let worktreeURL = try await services.worktreeManager.ensure(
                 repo: row.repo, branch: branch, baseRef: baseRef
             )
+            // Re-resolve the task id inside the write: the row this picker
+            // snapshotted may have been pruned since (closing a tab unprotects
+            // its task, and the sync that fires on close then deletes it),
+            // which made this insert fail the foreign key outright.
+            let liveTaskID = try await services.database.queue.write { db in
+                try TaskSyncWrites.resolveOrReviveTask(db: db, snapshot: row.task)
+            }
             let newTab = try services.tabStore.insert(
                 branchName: branch,
                 worktreePath: worktreeURL.path,
                 agentID: agent.id,
-                taskID: taskID
+                taskID: liveTaskID
             )
             services.tabs.reload()
             if let tabID = newTab.id {
