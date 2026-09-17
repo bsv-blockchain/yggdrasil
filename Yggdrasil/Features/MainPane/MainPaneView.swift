@@ -126,7 +126,10 @@ struct MainPaneView: View {
                 )
 
                 if services.sessions.exitedTabs[session.id] != nil {
-                    TerminalExitBanner(scheme: scheme)
+                    TerminalExitBanner(
+                        agentLabel: services.tabs.agentIdentity(for: selectedTab).label,
+                        scheme: scheme
+                    )
                 }
             }
         } else {
@@ -499,13 +502,16 @@ struct PaneHeader: View {
 // MARK: - TerminalExitBanner
 
 struct TerminalExitBanner: View {
+    /// Name of the agent that was running — "Claude" was hardcoded here and
+    /// showed on Codex tabs too.
+    let agentLabel: String
     let scheme: ColorScheme
 
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: "info.circle")
                 .font(.system(size: 11))
-            Text("Session ended. Right-click the Claude tab to resume your session or open a shell.")
+            Text("Session ended. Right-click the \(agentLabel) tab to resume your session or open a shell.")
                 .font(.system(size: 11))
         }
         .foregroundStyle(YggdrasilTheme.textDim(scheme))

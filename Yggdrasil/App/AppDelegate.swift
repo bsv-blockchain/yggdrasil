@@ -65,10 +65,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
 
         // Rewrites Shift+Enter to ESC+CR so Claude Code and similar agents
-        // see "insert newline" instead of "submit". This is the only PTY-
-        // input interceptor we keep — scroll-wheel + selection now work
-        // natively via SwiftTerm since we dropped tmux mouse-mode.
-        TerminalKeyInterceptor.install()
+        // see "insert newline" instead of "submit", and routes Option+Up/Down
+        // either to the terminal or to the sidebar depending on focus. The
+        // delegate is handed over so the sidebar branch can reach the services.
+        // This is the only PTY-input interceptor we keep — scroll-wheel +
+        // selection now work natively via SwiftTerm since we dropped tmux
+        // mouse-mode.
+        TerminalKeyInterceptor.install(appDelegate: self)
 
         // Install the AppKit "Coding" menu after the main menu bar is built.
         // SwiftUI sets up the bar during its own scene init; defer one tick

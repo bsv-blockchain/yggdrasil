@@ -11,6 +11,16 @@ import SwiftUI
 ///   the shifted glyph "{" / "}" — and on any layout where those need Option
 ///   (Icelandic, German, Nordic) no keystroke ever produces them with a bare
 ///   ⌘⇧ mask, leaving the menu advertising a shortcut that cannot fire.
+///
+///   These two key equivalents are **display only**: `TerminalKeyInterceptor`
+///   claims ⌥↑/⌥↓ from a local `NSEvent` monitor, which runs before
+///   `NSApplication.sendEvent` offers the event to the main menu, and decides
+///   by focus — a focused terminal gets the escape sequence, anything else
+///   steps the selection here. A menu key equivalent cannot express that, and
+///   would not match anyway: AppKit compares the full device-independent
+///   modifier set, and an arrow event carries `.function` and `.numericPad`
+///   the user never pressed. Keep the `.keyboardShortcut` calls so the menu
+///   still shows what the keys do; don't rely on them to fire.
 /// - ⌘⇧W — close the selected tab (with confirm). Not ⌘W: `WindowGroup`
 ///   installs File ▸ Close on ⌘W, AppKit walks the main menu in order, and
 ///   File precedes View — so ⌘W closes the window and never reaches here.
