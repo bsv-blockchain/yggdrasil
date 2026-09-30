@@ -20,7 +20,12 @@ struct RepoPrefsPane: View {
 
             HStack(spacing: 8) {
                 List(selection: $selectedID) {
-                    ForEach(repos, id: \.id) { repo in
+                    // Iterating PersistedRow, not `repos` directly: both of
+                    // List's selection channels — the ForEach element identity
+                    // and the `.tag` value — must be the selection's wrapped
+                    // type. The records' own `Int64?` id breaks both.
+                    ForEach(PersistedRow.rows(from: repos, by: \.id)) { row in
+                        let repo = row.value
                         VStack(alignment: .leading, spacing: 1) {
                             Text(repo.fullName).font(.system(size: 12, weight: .semibold))
                             Text(repo.localMainPath ?? "(no local path set)")
@@ -29,7 +34,7 @@ struct RepoPrefsPane: View {
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
-                        .tag(repo.id)
+                        .tag(row.id)
                     }
                 }
                 .frame(minWidth: 280)

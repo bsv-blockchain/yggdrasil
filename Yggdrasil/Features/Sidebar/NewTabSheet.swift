@@ -90,6 +90,11 @@ struct NewTabSheet: View {
         HStack(spacing: 10) {
             Image(systemName: "folder")
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
+            // The optional tag is correct here and must stay optional: a
+            // Picker's `selection:` is a non-optional binding of its
+            // SelectionValue, so with `Int64?` state the SelectionValue *is*
+            // `Int64?`. This is the opposite of `List(selection:)`, which takes
+            // the wrapped type — don't "fix" this one to match the prefs panes.
             Picker("", selection: $selectedRepoID) {
                 ForEach(repos, id: \.id) { repo in
                     Text(repo.fullName).tag(repo.id)
