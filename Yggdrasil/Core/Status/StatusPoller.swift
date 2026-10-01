@@ -5,25 +5,46 @@ import GRDB
 /// reads the last-known GitHub status from the `github_status` table, and
 /// aggregates into a `TabStatus` that the sidebar row reads.
 ///
-/// Claude state detection is scaffolded but currently surfaces `.unknown` —
-/// JSONL discovery + tail is a follow-up.
+/// Tabs are probed in bounded-concurrency batches rather than one after
+/// another. A single git probe takes ~2.5s on a large repo, so a sequential
+/// sweep of 29 tabs ran for over a minute — and until a tab's turn came round
+/// it had no status at all, which is why the "Needs me" filter came up empty
+/// unless you waited.
 actor StatusPoller {
+    /// Enough to collapse the sweep (~73s to ~12s at 29 tabs) without putting
+    /// a git subprocess per tab on the machine at once.
+    private static let maxConcurrentProbes = 6
+
     private let database: YggdrasilDatabase
     private let probe: GitStateProbe
+    private let sessionProbe: AgentSessionProbe
     private let model: TabStatusModel
     private let tabsModel: TabsModel
     private var task: Task<Void, Never>?
+    /// A git probe that never returns would otherwise wedge the whole poller:
+    /// the batch waits for all its members and the loop waits for the batch.
+    private static let probeDeadline: Duration = .seconds(20)
+
+    /// Per-tab transcript cache, so an untouched session costs no file read.
+    /// Rebuilt each tick from the live tabs, which prunes closed ones.
+    private var sessionCaches: [Int64: AgentSessionProbe.Cache] = [:]
+    /// Last git state that actually succeeded, per tab. A failed probe reuses
+    /// it rather than publishing a fabricated clean tree, which would drop a
+    /// dirty tab's icon and flicker it back on the next tick.
+    private var lastGitStates: [Int64: GitState] = [:]
 
     init(
         database: YggdrasilDatabase,
         tabsModel: TabsModel,
         model: TabStatusModel,
-        probe: GitStateProbe = GitStateProbe()
+        probe: GitStateProbe = GitStateProbe(),
+        sessionProbe: AgentSessionProbe = AgentSessionProbe()
     ) {
         self.database = database
         self.tabsModel = tabsModel
         self.model = model
         self.probe = probe
+        self.sessionProbe = sessionProbe
     }
 
     func start(interval: Duration = .seconds(5)) {
@@ -41,33 +62,126 @@ actor StatusPoller {
         task = nil
     }
 
-    private func tick() async {
-        let tabs = await MainActor.run { tabsModel.tabs }
-        for tab in tabs {
-            guard let tabID = tab.id else { continue }
-            // Git side — cheap subprocess probe.
-            let gitState: GitState
-            do {
-                gitState = try await probe.probe(worktreePath: tab.worktreePath)
-            } catch {
-                YggdrasilLog.sync.warning(
-                    "StatusPoller git probe failed for tab \(tabID, privacy: .public): \(String(describing: error), privacy: .public)"
-                )
-                continue
-            }
-            // GitHub side — read the last-known row from github_status.
-            let github = readGitHubAggregate(tabID: tabID, taskID: tab.taskID)
-            // Claude side — TODO (Phase 6.5): JSONL tail.
-            let claude = ClaudeState.unknown
+    /// One result per tab, computed off the actor so the batch runs in
+    /// parallel.
+    private struct Probed {
+        let tabID: Int64
+        let status: TabStatus
+        let sessionCache: AgentSessionProbe.Cache?
+        /// Carried forward so the next tick can reuse it if git fails then.
+        let gitState: GitState?
+    }
 
-            let status = TabStatus.aggregate(claude: claude, git: gitState, github: github)
-            await MainActor.run {
-                model.set(status, forTabID: tabID)
+    private func tick() async {
+        let snapshot = await MainActor.run {
+            (tabs: tabsModel.tabs, agents: tabsModel.agentByTabID)
+        }
+        var freshCaches: [Int64: AgentSessionProbe.Cache] = [:]
+
+        var freshGitStates: [Int64: GitState] = [:]
+
+        for start in stride(from: 0, to: snapshot.tabs.count, by: Self.maxConcurrentProbes) {
+            // `stop()` cancels the outer task, but nothing below checks for it
+            // — without this an `AppServices.reload()` leaves the old sweep
+            // running beside the new one, doubling the git processes and
+            // letting the two interleaved ticks clobber each other's caches.
+            if Task.isCancelled { return }
+            let batch = snapshot.tabs[start ..< min(start + Self.maxConcurrentProbes, snapshot.tabs.count)]
+            let probed = await withTaskGroup(of: Probed?.self) { group in
+                for tab in batch {
+                    guard let tabID = tab.id else { continue }
+                    let agent = snapshot.agents[tabID] ?? .claude
+                    let previous = sessionCaches[tabID]
+                    let lastGit = lastGitStates[tabID]
+                    group.addTask { [self] in
+                        await probeTab(
+                            tab: tab, tabID: tabID, agent: agent,
+                            previousSession: previous, lastGitState: lastGit
+                        )
+                    }
+                }
+                var results: [Probed] = []
+                for await result in group {
+                    if let result { results.append(result) }
+                }
+                return results
             }
+            for result in probed {
+                freshCaches[result.tabID] = result.sessionCache
+                freshGitStates[result.tabID] = result.gitState
+                await MainActor.run { model.set(result.status, forTabID: result.tabID) }
+            }
+        }
+        sessionCaches = freshCaches
+        lastGitStates = freshGitStates
+    }
+
+    /// `nonisolated` so a batch actually runs in parallel instead of queueing
+    /// on the actor.
+    private nonisolated func probeTab(
+        tab: YggdrasilTab,
+        tabID: Int64,
+        agent: AgentIdentity,
+        previousSession: AgentSessionProbe.Cache?,
+        lastGitState: GitState?
+    ) async -> Probed? {
+        // A failed probe used to `continue`, leaving the tab with no status at
+        // all — one transient failure hid it from the sidebar filters until a
+        // later sweep happened to succeed. Reuse the last state that worked
+        // instead; fabricating a clean tree would drop a dirty tab's icon and
+        // flicker it back, which is a different kind of wrong.
+        var gitState = lastGitState ?? GitState(dirty: false, remote: .noRemote)
+        var gitSucceeded = lastGitState != nil
+        do {
+            let gitProbe = probe
+            let path = tab.worktreePath
+            gitState = try await withDeadline(Self.probeDeadline) {
+                try await gitProbe.probe(worktreePath: path)
+            }
+            gitSucceeded = true
+        } catch {
+            YggdrasilLog.sync.warning(
+                "StatusPoller git probe failed for tab \(tabID, privacy: .public): \(String(describing: error), privacy: .public)"
+            )
+        }
+
+        let github = readGitHubAggregate(tabID: tabID, taskID: tab.taskID)
+        let (sample, cache) = sessionProbe.probe(
+            worktreePath: tab.worktreePath, agent: agent, previous: previousSession
+        )
+        let claude = ClaudeStateDetector.evaluate(activity: sample, now: Date())
+
+        return Probed(
+            tabID: tabID,
+            status: TabStatus.aggregate(claude: claude, git: gitState, github: github),
+            sessionCache: cache,
+            gitState: gitSucceeded ? gitState : nil
+        )
+    }
+
+    /// Run `work`, giving up after `deadline`. `ProcessRunner` has no timeout
+    /// and ignores cancellation, so a `git` that never exits would otherwise
+    /// hang this tab's probe — and with it the batch, the tick, and every
+    /// tab's status until the app restarts.
+    private nonisolated func withDeadline<T: Sendable>(
+        _ deadline: Duration,
+        _ work: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await work() }
+            group.addTask {
+                try await Task.sleep(for: deadline)
+                throw ProbeTimeout()
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next() else { throw ProbeTimeout() }
+            return first
         }
     }
 
-    private func readGitHubAggregate(tabID _: Int64, taskID: Int64?) -> GitHubAggregate {
+    private struct ProbeTimeout: Error {}
+
+    private nonisolated func readGitHubAggregate(tabID _: Int64, taskID: Int64?) -> GitHubAggregate {
         guard let taskID else {
             return GitHubAggregate(ciState: nil, unread: 0)
         }
