@@ -15,7 +15,9 @@ struct AgentPrefsPane: View {
 
             HStack(spacing: 8) {
                 List(selection: $selectedID) {
-                    ForEach(agents, id: \.id) { agent in
+                    // Non-optional row identity — see PersistedRow.
+                    ForEach(PersistedRow.rows(from: agents, by: \.id)) { row in
+                        let agent = row.value
                         HStack {
                             VStack(alignment: .leading) {
                                 Text(agent.name)
@@ -35,7 +37,7 @@ struct AgentPrefsPane: View {
                                     .clipShape(Capsule())
                             }
                         }
-                        .tag(agent.id)
+                        .tag(row.id)
                     }
                 }
                 .frame(minWidth: 280)
