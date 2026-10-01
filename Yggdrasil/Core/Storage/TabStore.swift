@@ -24,12 +24,16 @@ struct TabStore {
 
     /// Inserts a new tab at the end (position = max(position) + 1). Returns the
     /// row with its auto-assigned id and position.
+    /// `preparationState` defaults to `.ready` so every existing call site
+    /// keeps its behaviour; the task pickers pass `.pending` because they now
+    /// insert the tab before its worktree exists.
     @discardableResult
     func insert(
         branchName: String,
         worktreePath: String,
         agentID: Int64?,
-        taskID: Int64?
+        taskID: Int64?,
+        preparationState: YggdrasilTab.PreparationState = .ready
     ) throws -> YggdrasilTab {
         try database.queue.write { db in
             let maxPosition = try Int.fetchOne(
@@ -40,10 +44,55 @@ struct TabStore {
                 id: nil, taskID: taskID, codingAgentID: agentID,
                 position: maxPosition + 1,
                 branchName: branchName, worktreePath: worktreePath,
-                lastMainView: .agent, createdAt: now, lastActiveAt: now
+                lastMainView: .agent, createdAt: now, lastActiveAt: now,
+                preparationState: preparationState
             )
             try tab.insert(db)
             return tab
+        }
+    }
+
+    /// Record how far the background worktree preparation has got. Clearing
+    /// the error on every transition keeps a stale failure from outliving a
+    /// successful retry.
+    func setPreparation(
+        id: Int64,
+        state: YggdrasilTab.PreparationState,
+        error: String? = nil
+    ) throws {
+        try database.queue.write { db in
+            try db.execute(
+                sql: "UPDATE tab SET preparation_state = ?, preparation_error = ? WHERE id = ?",
+                arguments: [state.rawValue, error, id]
+            )
+        }
+    }
+
+    /// The real path, once git has produced it. The predicted path is usually
+    /// right, but `WorktreeManager` can hand back a pre-existing worktree on a
+    /// legacy layout, which lives somewhere else.
+    func setWorktreePath(id: Int64, path: String) throws {
+        try database.queue.write { db in
+            try db.execute(
+                sql: "UPDATE tab SET worktree_path = ? WHERE id = ?",
+                arguments: [path, id]
+            )
+        }
+    }
+
+    /// Rows left mid-preparation by a quit or crash. Nothing resumes them on
+    /// the next launch, so without this they keep a "preparing" chip forever,
+    /// never spawn an agent, and — since Retry only offers itself for failures
+    /// — give the user no way out at all.
+    func reconcileInterruptedPreparations() throws {
+        try database.queue.write { db in
+            try db.execute(
+                sql: """
+                UPDATE tab SET preparation_state = 'failed',
+                               preparation_error = 'Interrupted before the worktree was ready'
+                WHERE preparation_state IN ('pending', 'preparing')
+                """
+            )
         }
     }
 

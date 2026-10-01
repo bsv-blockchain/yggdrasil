@@ -27,6 +27,8 @@ final class AppServices {
     let webViewPool: WebViewPool
     let tabStatus = TabStatusModel()
     let statusPoller: StatusPoller
+    /// Builds worktrees off the click, one at a time per repo.
+    let worktreePreparer: WorktreePreparer
     let diffEngine = DiffEngine()
     /// Snapshot of the live intervals. Mutated by `applyIntervals(_:)`.
     private(set) var intervals: IntervalSettings
@@ -65,6 +67,37 @@ final class AppServices {
         self.statusPoller = StatusPoller(
             database: database, tabsModel: tabsModel, model: tabStatus
         )
+
+        // Built last: it captures the store and models above. Progress is
+        // written straight to the tab row, so a preparation that finishes (or
+        // fails) while you're looking elsewhere still lands.
+        let manager = worktreeManager
+        worktreePreparer = WorktreePreparer(
+            prepare: { repo, branch, baseRef in
+                try await manager.ensure(repo: repo, branch: branch, baseRef: baseRef).path
+            },
+            record: { event in
+                switch event {
+                case let .state(tabID, state, error):
+                    try? tabStore.setPreparation(id: tabID, state: state, error: error)
+                    // Only the terminal states redraw. `reload()` is a blocking
+                    // MainActor read — tab list, repo resolution, lazy task
+                    // links, counts, agent identities — so firing it on every
+                    // event meant three full reloads per tab opened.
+                    if state == .ready || state == .failed {
+                        Task { @MainActor in tabsModel.reload() }
+                    }
+                case let .path(tabID, path):
+                    try? tabStore.setWorktreePath(id: tabID, path: path)
+                }
+            }
+        )
+
+        // Anything left mid-preparation by the last quit can never finish, and
+        // Retry is only offered for failures — so mark them failed at launch
+        // rather than leaving a permanently "preparing" row with no way out.
+        try? tabStore.reconcileInterruptedPreparations()
+        tabsModel.reload()
 
         // Hold a local reference so the closure can capture without going through `self`.
         // Each scheduler tick retries the sync with exponential backoff on failure

@@ -199,6 +199,11 @@ enum SidebarActions {
         // Drop the mute with the tab; a key left behind would silently muffle
         // a future tab that reused the id.
         AttentionDismissal.restore(tabID: id)
+        // Call off any queued preparation first: otherwise closing a tab you
+        // just opened still creates the worktree and branch afterwards, with
+        // nothing referencing them — and for "Remove Tab + Worktree" it
+        // recreates exactly what the user asked to delete.
+        Task { await services.worktreePreparer.cancel(tabID: id) }
 
         do {
             try services.tabStore.delete(id: id)
@@ -249,6 +254,29 @@ enum SidebarActions {
     static func restoreAttention(tabID: Int64, services: AppServices) {
         AttentionDismissal.restore(tabID: tabID)
         services.tabs.reload()
+    }
+
+    /// Re-run a worktree preparation that failed. Without this a failed tab is
+    /// a dead end — the error is on the row, but the only way out would be to
+    /// close it and start again.
+    @MainActor
+    static func retryPreparation(tab: YggdrasilTab, services: AppServices) {
+        guard let tabID = tab.id else { return }
+        guard let repo = services.tabs.repoByTabID[tabID] else {
+            presentInfo(title: "Can't prepare this tab",
+                        text: "This tab isn't inside a tracked repository.")
+            return
+        }
+        let baseRef: String? = services.tabs.tasksByTabID[tabID].flatMap { task in
+            task.type == .pullRequest ? "refs/pull/\(task.number)/head" : nil
+        }
+        try? services.tabStore.setPreparation(id: tabID, state: .pending, error: nil)
+        services.tabs.reload()
+        Task {
+            await services.worktreePreparer.enqueue(
+                tabID: tabID, repo: repo, branch: tab.branchName, baseRef: baseRef
+            )
+        }
     }
 
     /// Clear a tab's PR link. On an issue tab carrying a linked PR, this drops

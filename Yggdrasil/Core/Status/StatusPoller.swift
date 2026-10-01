@@ -100,6 +100,10 @@ actor StatusPoller {
             let probed = await withTaskGroup(of: Probed?.self) { group in
                 for tab in batch {
                     guard let tabID = tab.id else { continue }
+                    // Its worktree doesn't exist yet — probing it is a
+                    // guaranteed subprocess failure and a warning line, per
+                    // tab per tick.
+                    guard tab.isReady else { continue }
                     let agent = snapshot.agents[tabID] ?? .claude
                     let previous = sessionCaches[tabID]
                     let lastGit = lastGitStates[tabID]

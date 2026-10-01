@@ -79,6 +79,10 @@ struct TabRowViewModel: Equatable {
     let liveStatus: TabStatus?
     /// The user muted this tab's amber and nothing has changed since.
     let isAttentionDismissed: Bool
+    /// How far the tab's worktree has got. Tabs are inserted the instant you
+    /// click, so a brand-new row exists before its worktree does.
+    let preparationState: YggdrasilTab.PreparationState
+    let preparationError: String?
 
     /// `task == nil` for ad-hoc tabs that don't shadow a GitHub issue/PR.
     init(
@@ -112,6 +116,8 @@ struct TabRowViewModel: Equatable {
             secondaryBadge = .none
         }
         branchLine = tab.branchName
+        preparationState = tab.preparationState
+        preparationError = tab.preparationError
         worktreeLine = TabRowViewModel.midEllipsis(tab.worktreePath, max: maxWorktreeChars)
         self.liveStatus = liveStatus
         statusIcon = Self.mapIcon(liveStatus?.icon) ?? .idle

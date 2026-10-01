@@ -68,7 +68,9 @@ struct TabRow: View {
 
                 StatusChipRow(
                     status: model.liveStatus, agent: agent,
-                    isMuted: model.isAttentionDismissed
+                    isMuted: model.isAttentionDismissed,
+                    preparation: model.preparationState,
+                    preparationError: model.preparationError
                 )
                 .padding(.top, 2)
             }
@@ -240,11 +242,15 @@ struct StatusChipRow: View {
     /// Muted tabs say so: the mute can lapse on its own, so without this a
     /// muted tab is pixel-identical to one with nothing going on.
     var isMuted: Bool = false
+    /// Defaults to ready so the previews and any other caller are unaffected.
+    var preparation: YggdrasilTab.PreparationState = .ready
+    var preparationError: String?
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(Array(chips.enumerated()), id: \.offset) { _, chip in
                 StatusChip(chip: chip)
+                    .help(chip.help ?? "")
             }
             if chips.isEmpty {
                 StatusChip(chip: .init(symbol: nil, text: "no activity", tone: .neutral))
@@ -253,6 +259,23 @@ struct StatusChipRow: View {
     }
 
     private var chips: [StatusChip.Data] {
+        // A tab exists from the moment you click; its worktree lands later.
+        // Say so rather than showing a working session that isn't one yet.
+        switch preparation {
+        case .pending:
+            return [.init(symbol: "clock", text: "queued", tone: .neutral)]
+        case .preparing:
+            return [.init(symbol: "arrow.down.circle", text: "preparing", tone: .info)]
+        case .failed:
+            return [.init(
+                symbol: "exclamationmark.triangle.fill",
+                text: "setup failed",
+                tone: .err,
+                help: preparationError
+            )]
+        case .ready:
+            break
+        }
         guard let status else { return [] }
         var out: [StatusChip.Data] = []
         if isMuted {
@@ -334,6 +357,9 @@ struct StatusChip: View {
         let symbol: String?
         let text: String
         let tone: Tone
+        /// Hover text. The setup-failure chip uses it to carry git's message,
+        /// which otherwise gets written to the row and never shown anywhere.
+        var help: String?
     }
 
     let chip: Data

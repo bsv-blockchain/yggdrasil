@@ -48,6 +48,10 @@ struct MainPaneView: View {
             ensureSessionForSelectedTab()
             autoResumeIfExited()
         }
+        // Preparation finishing is what makes a freshly-opened tab spawnable.
+        .onChange(of: selectedTab.preparationState) { _, _ in
+            ensureSessionForSelectedTab()
+        }
         .onChange(of: layout) { _, newValue in
             newValue.persist(for: selectedTab)
             persistPrimary(newValue.primarySegment)
@@ -156,6 +160,11 @@ struct MainPaneView: View {
 
     private func ensureSessionForSelectedTab() {
         guard let tabID = selectedTab.id else { return }
+        // The worktree may not exist yet — tabs are inserted on the click and
+        // prepared in the background. Spawning into a directory that isn't
+        // there yet drops the agent straight into a shell error. The
+        // `preparationState` change reloads the tab, which runs this again.
+        guard selectedTab.isReady else { return }
         if services.sessions.sessions.contains(where: { $0.id == tabID }) { return }
         guard let agentID = selectedTab.codingAgentID else {
             YggdrasilLog.ui.info("Tab \(tabID, privacy: .public) has no coding_agent_id; cannot auto-spawn")
