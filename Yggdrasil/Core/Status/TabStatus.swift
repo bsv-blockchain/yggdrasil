@@ -70,12 +70,16 @@ struct TabStatus: Equatable {
     let threadsAwaitingReply: Int
     /// The viewer wrote the linked PR — gates the author-only signals.
     let viewerDidAuthorPR: Bool
+    /// Fingerprint of why this tab wants attention. Dismissing amber stores it;
+    /// the dismissal lapses as soon as this changes.
+    let attentionSignature: String
 
     init(
         icon: Icon, showsUnreadBadgeDot: Bool, tooltipLines: [String],
         reviewState: String? = nil, reviewActivity: Bool = false, newCommits: Int = 0,
         reviewApproved: Bool = false, threadsAwaitingReply: Int = 0,
-        viewerDidAuthorPR: Bool = false
+        viewerDidAuthorPR: Bool = false,
+        attentionSignature: String = ""
     ) {
         self.icon = icon
         self.showsUnreadBadgeDot = showsUnreadBadgeDot
@@ -86,12 +90,14 @@ struct TabStatus: Equatable {
         self.reviewApproved = reviewApproved
         self.threadsAwaitingReply = threadsAwaitingReply
         self.viewerDidAuthorPR = viewerDidAuthorPR
+        self.attentionSignature = attentionSignature
     }
 
     static func aggregate(
         claude: ClaudeState,
         git: GitState,
-        github: GitHubAggregate
+        github: GitHubAggregate,
+        attentionSignature: String = ""
     ) -> TabStatus {
         let icon = pickIcon(claude: claude, git: git, github: github)
         return TabStatus(
@@ -103,7 +109,8 @@ struct TabStatus: Equatable {
             newCommits: github.newCommits,
             reviewApproved: github.reviewApproved,
             threadsAwaitingReply: github.threadsAwaitingReply,
-            viewerDidAuthorPR: github.viewerDidAuthorPR
+            viewerDidAuthorPR: github.viewerDidAuthorPR,
+            attentionSignature: attentionSignature
         )
     }
 
