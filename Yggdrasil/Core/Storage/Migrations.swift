@@ -19,7 +19,27 @@ enum Migrations {
         migrator.registerMigration("v12", migrate: v12)
         migrator.registerMigration("v13", migrate: v13)
         migrator.registerMigration("v14", migrate: v14)
+        migrator.registerMigration("v15", migrate: v15)
         return migrator
+    }
+
+    // MARK: - v15 — a tab exists before its worktree does
+
+    ///
+    /// Opening a task used to build the worktree first and insert the tab
+    /// after, so the click blocked on `git fetch` of a PR head — slow on a
+    /// large repo, and `WorktreeManager` holds the per-repo lock across it, so
+    /// opening several at once left the later ones waiting until they timed
+    /// out. The tab is now inserted immediately and prepared in the background;
+    /// these columns carry how far that got, and the error when it failed.
+    ///
+    /// `ready` by default so every existing tab — which already has its
+    /// worktree on disk — is untouched by this.
+    private static func v15(_ db: Database) throws {
+        try db.alter(table: "tab") { table in
+            table.add(column: "preparation_state", .text).notNull().defaults(to: "ready")
+            table.add(column: "preparation_error", .text)
+        }
     }
 
     // MARK: - v14 — When the review was requested (REVIEW pill)

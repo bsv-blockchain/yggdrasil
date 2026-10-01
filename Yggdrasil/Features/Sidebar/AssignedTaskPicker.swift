@@ -336,9 +336,19 @@ struct AssignedTaskPicker: View {
             let baseRef: String? = row.task.type == .pullRequest
                 ? "refs/pull/\(row.task.number)/head"
                 : nil
-            let worktreeURL = try await services.worktreeManager.ensure(
-                repo: row.repo, branch: branch, baseRef: baseRef
-            )
+            // The worktree is NOT created here. Building it runs `git fetch` of
+            // the PR head while holding the repo's worktree lock, which is slow
+            // on a large repo — doing it on the click meant opening several PRs
+            // left the later ones queued on that lock until they timed out. The
+            // path is deterministic, so the tab can be inserted against it now
+            // and the git work can happen in the background.
+            guard let plannedPath = WorktreePreparer.predictedWorktreePath(
+                repo: row.repo, branch: branch
+            ) else {
+                error = "Repo \(row.repo.fullName) has no local clone. Set it in Preferences → Repos."
+                return
+            }
+
             // Re-resolve the task id inside the write: the row this picker
             // snapshotted may have been pruned since (closing a tab unprotects
             // its task, and the sync that fires on close then deletes it),
@@ -348,27 +358,18 @@ struct AssignedTaskPicker: View {
             }
             let newTab = try services.tabStore.insert(
                 branchName: branch,
-                worktreePath: worktreeURL.path,
+                worktreePath: plannedPath,
                 agentID: agent.id,
-                taskID: liveTaskID
+                taskID: liveTaskID,
+                preparationState: .pending
             )
             services.tabs.reload()
             if let tabID = newTab.id {
                 services.tabs.select(tabID)
-                services.sessions.add(
-                    OpenSession(
-                        id: tabID,
-                        displayName: "\(agent.name) · \(branch)",
-                        cwd: worktreeURL.path,
-                        command: agent.command,
-                        args: agent.args,
-                        env: agent.env
-                    )
+                await services.worktreePreparer.enqueue(
+                    tabID: tabID, repo: row.repo, branch: branch, baseRef: baseRef
                 )
             }
-            // Refresh GitHub-side state so the pending-review pill + CI
-            // badges catch up immediately rather than waiting for the
-            // next scheduled tick.
             services.triggerSyncNow()
             // Deliberately no `dismiss()`. Opening one task usually means
             // opening several — a window that closes itself after each row

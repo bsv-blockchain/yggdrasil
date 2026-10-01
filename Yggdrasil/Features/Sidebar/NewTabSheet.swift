@@ -332,9 +332,16 @@ struct NewTabSheet: View {
         }
         let effectiveBase = baseFromInput ?? (trimmedBase.isEmpty ? nil : trimmedBase)
         do {
-            let worktreeURL = try await services.worktreeManager.ensure(
-                repo: repo, branch: finalBranch, baseRef: effectiveBase
-            )
+            // Same as the task pickers: the worktree is built in the
+            // background. Doing it here blocked the sheet on `git fetch`, and
+            // now that preparations queue on the WorktreeManager actor it would
+            // also block behind every PR fetch already in flight.
+            guard let plannedPath = WorktreePreparer.predictedWorktreePath(
+                repo: repo, branch: finalBranch
+            ) else {
+                error = "Repo \(repo.fullName) has no local clone path on disk."
+                return
+            }
             // Match the branch against PR/issue patterns ("pr-643", "#643") so the
             // GitHub pane has a task to render. Falls back to nil (= no task link)
             // for free-form branch names like "feat/foo".
@@ -345,22 +352,16 @@ struct NewTabSheet: View {
             )
             let newTab = try services.tabStore.insert(
                 branchName: finalBranch,
-                worktreePath: worktreeURL.path,
+                worktreePath: plannedPath,
                 agentID: agent.id,
-                taskID: resolvedTaskID
+                taskID: resolvedTaskID,
+                preparationState: .pending
             )
             services.tabs.reload()
             if let tabID = newTab.id {
                 services.tabs.select(tabID)
-                services.sessions.add(
-                    OpenSession(
-                        id: tabID,
-                        displayName: "\(agent.name) · \(finalBranch)",
-                        cwd: worktreeURL.path,
-                        command: agent.command,
-                        args: agent.args,
-                        env: agent.env
-                    )
+                await services.worktreePreparer.enqueue(
+                    tabID: tabID, repo: repo, branch: finalBranch, baseRef: effectiveBase
                 )
             }
             services.triggerSyncNow()

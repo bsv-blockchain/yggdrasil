@@ -408,26 +408,25 @@ struct IssueDetailsPicker: View {
                 etag: nil, labelsJSON: "[]", milestoneTitle: nil
             )
             let branch = TaskPickerMode.assigned.branchName(for: dummyTask, agentName: agent.name)
-            let worktreeURL = try await services.worktreeManager.ensure(
-                repo: repo, branch: branch, baseRef: nil
-            )
+            // Prepared in the background, like the other two open paths.
+            guard let plannedPath = WorktreePreparer.predictedWorktreePath(
+                repo: repo, branch: branch
+            ) else {
+                error = "\(row.repoFull) has no local clone. Add it in Preferences → Repos."
+                return
+            }
             let newTab = try services.tabStore.insert(
                 branchName: branch,
-                worktreePath: worktreeURL.path,
+                worktreePath: plannedPath,
                 agentID: agent.id,
-                taskID: nil
+                taskID: nil,
+                preparationState: .pending
             )
             services.tabs.reload()
             if let tabID = newTab.id {
                 services.tabs.select(tabID)
-                services.sessions.add(
-                    OpenSession(
-                        id: tabID,
-                        displayName: "\(agent.name) · \(branch)",
-                        cwd: worktreeURL.path,
-                        command: agent.command,
-                        args: agent.args, env: agent.env
-                    )
+                await services.worktreePreparer.enqueue(
+                    tabID: tabID, repo: repo, branch: branch, baseRef: nil
                 )
             }
             services.triggerSyncNow()

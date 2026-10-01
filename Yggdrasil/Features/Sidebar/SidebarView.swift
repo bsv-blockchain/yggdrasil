@@ -456,6 +456,12 @@ struct SidebarView: View {
             }
             Divider()
         }
+        if tab.preparationState != .ready {
+            Button("Retry Setup") {
+                SidebarActions.retryPreparation(tab: tab, services: services)
+            }
+            Divider()
+        }
         Button("Resume Session") {
             if let id = tab.id { SidebarActions.restartAgent(tabID: id, services: services) }
         }
