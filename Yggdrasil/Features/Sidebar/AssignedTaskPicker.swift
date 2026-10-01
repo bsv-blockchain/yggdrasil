@@ -101,6 +101,23 @@ struct AssignedTaskPicker: View {
         var id: Int64 {
             task.id ?? 0
         }
+
+        /// Everything the search box matches a term against. Terms aren't
+        /// field-scoped, so `-P0` excludes on the label without the user
+        /// having to say it's a label.
+        var searchFields: [String] {
+            var fields = [
+                task.title,
+                "\(repo.owner)/\(repo.name)",
+                "#\(task.number)",
+                task.state.rawValue
+            ]
+            if let milestone = task.milestoneTitle, !milestone.isEmpty {
+                fields.append(milestone)
+            }
+            fields.append(contentsOf: task.labels.map(\.name))
+            return fields
+        }
     }
 
     var body: some View {
@@ -146,7 +163,7 @@ struct AssignedTaskPicker: View {
         HStack(spacing: 7) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
-            TextField("Filter by title, repo, or number", text: $search)
+            TextField("Filter — title, repo, #number, label, milestone; -term excludes", text: $search)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundStyle(YggdrasilTheme.text(scheme))
@@ -224,13 +241,9 @@ struct AssignedTaskPicker: View {
     // MARK: - Data
 
     private var filteredRows: [Row] {
-        let trimmed = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !trimmed.isEmpty else { return rows }
-        return rows.filter { row in
-            row.task.title.lowercased().contains(trimmed)
-                || "\(row.repo.owner)/\(row.repo.name)".lowercased().contains(trimmed)
-                || "#\(row.task.number)".contains(trimmed)
-        }
+        let query = TaskSearchQuery(search)
+        guard !query.isEmpty else { return rows }
+        return rows.filter { query.matches($0.searchFields) }
     }
 
     private func reload() {
@@ -395,6 +408,17 @@ private struct TaskRow: View {
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(YggdrasilTheme.textMute(scheme))
                     stateBadge
+                    if let milestone = row.task.milestoneTitle, !milestone.isEmpty {
+                        milestoneChip(milestone)
+                    }
+                    ForEach(visibleLabels, id: \.self) { label in
+                        LabelChip(data: .init(name: label.name, color: label.color), scheme: scheme)
+                    }
+                    if overflowLabelCount > 0 {
+                        Text("+\(overflowLabelCount)")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                    }
                 }
             }
             Spacer()
@@ -425,6 +449,37 @@ private struct TaskRow: View {
                 .foregroundStyle(YggdrasilTheme.ember)
                 .frame(width: 18)
         }
+    }
+
+    /// Labels are rendered inline on a single row, so cap them — a task with
+    /// a dozen labels would otherwise push the repo and state off-screen. The
+    /// hidden ones are still searchable; only the rendering is capped.
+    private static let maxVisibleLabels = 3
+
+    private var visibleLabels: [YggdrasilTask.Label] {
+        Array(row.task.labels.prefix(Self.maxVisibleLabels))
+    }
+
+    private var overflowLabelCount: Int {
+        max(0, row.task.labels.count - Self.maxVisibleLabels)
+    }
+
+    /// Milestones have no colour from GitHub, so they get a plain chip rather
+    /// than the label treatment.
+    private func milestoneChip(_ title: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: "flag")
+                .font(.system(size: 8))
+            Text(title)
+                .font(.system(size: 9.5, weight: .medium))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1)
+        .foregroundStyle(YggdrasilTheme.textDim(scheme))
+        .overlay(
+            Capsule().stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
+        )
     }
 
     private var stateBadge: some View {
