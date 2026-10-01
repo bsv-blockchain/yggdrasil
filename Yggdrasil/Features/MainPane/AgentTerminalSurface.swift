@@ -332,16 +332,12 @@ struct AgentTerminalSurface: NSViewRepresentable {
         if args.contains("--continue") || args.contains("-c") || args.contains("--resume") {
             return args
         }
-        // claude maps cwd → ~/.claude/projects/<encoded>/ where the encoding
-        // replaces every `/` and `.` with a `-`. So
-        //   /Users/me/checkout/.worktrees/pr-643
-        // becomes
-        //   -Users-me-checkout--worktrees-pr-643
-        let encoded = cwd
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ".", with: "-")
+        // Shared with the status probe rather than duplicated: the encoding
+        // here was wrong in the same way (only `/` and `.` replaced), so a
+        // branch slug keeping an underscore looked in a directory that does not
+        // exist and silently dropped `--continue` on reopen.
         let home = NSHomeDirectory()
-        let projectDir = "\(home)/.claude/projects/\(encoded)"
+        let projectDir = AgentSessionLocator.projectDirectory(forWorktreePath: cwd, home: home)
         guard fileExists(projectDir),
               let entries = directoryContents(projectDir),
               entries.contains(where: { $0.hasSuffix(".jsonl") })
