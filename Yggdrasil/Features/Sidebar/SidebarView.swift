@@ -155,7 +155,9 @@ struct SidebarView: View {
     private func needsAttention(_ tab: YggdrasilTab) -> Bool {
         guard let id = tab.id else { return false }
         return TabRowViewModel.needsAttention(
-            branchName: tab.branchName, status: services.tabStatus.status(forTabID: id)
+            branchName: tab.branchName,
+            status: services.tabStatus.status(forTabID: id),
+            dismissedSignature: AttentionDismissal.dismissedSignature(tabID: id)
         )
     }
 
@@ -439,6 +441,21 @@ struct SidebarView: View {
 
     @ViewBuilder
     private func contextMenu(for tab: YggdrasilTab) -> some View {
+        if let id = tab.id {
+            if AttentionSignature.isDismissed(
+                current: services.tabStatus.status(forTabID: id).attentionSignature,
+                dismissed: AttentionDismissal.dismissedSignature(tabID: id)
+            ) {
+                Button("Un-mute Attention") {
+                    SidebarActions.restoreAttention(tabID: id, services: services)
+                }
+            } else {
+                Button("Mute Until Something Changes") {
+                    SidebarActions.dismissAttention(tabID: id, services: services)
+                }
+            }
+            Divider()
+        }
         Button("Resume Session") {
             if let id = tab.id { SidebarActions.restartAgent(tabID: id, services: services) }
         }

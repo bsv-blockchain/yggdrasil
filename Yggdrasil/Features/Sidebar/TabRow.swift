@@ -66,8 +66,11 @@ struct TabRow: View {
                     .truncationMode(.middle)
                     .accessibilityIdentifier("tabrow.worktree")
 
-                StatusChipRow(status: model.liveStatus, agent: agent)
-                    .padding(.top, 2)
+                StatusChipRow(
+                    status: model.liveStatus, agent: agent,
+                    isMuted: model.isAttentionDismissed
+                )
+                .padding(.top, 2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -234,6 +237,9 @@ struct TabRow: View {
 struct StatusChipRow: View {
     let status: TabStatus?
     let agent: AgentIdentity
+    /// Muted tabs say so: the mute can lapse on its own, so without this a
+    /// muted tab is pixel-identical to one with nothing going on.
+    var isMuted: Bool = false
 
     var body: some View {
         HStack(spacing: 4) {
@@ -249,6 +255,9 @@ struct StatusChipRow: View {
     private var chips: [StatusChip.Data] {
         guard let status else { return [] }
         var out: [StatusChip.Data] = []
+        if isMuted {
+            out.append(.init(symbol: "bell.slash", text: "muted", tone: .neutral))
+        }
 
         switch status.icon {
         case .running:

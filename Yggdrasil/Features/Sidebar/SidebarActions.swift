@@ -196,6 +196,10 @@ enum SidebarActions {
             }
         }
 
+        // Drop the mute with the tab; a key left behind would silently muffle
+        // a future tab that reused the id.
+        AttentionDismissal.restore(tabID: id)
+
         do {
             try services.tabStore.delete(id: id)
         } catch {
@@ -220,6 +224,31 @@ enum SidebarActions {
         if let id = services.tabs.selectedID {
             services.sessions.selectedID = id
         }
+    }
+
+    /// Mute this tab's amber until something actually changes. Records the
+    /// current attention fingerprint; the mute lapses the moment a new commit,
+    /// thread, review request or agent record changes it.
+    @MainActor
+    static func dismissAttention(tabID: Int64, services: AppServices) {
+        let signature = services.tabStatus.status(forTabID: tabID).attentionSignature
+        // Before the first poll tick a tab has only the placeholder status,
+        // whose signature is empty. Storing that would be a silent no-op: the
+        // next tick overwrites it with a real signature and the mute lapses
+        // with nothing having visibly happened.
+        guard !signature.isEmpty else {
+            presentInfo(title: "Not ready yet",
+                        text: "This tab has no status yet. Try again in a moment.")
+            return
+        }
+        AttentionDismissal.dismiss(tabID: tabID, signature: signature)
+        services.tabs.reload()
+    }
+
+    @MainActor
+    static func restoreAttention(tabID: Int64, services: AppServices) {
+        AttentionDismissal.restore(tabID: tabID)
+        services.tabs.reload()
     }
 
     /// Clear a tab's PR link. On an issue tab carrying a linked PR, this drops
