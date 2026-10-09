@@ -5,16 +5,20 @@ import XCTest
 /// The pure decision behind the terminal key interceptor. Kept free of NSEvent
 /// so every branch is testable without a GUI.
 ///
-/// Two keystrokes are intercepted, both because AppKit or SwiftTerm gets them
+/// Three keystrokes are intercepted, each because AppKit or SwiftTerm gets it
 /// wrong on its own:
 /// - Shift+Return — SwiftTerm sends a bare CR, which agents read as "submit".
 /// - Option+Up/Down — context-sensitive: the focused terminal gets the escape
 ///   sequence a CLI expects, anything else steps the sidebar selection.
+/// - Cmd+Shift+[ / ] — steps the sidebar selection wherever focus is, matched
+///   by key position because a menu binding reads "{" once Shift is held.
 @MainActor
 final class TerminalKeyActionTests: XCTestCase {
     private let returnKey: UInt16 = 36
     private let upKey: UInt16 = 126
     private let downKey: UInt16 = 125
+    private let leftBracketKey: UInt16 = 33
+    private let rightBracketKey: UInt16 = 30
 
     /// Arrow keys always carry .function and .numericPad on top of whatever the
     /// user held. Every case here includes them, because the real events do and
@@ -110,6 +114,43 @@ final class TerminalKeyActionTests: XCTestCase {
             action(upKey, arrowNoise.union(.option), mainWindow: false),
             .sendBytes([0x1B, 0x5B, 0x31, 0x3B, 0x33, 0x41])
         )
+    }
+
+    // MARK: - Cmd+Shift+[ / ]
+
+    /// The whole point: a focused terminal must not swallow it, or the shortcut
+    /// is dead for the place the user almost always is.
+    func testCmdShiftLeftBracketInTerminalStepsToPreviousSession() {
+        XCTAssertEqual(action(leftBracketKey, [.command, .shift]), .previousSession)
+    }
+
+    func testCmdShiftRightBracketInTerminalStepsToNextSession() {
+        XCTAssertEqual(action(rightBracketKey, [.command, .shift]), .nextSession)
+    }
+
+    func testCmdShiftBracketOutsideTerminalStepsSession() {
+        XCTAssertEqual(action(leftBracketKey, [.command, .shift], terminalFocused: false), .previousSession)
+        XCTAssertEqual(action(rightBracketKey, [.command, .shift], terminalFocused: false), .nextSession)
+    }
+
+    func testCmdShiftBracketOutsideMainWindowIsLeftAlone() {
+        XCTAssertEqual(
+            action(leftBracketKey, [.command, .shift], terminalFocused: false, mainWindow: false),
+            .passThrough
+        )
+    }
+
+    /// Caps Lock isn't a modifier the user means; it must not disarm the shortcut.
+    func testCmdShiftBracketWithCapsLockStillSteps() {
+        XCTAssertEqual(action(rightBracketKey, [.command, .shift, .capsLock]), .nextSession)
+    }
+
+    /// ⌘[ / ⌘] and ⌘⌥⇧[ belong to whoever else binds them.
+    func testBracketWithOtherModifiersIsLeftAlone() {
+        XCTAssertEqual(action(leftBracketKey, [.command]), .passThrough)
+        XCTAssertEqual(action(rightBracketKey, [.command]), .passThrough)
+        XCTAssertEqual(action(leftBracketKey, [.command, .shift, .option]), .passThrough)
+        XCTAssertEqual(action(leftBracketKey, [.shift]), .passThrough)
     }
 
     // MARK: - Everything else

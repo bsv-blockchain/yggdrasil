@@ -146,7 +146,7 @@ get their proper brand icons automatically).
 | Open assigned issue / PR | `⌘O` |
 | My Issues (wide table view) | `⌘⇧I` |
 | Force sync now | `⌘⇧S` |
-| Previous / Next tab | `⌥↑` / `⌥↓` |
+| Previous / Next session | `⌘⇧[` / `⌘⇧]` (also `⌥↑` / `⌥↓` outside a terminal) |
 | Close tab | `⌘⇧W` |
 | Show sidebar / hide sidebar | `⌘⌃S` (system) |
 | Preferences | `⌘,` |

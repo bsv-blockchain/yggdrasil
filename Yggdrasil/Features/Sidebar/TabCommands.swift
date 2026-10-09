@@ -5,22 +5,19 @@ import SwiftUI
 /// system View menu (after "Show Sidebar") rather than a custom top-level
 /// menu, since these all act on sidebar selection.
 ///
-/// - ⌥↑ / ⌥↓ — previous / next session. Arrow keys rather than ⌘⇧[ / ⌘⇧]:
-///   AppKit matches a key equivalent against the event's
-///   `charactersIgnoringModifiers`, so a bracket binding has to be written as
-///   the shifted glyph "{" / "}" — and on any layout where those need Option
-///   (Icelandic, German, Nordic) no keystroke ever produces them with a bare
-///   ⌘⇧ mask, leaving the menu advertising a shortcut that cannot fire.
+/// - ⌘⇧[ / ⌘⇧] — previous / next session, from anywhere in the main window,
+///   terminal focused or not. ⌥↑ / ⌥↓ do the same outside a terminal; inside
+///   one they belong to the CLI.
 ///
-///   These two key equivalents are **display only**: `TerminalKeyInterceptor`
-///   claims ⌥↑/⌥↓ from a local `NSEvent` monitor, which runs before
-///   `NSApplication.sendEvent` offers the event to the main menu, and decides
-///   by focus — a focused terminal gets the escape sequence, anything else
-///   steps the selection here. A menu key equivalent cannot express that, and
-///   would not match anyway: AppKit compares the full device-independent
-///   modifier set, and an arrow event carries `.function` and `.numericPad`
-///   the user never pressed. Keep the `.keyboardShortcut` calls so the menu
-///   still shows what the keys do; don't rely on them to fire.
+///   These key equivalents are **display only**: `TerminalKeyInterceptor`
+///   claims both pairs from a local `NSEvent` monitor, which runs before
+///   `NSApplication.sendEvent` offers the event to the main menu. A menu key
+///   equivalent would not fire for either: AppKit matches brackets against
+///   `charactersIgnoringModifiers`, which reads "{" once Shift is held, and
+///   compares the full device-independent modifier set, which for an arrow
+///   includes `.function` and `.numericPad` the user never pressed. So the
+///   interceptor matches the brackets by key position, and these calls only
+///   make the menu show what the keys do. Don't rely on them to fire.
 /// - ⌘⇧W — close the selected tab (with confirm). Not ⌘W: `WindowGroup`
 ///   installs File ▸ Close on ⌘W, AppKit walks the main menu in order, and
 ///   File precedes View — so ⌘W closes the window and never reaches here.
@@ -41,7 +38,7 @@ struct TabCommands: Commands {
     /// with — never fail silently here again.
     ///
     /// Scoped to the main sessions window: Preferences and the four picker
-    /// scenes share the same service graph, so without this an ⌥↓ typed at a
+    /// scenes share the same service graph, so without this an ⌘⇧] typed at a
     /// picker would reorder the background main window's selection and leave
     /// the user typing into a different agent's terminal on return.
     private func withServices(_ label: String, _ body: (AppServices) -> Void) {
@@ -67,10 +64,10 @@ struct TabCommands: Commands {
         CommandGroup(after: .sidebar) {
             Divider()
             item("Previous Session") { SidebarActions.selectTab(by: -1, services: $0) }
-                .keyboardShortcut(.upArrow, modifiers: [.option])
+                .keyboardShortcut("[", modifiers: [.command, .shift])
 
             item("Next Session") { SidebarActions.selectTab(by: 1, services: $0) }
-                .keyboardShortcut(.downArrow, modifiers: [.option])
+                .keyboardShortcut("]", modifiers: [.command, .shift])
 
             item("Close Tab…") { services in
                 guard let id = services.tabs.selectedID else {
