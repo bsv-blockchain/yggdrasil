@@ -10,8 +10,9 @@ import XCTest
 /// - Shift+Return — SwiftTerm sends a bare CR, which agents read as "submit".
 /// - Option+Up/Down — context-sensitive: the focused terminal gets the escape
 ///   sequence a CLI expects, anything else steps the sidebar selection.
-/// - Cmd+Shift+[ / ] — steps the sidebar selection wherever focus is, matched
-///   by key position because a menu binding reads "{" once Shift is held.
+/// - Cmd+Shift+[ / ] — steps the sidebar selection wherever focus is. Matched
+///   by the key the layout prints `[` / `]` on, or by US key position when the
+///   layout has no such key, because a menu binding reads "{" once Shift is held.
 @MainActor
 final class TerminalKeyActionTests: XCTestCase {
     private let returnKey: UInt16 = 36
@@ -28,11 +29,17 @@ final class TerminalKeyActionTests: XCTestCase {
     private func action(
         _ keyCode: UInt16,
         _ modifiers: NSEvent.ModifierFlags,
+        character: String? = nil,
+        layoutTypesBrackets: Bool = true,
         terminalFocused: Bool = true,
         mainWindow: Bool = true
     ) -> TerminalKeyAction {
-        TerminalKeyInterceptor.action(
+        // Default to what a US layout prints on the key.
+        let usCharacter = [leftBracketKey: "[", rightBracketKey: "]"][keyCode]
+        return TerminalKeyInterceptor.action(
             keyCode: keyCode, modifiers: modifiers,
+            unmodifiedCharacter: character ?? usCharacter,
+            layoutTypesBrackets: layoutTypesBrackets,
             isTerminalFocused: terminalFocused, isMainWindow: mainWindow
         )
     }
@@ -151,6 +158,42 @@ final class TerminalKeyActionTests: XCTestCase {
         XCTAssertEqual(action(rightBracketKey, [.command]), .passThrough)
         XCTAssertEqual(action(leftBracketKey, [.command, .shift, .option]), .passThrough)
         XCTAssertEqual(action(leftBracketKey, [.shift]), .passThrough)
+    }
+
+    // MARK: - Cmd+Shift+[ / ] on other layouts
+
+    /// Dvorak prints "/" and "=" on the US bracket positions. Taking them would
+    /// eat ⌘? (Help search) and ⌘⇧= (zoom).
+    func testDvorakUSBracketPositionsAreLeftAlone() {
+        XCTAssertEqual(action(leftBracketKey, [.command, .shift], character: "/"), .passThrough)
+        XCTAssertEqual(action(rightBracketKey, [.command, .shift], character: "="), .passThrough)
+    }
+
+    /// Dvorak's own bracket keys are elsewhere (keycodes 27 / 24); those step,
+    /// so the menu label is true.
+    func testDvorakBracketKeysStepSession() {
+        XCTAssertEqual(action(27, [.command, .shift], character: "["), .previousSession)
+        XCTAssertEqual(action(24, [.command, .shift], character: "]"), .nextSession)
+    }
+
+    /// Icelandic needs Option to type a bracket, so no key prints one. Fall
+    /// back to the US position: ⌘⇧ð / ⌘⇧'.
+    func testLayoutWithoutBracketKeysFallsBackToUSPosition() {
+        XCTAssertEqual(
+            action(leftBracketKey, [.command, .shift], character: "ð", layoutTypesBrackets: false),
+            .previousSession
+        )
+        XCTAssertEqual(
+            action(rightBracketKey, [.command, .shift], character: "'", layoutTypesBrackets: false),
+            .nextSession
+        )
+    }
+
+    func testFallbackOnlyAppliesToUSBracketPositions() {
+        XCTAssertEqual(
+            action(27, [.command, .shift], character: "+", layoutTypesBrackets: false),
+            .passThrough
+        )
     }
 
     // MARK: - Everything else
