@@ -11,8 +11,8 @@ import XCTest
 /// - Option+Up/Down — context-sensitive: the focused terminal gets the escape
 ///   sequence a CLI expects, anything else steps the sidebar selection.
 /// - Cmd+Shift+[ / ] — steps the sidebar selection wherever focus is. Matched
-///   by the key the layout prints `[` / `]` on, or by US key position when the
-///   layout has no such key, because a menu binding reads "{" once Shift is held.
+///   by the key the layout's Command layer prints `[` / `]` on, or by US key
+///   position when the layout has no such key, because a menu binding reads "{" once Shift is held.
 @MainActor
 final class TerminalKeyActionTests: XCTestCase {
     private let returnKey: UInt16 = 36
@@ -38,7 +38,7 @@ final class TerminalKeyActionTests: XCTestCase {
         let usCharacter = [leftBracketKey: "[", rightBracketKey: "]"][keyCode]
         return TerminalKeyInterceptor.action(
             keyCode: keyCode, modifiers: modifiers,
-            unmodifiedCharacter: character ?? usCharacter,
+            commandCharacter: character ?? usCharacter,
             layoutTypesBrackets: layoutTypesBrackets,
             isTerminalFocused: terminalFocused, isMainWindow: mainWindow
         )

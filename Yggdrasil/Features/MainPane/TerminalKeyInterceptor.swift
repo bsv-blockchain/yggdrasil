@@ -1,5 +1,4 @@
 import AppKit
-import Carbon.HIToolbox
 import SwiftTerm
 
 /// What the interceptor decided to do with a key event.
@@ -42,7 +41,7 @@ enum TerminalKeyAction: Equatable {
 /// matches against `charactersIgnoringModifiers`, which has Shift applied, so
 /// the event says "{" and a "[" binding never fires, while binding "{" is dead
 /// on layouts that need Option to type it. So it's matched here, by the key
-/// the layout prints `[` / `]` on (US, UK, Dvorak). A layout with no such key
+/// that types `[` / `]` with ⌘ held (`CommandKeyLayer`). A layout with no such key
 /// (Icelandic, German — Option is needed) falls back to the US key position,
 /// whatever it prints there. Matching the US position on every layout would
 /// take ⌘? and ⌘⇧= from Dvorak.
@@ -89,12 +88,12 @@ enum TerminalKeyInterceptor {
     /// The whole decision, as a pure function. `modifiers` is passed raw —
     /// arrow events carry `.function` and `.numericPad` the user never pressed,
     /// so the relevant flags are masked out here rather than at the call site.
-    /// `unmodifiedCharacter` is what the active layout prints on the key with no
-    /// modifiers; `layoutTypesBrackets` is lazy because it scans the layout.
+    /// `commandCharacter` is what the key types with ⌘ held on the active
+    /// layout. Both layout arguments are lazy: only ⌘⇧ events read the layout.
     static func action(
         keyCode: UInt16,
         modifiers: NSEvent.ModifierFlags,
-        unmodifiedCharacter: String?,
+        commandCharacter: @autoclosure () -> String?,
         layoutTypesBrackets: @autoclosure () -> Bool,
         isTerminalFocused: Bool,
         isMainWindow: Bool
@@ -112,7 +111,7 @@ enum TerminalKeyInterceptor {
             return isMainWindow ? .nextSession : .passThrough
         case _ where mods == [.command, .shift]:
             return bracketAction(
-                keyCode: keyCode, unmodifiedCharacter: unmodifiedCharacter,
+                keyCode: keyCode, commandCharacter: commandCharacter,
                 layoutTypesBrackets: layoutTypesBrackets, isMainWindow: isMainWindow
             )
         default:
@@ -125,12 +124,12 @@ enum TerminalKeyInterceptor {
     /// Cmd+Shift+[ / ]: the layout's bracket keys, else the US positions.
     private static func bracketAction(
         keyCode: UInt16,
-        unmodifiedCharacter: String?,
+        commandCharacter: () -> String?,
         layoutTypesBrackets: () -> Bool,
         isMainWindow: Bool
     ) -> TerminalKeyAction {
         let step: TerminalKeyAction
-        switch unmodifiedCharacter {
+        switch commandCharacter() {
         case "[": step = .previousSession
         case "]": step = .nextSession
         case _ where keyCode == leftBracketKeyCode && !layoutTypesBrackets():
@@ -143,42 +142,17 @@ enum TerminalKeyInterceptor {
         return isMainWindow ? step : .passThrough
     }
 
-    /// True when some key on the active layout prints both `[` and `]` with no
-    /// modifiers. Only asked for ⌘⇧ on a US bracket position that didn't print
-    /// a bracket, so the scan is rare.
-    private static func currentLayoutTypesBrackets() -> Bool {
-        guard let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
-              let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
-        else { return true } // Unknown layout: don't hijack the US positions.
-        let data = Unmanaged<CFData>.fromOpaque(raw).takeUnretainedValue() as Data
-        var found = Set<Character>()
-        data.withUnsafeBytes { buffer in
-            guard let layout = buffer.bindMemory(to: UCKeyboardLayout.self).baseAddress else { return }
-            for keyCode in UInt16(0) ..< 128 {
-                var deadKeys: UInt32 = 0
-                var length = 0
-                var chars = [UniChar](repeating: 0, count: 4)
-                let status = UCKeyTranslate(
-                    layout, keyCode, UInt16(kUCKeyActionDown), 0, UInt32(LMGetKbdType()),
-                    OptionBits(kUCKeyTranslateNoDeadKeysMask), &deadKeys, chars.count, &length, &chars
-                )
-                guard status == noErr, length == 1 else { continue }
-                if chars[0] == 0x5B { found.insert("[") }
-                if chars[0] == 0x5D { found.insert("]") }
-            }
-        }
-        return found.count == 2
-    }
-
     /// True when we consumed the event.
     private static func handle(_ event: NSEvent) -> Bool {
         let responder = event.window?.firstResponder as? NSView
         let terminalView = Self.closestTerminalView(from: responder)
+        lazy var layer = CommandKeyLayer.current()
         let decision = action(
             keyCode: event.keyCode,
             modifiers: event.modifierFlags,
-            unmodifiedCharacter: event.characters(byApplyingModifiers: []),
-            layoutTypesBrackets: currentLayoutTypesBrackets(),
+            commandCharacter: layer?.character(keyCode: event.keyCode),
+            // Unreadable layout: don't take the US positions.
+            layoutTypesBrackets: layer?.typesBrackets ?? true,
             isTerminalFocused: terminalView != nil,
             isMainWindow: WindowFrameAutosave.isMainWindow(
                 autosaveName: event.window?.frameAutosaveName

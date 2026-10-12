@@ -16,7 +16,7 @@ import SwiftUI
 ///   `charactersIgnoringModifiers`, which reads "{" once Shift is held, and
 ///   compares the full device-independent modifier set, which for an arrow
 ///   includes `.function` and `.numericPad` the user never pressed. So the
-///   interceptor matches the brackets by key position, and these calls only
+///   interceptor matches the brackets on the layout's Command layer, and these calls only
 ///   make the menu show what the keys do. Don't rely on them to fire.
 /// - ⌘⇧W — close the selected tab (with confirm). Not ⌘W: `WindowGroup`
 ///   installs File ▸ Close on ⌘W, AppKit walks the main menu in order, and
