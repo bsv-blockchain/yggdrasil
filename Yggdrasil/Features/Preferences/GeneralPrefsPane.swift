@@ -12,6 +12,7 @@ struct GeneralPrefsPane: View {
     @State private var defaultHostID: Int64?
     @State private var syncSeconds: Int
     @State private var statusProbeSeconds: Int
+    @State private var pendingApply: Task<Void, Never>?
 
     /// State is read up front so the `onChange` handlers only see user edits.
     init(services: AppServices) {
@@ -86,6 +87,10 @@ struct GeneralPrefsPane: View {
         .onChange(of: statusProbeSeconds) { _, _ in applyIntervals() }
         .onAppear {
             hosts = (try? services.hostStore.list()) ?? []
+            // The default may have been removed under Hosts meanwhile.
+            if let id = defaultHostID, !hosts.contains(where: { $0.id == id }) {
+                defaultHostID = nil
+            }
         }
     }
 
@@ -100,8 +105,15 @@ struct GeneralPrefsPane: View {
         }
     }
 
+    /// Applies once the stepper has been still for a moment: every apply
+    /// rebuilds the scheduler, which syncs GitHub immediately.
     private func applyIntervals() {
+        pendingApply?.cancel()
         let new = IntervalSettings(syncSeconds: syncSeconds, statusProbeSeconds: statusProbeSeconds)
-        Task { await services.applyIntervals(new) }
+        pendingApply = Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            await services.applyIntervals(new)
+        }
     }
 }

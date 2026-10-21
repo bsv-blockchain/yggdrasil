@@ -369,7 +369,7 @@ enum SidebarActions {
 
     /// Single-button informational NSAlert.
     @MainActor
-    private static func presentInfo(title: String, text: String) {
+    static func presentInfo(title: String, text: String) {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = text
@@ -427,19 +427,34 @@ extension SidebarActions {
         let choice = RemoveTabChoice.from(response: alert.runModal())
         guard choice != .cancel else { return }
         let repo = services.tabs.repoByTabID[id]
-        Task {
+        Task { @MainActor in
+            var problems: [String] = []
             do {
                 try await services.remoteControl.kill(host: host, tabID: id)
-                if choice == .tabAndWorktree, let repo {
-                    try await services.existingWorktreeManager(on: host, repo: repo).remove(
-                        repo: repo, path: URL(fileURLWithPath: tab.worktreePath, isDirectory: true), force: true
-                    )
-                }
             } catch {
-                YggdrasilLog.ui.error(
-                    "Removing remote tab \(id, privacy: .public) failed: \(String(describing: error), privacy: .public)"
-                )
+                problems.append("The agent couldn't be stopped: \(error)")
             }
+            // Independent of the kill: a dead agent is no reason to leave the
+            // worktree behind for the next tab on this branch to pick up.
+            if choice == .tabAndWorktree {
+                if let repo {
+                    do {
+                        try await services.existingWorktreeManager(on: host, repo: repo).remove(
+                            repo: repo, path: URL(fileURLWithPath: tab.worktreePath, isDirectory: true), force: true
+                        )
+                    } catch {
+                        problems.append("The worktree couldn't be removed: \(error)")
+                    }
+                } else {
+                    problems
+                        .append("The worktree isn't under a tracked repository's checkout, so it was left in place.")
+                }
+            }
+            guard !problems.isEmpty else { return }
+            presentInfo(
+                title: "Removed the tab, but not everything on \(host.name)",
+                text: problems.joined(separator: "\n\n") + "\n\nWorktree: \(tab.worktreePath)"
+            )
         }
         performRemoval(id: id, tab: tab, deleteWorktree: false, services: services)
     }

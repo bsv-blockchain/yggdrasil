@@ -130,7 +130,23 @@ final class AppServices {
     /// Replace both intervals at runtime. Persists to SettingsStore, then
     /// stops + recreates the scheduler/poller with the new values. Safe to
     /// call before they were started — start() is idempotent.
+    ///
+    /// Calls run one after another: this suspends between stopping the old
+    /// scheduler and installing the new one, and two overlapping calls would
+    /// otherwise each install one, leaving the first running unstopped.
     func applyIntervals(_ new: IntervalSettings) async {
+        let previous = intervalApply
+        let apply = Task { @MainActor in
+            await previous?.value
+            await performApplyIntervals(new)
+        }
+        intervalApply = apply
+        await apply.value
+    }
+
+    private var intervalApply: Task<Void, Never>?
+
+    private func performApplyIntervals(_ new: IntervalSettings) async {
         try? new.save(to: settingsStore)
         // Re-load to pick up the clamped values rather than trusting the
         // caller's potentially-out-of-range input.

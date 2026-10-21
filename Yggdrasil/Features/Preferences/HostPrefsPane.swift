@@ -232,6 +232,8 @@ struct HostPrefsPane: View {
                 sshTarget: sshTarget ?? host.sshTarget,
                 reposRoot: reposRoot ?? host.reposRoot
             )
+            // The last check was for the old settings.
+            checks[id] = nil
             reload()
             return true
         } catch {
@@ -276,7 +278,9 @@ struct HostPrefsPane: View {
              let HostRepoStoreError.notAbsolute(root):
             "“\(root)” must be an absolute path, like /home/me/src."
         case HostStoreError.hostInUse:
-            "Tabs still run on this host. Remove them first."
+            "Tabs still run on this host. Move or remove them first; its SSH target can't change while they exist."
+        case let HostRepoStoreError.pathTaken(path, repo):
+            "\(repo) already has its checkout at \(path) on this host."
         case let HostRepoStoreError.inUse(path):
             "Tabs still have worktrees under \(path). Remove them first."
         default:

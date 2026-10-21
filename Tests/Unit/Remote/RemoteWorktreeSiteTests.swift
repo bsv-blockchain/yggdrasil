@@ -116,4 +116,28 @@ final class RemoteWorktreeSiteTests: XCTestCase {
             XCTAssertEqual(error as? WorktreeError, .branchInMainCheckout("main"))
         }
     }
+
+    func testNewBranchStartsFromFreshlyFetchedDefaultBranchWithoutTracking() async throws {
+        // The host's checkout is only ever touched by the app, so nothing else
+        // keeps its main current: a tab opened weeks after the clone must not
+        // start from clone-day main.
+        let upstream = root.appendingPathComponent("upstream", isDirectory: true)
+        let git = ProcessRunner()
+        _ = try await git.runOrThrow(args: ["clone", "-q", mainURL.path, upstream.path], cwd: root)
+        _ = try await git.runOrThrow(args: ["remote", "add", "origin", upstream.path], cwd: mainURL)
+        _ = try await git.runOrThrow(args: ["fetch", "-q", "origin"], cwd: mainURL)
+        _ = try await git.runOrThrow(
+            args: ["-c", "user.email=t@e", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "merged later"],
+            cwd: upstream
+        )
+        let latest = try await git.runOrThrow(args: ["rev-parse", "HEAD"], cwd: upstream).stdout
+
+        let path = try await manager().ensure(repo: repo, branch: "feat/fresh")
+        let head = try await git.runOrThrow(args: ["rev-parse", "HEAD"], cwd: path).stdout
+        XCTAssertEqual(head, latest)
+        let upstreamOfBranch = try await ProcessRunner().run(
+            executable: "/usr/bin/git", arguments: ["-C", path.path, "rev-parse", "--abbrev-ref", "@{upstream}"]
+        )
+        XCTAssertNotEqual(upstreamOfBranch.exitCode, 0, "must not track origin/main: \(upstreamOfBranch.stdout)")
+    }
 }

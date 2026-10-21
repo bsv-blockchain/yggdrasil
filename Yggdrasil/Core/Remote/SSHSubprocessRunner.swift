@@ -15,12 +15,31 @@ struct SSHSubprocessRunner: SubprocessRunner {
 
     func run(executable: String, arguments: [String]) async throws -> SubprocessResult {
         let argv = ([executable] + arguments).map(CodingAgentRunner.shellQuote).joined(separator: " ")
+        let command = "\(RemoteHelper.path) run -- \(argv)"
+        let result = try await send(command)
+        // A host set up before `run` existed (or never set up) gets the
+        // current helper installed, then one retry. Everything remote goes
+        // through here, so no caller has to remember a preflight first.
+        guard Self.lacksCurrentHelper(result) else { return result }
+        let install = try await send(RemoteHelper.installCommand)
+        guard install.exitCode == 0 else { return result }
+        return try await send(command)
+    }
+
+    /// An old helper prints its usage (no `run`) and exits 2; a missing one
+    /// makes the shell exit 127.
+    static func lacksCurrentHelper(_ result: SubprocessResult) -> Bool {
+        (result.exitCode == 2 && result.stderr.contains("usage: ygg"))
+            || (result.exitCode == 127 && result.stderr.contains(".yggdrasil/bin/ygg"))
+    }
+
+    private func send(_ script: String) async throws -> SubprocessResult {
         SSHCommand.prepareControlDirectory()
         return try await transport.run(
             executable: SSHCommand.executable,
             arguments: SSHCommand.exec(
                 target: host.sshTarget,
-                remoteCommand: SSHCommand.posixRemote("\(RemoteHelper.path) run -- \(argv)"),
+                remoteCommand: SSHCommand.posixRemote(script),
                 controlDirectory: SSHCommand.defaultControlDirectory
             )
         )

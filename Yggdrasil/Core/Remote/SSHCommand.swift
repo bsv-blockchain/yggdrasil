@@ -49,10 +49,12 @@ enum SSHCommand {
         options(controlDirectory: controlDirectory) + ["-tt", "--", target, remoteCommand]
     }
 
-    /// For background calls: no tty, and BatchMode so a missing key fails fast
-    /// instead of hanging on a prompt nobody sees.
+    /// For background calls: no tty, BatchMode so a missing key fails fast
+    /// instead of hanging on a prompt nobody sees, and a connect timeout so an
+    /// unreachable host doesn't hang a caller for the OS's ~75s.
     static func exec(target: String, remoteCommand: String, controlDirectory: String) -> [String] {
-        options(controlDirectory: controlDirectory) + ["-T", "-o", "BatchMode=yes", "--", target, remoteCommand]
+        options(controlDirectory: controlDirectory)
+            + ["-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", target, remoteCommand]
     }
 }
 

@@ -25,4 +25,41 @@ final class SSHSubprocessRunnerTests: XCTestCase {
         XCTAssertEqual(result.exitCode, 128)
         XCTAssertEqual(result.stderr, "fatal: x")
     }
+
+    func testInstallsHelperAndRetriesWhenHostHasAnOldOne() async throws {
+        // A v1 helper has no `run`; it prints its usage and exits 2.
+        let stub = StubSubprocessRunner(responses: [
+            SubprocessResult(stdout: "", stderr: "usage: ygg version|check|attach|kill|alive|list", exitCode: 2),
+            SubprocessResult(stdout: "", stderr: "", exitCode: 0),
+            SubprocessResult(stdout: "ok", stderr: "", exitCode: 0)
+        ])
+        let result = try await SSHSubprocessRunner(host: host, transport: stub).run(
+            executable: "git",
+            arguments: ["status"]
+        )
+        XCTAssertEqual(result.stdout, "ok")
+        let calls = await stub.recordedCalls()
+        XCTAssertEqual(calls.count, 3)
+        XCTAssertEqual(SSHCommand.decodePosixRemote(calls[1].arguments.last ?? ""), RemoteHelper.installCommand)
+    }
+
+    func testInstallsHelperAndRetriesWhenHostHasNone() async throws {
+        let stub = StubSubprocessRunner(responses: [
+            SubprocessResult(stdout: "", stderr: "sh: 1: /home/me/.yggdrasil/bin/ygg: not found", exitCode: 127),
+            SubprocessResult(stdout: "", stderr: "", exitCode: 0),
+            SubprocessResult(stdout: "ok", stderr: "", exitCode: 0)
+        ])
+        let result = try await SSHSubprocessRunner(host: host, transport: stub).run(executable: "git", arguments: [])
+        XCTAssertEqual(result.stdout, "ok")
+    }
+
+    func testOtherFailuresAreNotRetried() async throws {
+        let stub = StubSubprocessRunner(responses: [
+            SubprocessResult(stdout: "", stderr: "usage: git status", exitCode: 129)
+        ])
+        let result = try await SSHSubprocessRunner(host: host, transport: stub).run(executable: "git", arguments: [])
+        XCTAssertEqual(result.exitCode, 129)
+        let calls = await stub.recordedCalls()
+        XCTAssertEqual(calls.count, 1)
+    }
 }

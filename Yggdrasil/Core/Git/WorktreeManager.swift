@@ -117,7 +117,7 @@ actor WorktreeManager {
         // Case 3b: regular ref.
         // - branch exists locally → check it out without `-b`.
         // - branch doesn't exist  → create it off `baseRef ?? defaultBranch`.
-        let base = baseRef ?? repo.defaultBranch
+        let base = await branchBase(repo: repo, baseRef: baseRef, mainURL: mainURL)
         let branchExistsLocally: Bool
         do {
             _ = try await git.run(
@@ -131,7 +131,9 @@ actor WorktreeManager {
         do {
             let addArgs: [String] = branchExistsLocally
                 ? ["worktree", "add", target.path, branch]
-                : ["worktree", "add", "-b", branch, target.path, base]
+                // --no-track: starting from origin/<default> would otherwise make
+                // that the branch's upstream, and a bare `git push` aim at it.
+                : ["worktree", "add", "--no-track", "-b", branch, target.path, base]
             try await git.run(args: addArgs, cwd: mainURL)
         } catch let WorktreeError.gitFailed(stderr, code) {
             // Map git's reference-resolution failure to a typed error so callers can
@@ -148,6 +150,30 @@ actor WorktreeManager {
     }
 
     // swiftlint:enable function_body_length
+
+    /// What a new branch starts from: the given ref, else the default branch —
+    /// freshly fetched from origin where the site asks for it.
+    private func branchBase(repo: Repo, baseRef: String?, mainURL: URL) async -> String {
+        if let baseRef { return baseRef }
+        if site.refreshesDefaultBranch, await refreshDefaultBranch(repo, in: mainURL) {
+            return "origin/\(repo.defaultBranch)"
+        }
+        return repo.defaultBranch
+    }
+
+    /// `git fetch origin <default>`; false (keep the checkout's own copy) when
+    /// that fails, e.g. offline — a stale base beats no tab at all.
+    private func refreshDefaultBranch(_ repo: Repo, in mainURL: URL) async -> Bool {
+        do {
+            try await git.run(args: ["fetch", "--quiet", "origin", repo.defaultBranch], cwd: mainURL)
+            return true
+        } catch {
+            YggdrasilLog.ui.warning(
+                "Couldn't fetch \(repo.defaultBranch, privacy: .public) for \(repo.fullName, privacy: .public); using the checkout's copy"
+            )
+            return false
+        }
+    }
 
     private static func pullRequestNumber(from baseRef: String) -> Int? {
         let regex = try? NSRegularExpression(pattern: pullRefRegex)

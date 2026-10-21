@@ -20,9 +20,13 @@ final class SSHCommandTests: XCTestCase {
         XCTAssertEqual(Array(argv.prefix(10)), SSHCommand.options(controlDirectory: control))
     }
 
-    func testExecIsBatchModeWithoutTTY() {
+    func testExecIsBatchModeWithoutTTYAndGivesUpOnUnreachableHosts() {
+        // ConnectTimeout: a host that drops packets would otherwise hang a
+        // background call (e.g. the status probe) for the OS's ~75s.
         let argv = SSHCommand.exec(target: "me@devbox", remoteCommand: "true", controlDirectory: control)
-        XCTAssertEqual(Array(argv.suffix(6)), ["-T", "-o", "BatchMode=yes", "--", "me@devbox", "true"])
+        XCTAssertEqual(
+            Array(argv.suffix(8)), ["-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", "me@devbox", "true"]
+        )
     }
 
     func testControlPathFitsUnixSocketLimitIncludingTempSuffix() {

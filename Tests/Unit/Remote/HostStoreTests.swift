@@ -94,4 +94,23 @@ final class HostStoreTests: XCTestCase {
         XCTAssertThrowsError(try store.update(id: id, name: "dev", sshTarget: "-x", reposRoot: "/src"))
         XCTAssertThrowsError(try store.update(id: id, name: "dev", sshTarget: "dev", reposRoot: "src"))
     }
+
+    func testSSHTargetCannotChangeWhileTabsRunOnTheHost() throws {
+        // Existing tabs would reattach, probe and remove worktrees on a
+        // different machine at the same paths.
+        let host = try store.add(name: "dev", sshTarget: "dev1", reposRoot: "/src")
+        let hostID = try XCTUnwrap(host.id)
+        try db.queue.write { db in
+            var tab = YggdrasilTab(
+                id: nil, taskID: nil, codingAgentID: nil, position: 0,
+                branchName: "b", worktreePath: "/src/o/r/.worktrees/b",
+                lastMainView: .agent, createdAt: Date(), lastActiveAt: Date(), hostID: hostID
+            )
+            try tab.insert(db)
+        }
+        XCTAssertThrowsError(try store.update(id: hostID, name: "dev", sshTarget: "dev2", reposRoot: "/src")) { error in
+            XCTAssertEqual(error as? HostStoreError, .hostInUse(hostID))
+        }
+        XCTAssertNoThrow(try store.update(id: hostID, name: "Dev box", sshTarget: "dev1", reposRoot: "/data"))
+    }
 }

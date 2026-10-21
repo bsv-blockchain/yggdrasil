@@ -107,6 +107,9 @@ struct SettingsTextField: View {
                 if !isFocused { commit() }
             }
             .onAppear { draft = value }
+            // Switching rows or Settings tabs removes the field without a
+            // focus change; save what was typed rather than drop it.
+            .onDisappear(perform: commit)
             .onChange(of: value) { _, newValue in draft = newValue }
     }
 

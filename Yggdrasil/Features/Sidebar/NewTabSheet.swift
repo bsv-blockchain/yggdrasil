@@ -208,7 +208,7 @@ struct NewTabSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 7))
 
                 Text(
-                    "Yggdrasil will create this branch in a new worktree under \(repoMainPath ?? "<repo>")/.worktrees/. Type `pr-N` or `issue-N` to auto-link to an existing GitHub task."
+                    "Yggdrasil will create this branch in a new worktree under \(worktreeParentHint)/.worktrees/. Type `pr-N` or `issue-N` to auto-link to an existing GitHub task."
                 )
                 .font(.system(size: 10))
                 .foregroundStyle(YggdrasilTheme.textMute(scheme))
@@ -273,6 +273,16 @@ struct NewTabSheet: View {
     }
 
     // MARK: - Logic (preserved)
+
+    /// Where the worktree will go: the repo's checkout on the chosen host, or
+    /// its local clone.
+    private var worktreeParentHint: String {
+        if let host = selectedHost, let repo = selectedRepo {
+            let path = (try? services.hostRepoStore.checkoutPath(host: host, repo: repo)) ?? "<repo>"
+            return "\(host.name):\(path)"
+        }
+        return repoMainPath ?? "<repo>"
+    }
 
     private var selectedHost: RemoteHost? {
         hosts.first { $0.id == selectedHostID }

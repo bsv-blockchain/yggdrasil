@@ -5,6 +5,8 @@ enum HostRepoStoreError: Error, Equatable {
     case notAbsolute(String)
     /// Tabs on the host still have worktrees under this checkout.
     case inUse(String)
+    /// Another repo's checkout on the host is already at this path.
+    case pathTaken(String, heldBy: String)
 }
 
 /// A repo's checkout on a host, for listing in Settings.
@@ -32,6 +34,7 @@ struct HostRepoStore {
         try database.queue.write { db in
             if let path = try stored(db, host: host, repo: repo) { return path }
             let path = host.repoPath(owner: repo.owner, name: repo.name)
+            try Self.ensureFree(db, host: host, repo: repo, path: path)
             try db.execute(
                 sql: "INSERT INTO host_repo (host_id, repo_id, checkout_path) VALUES (?, ?, ?)",
                 arguments: [host.id, repo.id, path]
@@ -43,8 +46,11 @@ struct HostRepoStore {
     /// Points the repo at a different checkout on the host. Refused while tabs
     /// on the host have worktrees under the current one, since those would be
     /// orphaned. Two repos can't share a checkout (unique per host).
-    func setCheckoutPath(host: RemoteHost, repo: Repo, path: String) throws {
-        guard path.hasPrefix("/") else { throw HostRepoStoreError.notAbsolute(path) }
+    func setCheckoutPath(host: RemoteHost, repo: Repo, path rawPath: String) throws {
+        guard rawPath.hasPrefix("/") else { throw HostRepoStoreError.notAbsolute(rawPath) }
+        // One spelling per directory, so the uniqueness and in-use checks
+        // can't be dodged with `//` or a trailing slash.
+        let path = URL(fileURLWithPath: rawPath).standardizedFileURL.path
         try database.queue.write { db in
             let current = try stored(db, host: host, repo: repo)
                 ?? host.repoPath(owner: repo.owner, name: repo.name)
@@ -56,6 +62,7 @@ struct HostRepoStore {
                 ) ?? 0
                 guard users == 0 else { throw HostRepoStoreError.inUse(current) }
             }
+            try Self.ensureFree(db, host: host, repo: repo, path: path)
             try db.execute(
                 sql: """
                 INSERT INTO host_repo (host_id, repo_id, checkout_path) VALUES (?, ?, ?)
@@ -81,6 +88,17 @@ struct HostRepoStore {
             guard let repo = try Repo.fetchOne(db, key: row["repo_id"] as Int64) else { return nil }
             return HostRepoCheckout(repo: repo, path: row["checkout_path"])
         }
+    }
+
+    private static func ensureFree(_ db: Database, host: RemoteHost, repo: Repo, path: String) throws {
+        let holder = try Int64.fetchOne(
+            db,
+            sql: "SELECT repo_id FROM host_repo WHERE host_id = ? AND checkout_path = ? AND repo_id != ?",
+            arguments: [host.id, path, repo.id]
+        )
+        guard let holder else { return }
+        let name = try Repo.fetchOne(db, key: holder)?.fullName ?? "another repository"
+        throw HostRepoStoreError.pathTaken(path, heldBy: name)
     }
 
     private func stored(_ db: Database, host: RemoteHost, repo: Repo) throws -> String? {

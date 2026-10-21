@@ -18,6 +18,10 @@ protocol WorktreeSite: Sendable {
     /// Whether a tab may be handed the main checkout itself when its branch is
     /// checked out there.
     var allowsMainCheckout: Bool { get }
+    /// Whether a new branch should start from a freshly fetched
+    /// `origin/<default branch>` rather than the checkout's own copy, which
+    /// nothing else keeps current.
+    var refreshesDefaultBranch: Bool { get }
 }
 
 protocol WorktreeLock {
@@ -29,6 +33,8 @@ extension FileLock: WorktreeLock {}
 /// Repos cloned on this Mac (`repo.local_main_path`).
 struct LocalWorktreeSite: WorktreeSite {
     let allowsMainCheckout = true
+    /// The user's own clone; they pull it as they see fit.
+    let refreshesDefaultBranch = false
 
     func mainPath(for repo: Repo) -> String? {
         repo.localMainPath
@@ -94,6 +100,7 @@ struct RemoteWorktreeSite: WorktreeSite {
     let host: RemoteHost
     let runner: SubprocessRunner
     let allowsMainCheckout = false
+    let refreshesDefaultBranch = true
     private let checkoutPath: @Sendable (Repo) -> String?
 
     /// `checkoutPath` is the repo's pinned checkout (`HostRepoStore`);

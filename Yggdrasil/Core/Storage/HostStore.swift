@@ -34,9 +34,16 @@ struct HostStore {
 
     /// A new repos root only applies to repos not yet used on the host; the
     /// checkouts already pinned in `host_repo` stay where they are.
+    /// The ssh target can't change while tabs run on the host: they'd
+    /// reattach, probe and remove worktrees on another machine.
     func update(id: Int64, name: String, sshTarget: String, reposRoot: String) throws {
         try Self.validate(sshTarget: sshTarget, reposRoot: reposRoot)
         try database.queue.write { db in
+            let current = try RemoteHost.fetchOne(db, key: id)
+            if let current, current.sshTarget != sshTarget {
+                let tabs = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM tab WHERE host_id = ?", arguments: [id]) ?? 0
+                guard tabs == 0 else { throw HostStoreError.hostInUse(id) }
+            }
             try db.execute(
                 sql: "UPDATE host SET name = ?, ssh_target = ?, repos_root = ? WHERE id = ?",
                 arguments: [name, sshTarget, reposRoot, id]

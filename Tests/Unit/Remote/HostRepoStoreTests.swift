@@ -86,4 +86,40 @@ final class HostRepoStoreTests: XCTestCase {
             XCTAssertEqual(error as? HostRepoStoreError, .inUse(pinned))
         }
     }
+
+    func testCheckoutPathIsNormalized() throws {
+        try store.setCheckoutPath(host: host, repo: repo, path: "/work//widget/")
+        XCTAssertEqual(try store.checkoutPath(host: host, repo: repo), "/work/widget")
+    }
+
+    func testTrailingSlashDoesNotDodgeTheInUseCheck() throws {
+        try store.setCheckoutPath(host: host, repo: repo, path: "/work/widget/")
+        try db.queue.write { db in
+            var tab = YggdrasilTab(
+                id: nil, taskID: nil, codingAgentID: nil, position: 0,
+                branchName: "b", worktreePath: "/work/widget/.worktrees/b",
+                lastMainView: .agent, createdAt: Date(), lastActiveAt: Date(), hostID: host.id
+            )
+            try tab.insert(db)
+        }
+        XCTAssertThrowsError(try store.setCheckoutPath(host: host, repo: repo, path: "/elsewhere")) { error in
+            XCTAssertEqual(error as? HostRepoStoreError, .inUse("/work/widget"))
+        }
+    }
+
+    func testPinOntoAPathAnotherRepoHoldsIsAReadableError() throws {
+        let other = try db.queue.write { db in
+            var repo = Repo(
+                id: nil, owner: "acme", name: "gadget", defaultBranch: "main", localMainPath: nil, addedAt: Date()
+            )
+            try repo.insert(db)
+            return repo
+        }
+        try store.setCheckoutPath(host: host, repo: other, path: "/home/me/src/acme/widget")
+        XCTAssertThrowsError(try store.pin(host: host, repo: repo)) { error in
+            XCTAssertEqual(
+                error as? HostRepoStoreError, .pathTaken("/home/me/src/acme/widget", heldBy: "acme/gadget")
+            )
+        }
+    }
 }
