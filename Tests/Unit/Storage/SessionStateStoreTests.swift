@@ -74,6 +74,32 @@ final class SessionStateStoreTests: XCTestCase {
         XCTAssertNil(try store.get(tabID: 9999))
     }
 
+    func testStartPersistsClaudeSessionID() throws {
+        let store = SessionStateStore(database: db)
+        let tabID = try makeTab()
+        _ = try store.start(tabID: tabID, cwd: "/tmp/x", command: "claude", args: [], claudeSessionID: "sid-1")
+        XCTAssertEqual(try store.get(tabID: tabID)?.claudeSessionID, "sid-1")
+    }
+
+    func testStartWithoutSessionIDKeepsStoredOne() throws {
+        // "Open Shell" respawns the tab with $SHELL; that must not forget the
+        // Claude conversation the tab is pinned to.
+        let store = SessionStateStore(database: db)
+        let tabID = try makeTab()
+        _ = try store.start(tabID: tabID, cwd: "/tmp/x", command: "claude", args: [], claudeSessionID: "sid-1")
+        let shell = try store.start(tabID: tabID, cwd: "/tmp/x", command: "/bin/zsh", args: [])
+        XCTAssertEqual(shell.claudeSessionID, "sid-1")
+        XCTAssertEqual(try store.get(tabID: tabID)?.claudeSessionID, "sid-1")
+    }
+
+    func testStartWithNewSessionIDReplacesStoredOne() throws {
+        let store = SessionStateStore(database: db)
+        let tabID = try makeTab()
+        _ = try store.start(tabID: tabID, cwd: "/tmp/x", command: "claude", args: [], claudeSessionID: "sid-1")
+        _ = try store.start(tabID: tabID, cwd: "/tmp/x", command: "claude", args: [], claudeSessionID: "sid-2")
+        XCTAssertEqual(try store.get(tabID: tabID)?.claudeSessionID, "sid-2")
+    }
+
     func testGetReturnsNilForUnknownTab() throws {
         let store = SessionStateStore(database: db)
         XCTAssertNil(try store.get(tabID: 1234))

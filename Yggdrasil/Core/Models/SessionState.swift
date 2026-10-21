@@ -15,6 +15,9 @@ struct SessionState: Codable, FetchableRecord, PersistableRecord, Equatable {
     var lastKnownExitCode: Int32?
     var ptyStartedAt: Date
     var ptyEndedAt: Date?
+    /// Claude conversation id this tab is pinned to (`--session-id`/`--resume`).
+    /// Nil for non-Claude agents and for tabs that predate v16.
+    var claudeSessionID: String?
 
     enum CodingKeys: String, CodingKey {
         case tabID = "tab_id"
@@ -24,11 +27,13 @@ struct SessionState: Codable, FetchableRecord, PersistableRecord, Equatable {
         case lastKnownExitCode = "last_known_exit_code"
         case ptyStartedAt = "pty_started_at"
         case ptyEndedAt = "pty_ended_at"
+        case claudeSessionID = "claude_session_id"
     }
 
     init(
         tabID: Int64, cwd: String, agentCommand: String, agentArgs: [String],
-        lastKnownExitCode: Int32?, ptyStartedAt: Date, ptyEndedAt: Date?
+        lastKnownExitCode: Int32?, ptyStartedAt: Date, ptyEndedAt: Date?,
+        claudeSessionID: String? = nil
     ) {
         self.tabID = tabID
         self.cwd = cwd
@@ -37,6 +42,7 @@ struct SessionState: Codable, FetchableRecord, PersistableRecord, Equatable {
         self.lastKnownExitCode = lastKnownExitCode
         self.ptyStartedAt = ptyStartedAt
         self.ptyEndedAt = ptyEndedAt
+        self.claudeSessionID = claudeSessionID
     }
 
     init(from decoder: Decoder) throws {
@@ -49,6 +55,7 @@ struct SessionState: Codable, FetchableRecord, PersistableRecord, Equatable {
         lastKnownExitCode = try container.decodeIfPresent(Int32.self, forKey: .lastKnownExitCode)
         ptyStartedAt = try container.decode(Date.self, forKey: .ptyStartedAt)
         ptyEndedAt = try container.decodeIfPresent(Date.self, forKey: .ptyEndedAt)
+        claudeSessionID = try container.decodeIfPresent(String.self, forKey: .claudeSessionID)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -62,5 +69,6 @@ struct SessionState: Codable, FetchableRecord, PersistableRecord, Equatable {
         try container.encodeIfPresent(lastKnownExitCode, forKey: .lastKnownExitCode)
         try container.encode(ptyStartedAt, forKey: .ptyStartedAt)
         try container.encodeIfPresent(ptyEndedAt, forKey: .ptyEndedAt)
+        try container.encodeIfPresent(claudeSessionID, forKey: .claudeSessionID)
     }
 }

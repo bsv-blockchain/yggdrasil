@@ -214,15 +214,26 @@ struct AgentTerminalSurface: NSViewRepresentable {
         private func startIfNeeded(in view: LocalProcessTerminalView) {
             guard !didStart else { return }
             didStart = true
-            // If Claude has prior conversation history for this worktree
-            // (transcripts under ~/.claude/projects/<encoded-cwd>/*.jsonl),
-            // append `--continue` so the agent picks up where it left off.
+            // Pin Claude to the tab's own conversation id (`--session-id` on
+            // first spawn, `--resume` after) so it picks up where it left off.
             // Other agent commands fall through untouched.
-            let resolvedArgs = AgentTerminalSurface.applyResumeFlag(
-                command: command, args: args, cwd: cwd
-            )
+            let stored: StoredSession
             do {
-                _ = try sessionStore.start(tabID: tabID, cwd: cwd, command: command, args: resolvedArgs)
+                stored = try sessionStore.get(tabID: tabID)
+                    .map { $0.claudeSessionID.map(StoredSession.pinned) ?? .unpinned } ?? .noRow
+            } catch {
+                stored = .unknown
+            }
+            let plan = AgentTerminalSurface.resolveResume(
+                command: command, args: args, cwd: cwd,
+                stored: stored, newSessionID: UUID().uuidString.lowercased()
+            )
+            let resolvedArgs = plan.args
+            do {
+                _ = try sessionStore.start(
+                    tabID: tabID, cwd: cwd, command: command, args: resolvedArgs,
+                    claudeSessionID: plan.sessionID
+                )
             } catch {
                 YggdrasilLog.pty
                     .error("Failed to write session_state.start: \(String(describing: error), privacy: .public)")
@@ -310,39 +321,77 @@ struct AgentTerminalSurface: NSViewRepresentable {
         }
     }
 
-    /// Append the agent-specific resume flag to `args` when there's a prior
-    /// conversation for this cwd. Currently Claude-aware only: `claude
-    /// --continue` resumes the most recent conversation in the cwd, but
-    /// errors out (exit 1) when no transcript exists. Checking the
-    /// session_state row isn't enough — claude stores its history under
-    /// `~/.claude/projects/<encoded-cwd>/*.jsonl`, and that's where we look.
-    /// Pure for testability.
-    static func applyResumeFlag(
+    /// Resolved agent args plus the Claude session id the tab is pinned to.
+    struct ResumePlan: Equatable {
+        let args: [String]
+        /// Nil when the tab isn't pinned: non-Claude agents, user-managed
+        /// resume flags, and legacy tabs resumed via `--continue`.
+        let sessionID: String?
+    }
+
+    /// What `session_state` says about the tab's Claude conversation.
+    enum StoredSession: Equatable {
+        /// No row: the tab has never spawned, so it's new.
+        case noRow
+        /// A row without an id: the tab predates v16.
+        case unpinned
+        case pinned(String)
+        /// The row couldn't be read; never mint a new id over a possible pin.
+        case unknown
+    }
+
+    /// Picks Claude's resume flags for a spawn. Only for the `claude` binary
+    /// itself; wrappers (claude-squad, …) don't take these flags.
+    ///  - Pinned id with a transcript → `--resume <id>`.
+    ///  - Pinned id without one (no exchange yet) → `--session-id <id>`;
+    ///    `--resume` of an unknown id exits 1.
+    ///  - New tab → `--session-id <newSessionID>`, which the caller stores.
+    ///  - Tab predating v16, or unreadable row → `--continue` when the cwd
+    ///    has transcripts, as before. A legacy tab without any gets pinned.
+    /// `--resume` searches every project dir, so a pinned transcript counts
+    /// wherever it lives. Pure for testability.
+    static func resolveResume(
         command: String,
         args: [String],
         cwd: String,
+        stored: StoredSession,
+        newSessionID: String,
+        home: String = NSHomeDirectory(),
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
         directoryContents: (String) -> [String]? = {
             try? FileManager.default.contentsOfDirectory(atPath: $0)
         }
-    ) -> [String] {
-        let lowerCmd = command.lowercased()
-        guard lowerCmd.contains("claude") else { return args }
-        // Don't double-up if the user already set the flag.
-        if args.contains("--continue") || args.contains("-c") || args.contains("--resume") {
-            return args
+    ) -> ResumePlan {
+        guard (command as NSString).lastPathComponent.lowercased() == "claude" else {
+            return ResumePlan(args: args, sessionID: nil)
         }
-        // Shared with the status probe rather than duplicated: the encoding
-        // here was wrong in the same way (only `/` and `.` replaced), so a
-        // branch slug keeping an underscore looked in a directory that does not
-        // exist and silently dropped `--continue` on reopen.
-        let home = NSHomeDirectory()
-        let projectDir = AgentSessionLocator.projectDirectory(forWorktreePath: cwd, home: home)
-        guard fileExists(projectDir),
-              let entries = directoryContents(projectDir),
-              entries.contains(where: { $0.hasSuffix(".jsonl") })
-        else { return args }
-        return args + ["--continue"]
+        // The user's agent profile manages sessions itself; don't fight it.
+        let userFlags = ["--continue", "-c", "--resume", "-r", "--session-id", "--fork-session"]
+        if args.contains(where: { arg in userFlags.contains { arg == $0 || arg.hasPrefix($0 + "=") } }) {
+            return ResumePlan(args: args, sessionID: nil)
+        }
+        let pinNew = ResumePlan(args: args + ["--session-id", newSessionID], sessionID: newSessionID)
+        switch stored {
+        case let .pinned(id):
+            // The cwd's own project dir is the usual home; only scan the rest
+            // when it isn't there.
+            let projectsRoot = "\(home)/.claude/projects"
+            let hasTranscript =
+                fileExists("\(AgentSessionLocator.projectDirectory(forWorktreePath: cwd, home: home))/\(id).jsonl")
+                    || (directoryContents(projectsRoot) ?? []).contains { dir in
+                        directoryContents("\(projectsRoot)/\(dir)")?.contains("\(id).jsonl") ?? false
+                    }
+            return ResumePlan(args: args + [hasTranscript ? "--resume" : "--session-id", id], sessionID: id)
+        case .noRow:
+            return pinNew
+        case .unpinned, .unknown:
+            let entries = directoryContents(AgentSessionLocator.projectDirectory(forWorktreePath: cwd, home: home)) ??
+                []
+            if entries.contains(where: { $0.hasSuffix(".jsonl") }) {
+                return ResumePlan(args: args + ["--continue"], sessionID: nil)
+            }
+            return stored == .unpinned ? pinNew : ResumePlan(args: args, sessionID: nil)
+        }
     }
 
     /// Same `/bin/sh -c 'cd "<cwd>" && exec <cmd> <args>...'` invocation as

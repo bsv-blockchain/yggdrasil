@@ -20,7 +20,22 @@ enum Migrations {
         migrator.registerMigration("v13", migrate: v13)
         migrator.registerMigration("v14", migrate: v14)
         migrator.registerMigration("v15", migrate: v15)
+        migrator.registerMigration("v16", migrate: v16)
         return migrator
+    }
+
+    // MARK: - v16 — Pinned Claude session id per tab
+
+    ///
+    /// The app now owns the Claude conversation id for a tab: the first spawn
+    /// passes `--session-id <uuid>`, later spawns `--resume <uuid>`. Replaces
+    /// the "most recent transcript in this cwd" `--continue` guess for new tabs,
+    /// and is what lets a conversation be moved between machines. Nullable:
+    /// tabs that predate it keep the `--continue` path.
+    private static func v16(_ db: Database) throws {
+        try db.alter(table: "session_state") { table in
+            table.add(column: "claude_session_id", .text)
+        }
     }
 
     // MARK: - v15 — a tab exists before its worktree does

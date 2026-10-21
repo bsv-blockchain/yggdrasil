@@ -1,86 +1,145 @@
 import XCTest
 @testable import Yggdrasil
 
-/// Verifies the `--continue` injection logic that lets Claude pick up its
-/// previous in-cwd conversation on app relaunch. Uses injected file-system
-/// probes so the test doesn't touch ~/.claude/projects.
+/// Verifies how resume flags are chosen for Claude: an app-owned session id
+/// (`--session-id` on first spawn, `--resume <id>` once its transcript exists),
+/// with the legacy `--continue` path kept for tabs that predate stored ids.
+/// Uses an injected directory listing so the test doesn't touch ~/.claude/projects.
 final class AgentResumeFlagTests: XCTestCase {
-    /// Helper that simulates the filesystem state at `~/.claude/projects/<enc>/`.
-    private func makeProbes(hasConversation: Bool) -> (
-        fileExists: (String) -> Bool,
-        directoryContents: (String) -> [String]?
-    ) {
-        let exists: (String) -> Bool = { path in
-            hasConversation && path.contains(".claude/projects/")
-        }
-        let contents: (String) -> [String]? = { path in
-            guard hasConversation, path.contains(".claude/projects/") else { return nil }
-            return ["abc-123.jsonl", "metadata.json"]
-        }
-        return (exists, contents)
+    private let newID = "11111111-2222-3333-4444-555555555555"
+    private let storedID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+    private let home = "/Users/me"
+
+    /// Simulates `~/.claude/projects/` as `[projectDirName: [files]]`, and the
+    /// tab's `session_state` row as `stored`.
+    private func resolve(
+        command: String = "claude",
+        args: [String] = ["--dangerously-skip-permissions"],
+        cwd: String = "/tmp/foo",
+        stored: AgentTerminalSurface.StoredSession = .noRow,
+        projects: [String: [String]] = [:]
+    ) -> AgentTerminalSurface.ResumePlan {
+        let root = "\(home)/.claude/projects"
+        return AgentTerminalSurface.resolveResume(
+            command: command, args: args, cwd: cwd,
+            stored: stored, newSessionID: newID, home: home,
+            fileExists: { path in
+                let parts = path.dropFirst(root.count + 1).split(separator: "/").map(String.init)
+                return parts.count == 2 && (projects[parts[0]]?.contains(parts[1]) ?? false)
+            },
+            directoryContents: { path in
+                if path == root { return Array(projects.keys) }
+                guard path.hasPrefix(root + "/") else { return nil }
+                return projects[String(path.dropFirst(root.count + 1))]
+            }
+        )
     }
 
-    func test_noConversationHistory_returnsArgsUnchanged() {
-        let probes = makeProbes(hasConversation: false)
-        let out = AgentTerminalSurface.applyResumeFlag(
-            command: "claude", args: ["--dangerously-skip-permissions"],
-            cwd: "/tmp/foo", fileExists: probes.fileExists,
-            directoryContents: probes.directoryContents
-        )
-        XCTAssertEqual(out, ["--dangerously-skip-permissions"])
+    func test_newTab_noHistory_startsNewPinnedSession() {
+        let plan = resolve()
+        XCTAssertEqual(plan.args, ["--dangerously-skip-permissions", "--session-id", newID])
+        XCTAssertEqual(plan.sessionID, newID)
     }
 
-    func test_conversationHistoryExists_appendsContinue() {
-        let probes = makeProbes(hasConversation: true)
-        let out = AgentTerminalSurface.applyResumeFlag(
-            command: "claude", args: ["--dangerously-skip-permissions"],
-            cwd: "/Users/me/checkout/.worktrees/pr-643",
-            fileExists: probes.fileExists,
-            directoryContents: probes.directoryContents
+    func test_legacyTab_withHistory_keepsContinue() {
+        let plan = resolve(
+            cwd: "/Users/me/checkout/.worktrees/pr_643", stored: .unpinned,
+            projects: ["-Users-me-checkout--worktrees-pr-643": ["abc-123.jsonl"]]
         )
-        XCTAssertEqual(out, ["--dangerously-skip-permissions", "--continue"])
+        XCTAssertEqual(plan.args, ["--dangerously-skip-permissions", "--continue"])
+        XCTAssertNil(plan.sessionID)
+    }
+
+    func test_legacyTab_directoryWithoutJsonl_startsNewPinnedSession() {
+        let plan = resolve(args: [], stored: .unpinned, projects: ["-tmp-foo": ["metadata.json"]])
+        XCTAssertEqual(plan.args, ["--session-id", newID])
+        XCTAssertEqual(plan.sessionID, newID)
+    }
+
+    func test_storedID_transcriptExists_resumesThatSession() {
+        let plan = resolve(stored: .pinned(storedID), projects: ["-tmp-foo": ["\(storedID).jsonl", "other.jsonl"]])
+        XCTAssertEqual(plan.args, ["--dangerously-skip-permissions", "--resume", storedID])
+        XCTAssertEqual(plan.sessionID, storedID)
+    }
+
+    func test_storedID_noTranscriptYet_reusesIDWithSessionIDFlag() {
+        // Claude only writes the transcript after the first exchange; resuming
+        // a never-used id would fail, so pin the same id again instead.
+        let plan = resolve(stored: .pinned(storedID), projects: ["-tmp-foo": ["other.jsonl"]])
+        XCTAssertEqual(plan.args, ["--dangerously-skip-permissions", "--session-id", storedID])
+        XCTAssertEqual(plan.sessionID, storedID)
     }
 
     func test_nonClaudeCommand_neverGetsFlag() {
-        let probes = makeProbes(hasConversation: true)
-        let out = AgentTerminalSurface.applyResumeFlag(
-            command: "codex", args: ["-m", "gpt-4"], cwd: "/tmp/foo",
-            fileExists: probes.fileExists,
-            directoryContents: probes.directoryContents
-        )
-        XCTAssertEqual(out, ["-m", "gpt-4"])
+        let plan = resolve(command: "codex", args: ["-m", "gpt-4"], stored: .pinned(storedID))
+        XCTAssertEqual(plan.args, ["-m", "gpt-4"])
+        XCTAssertNil(plan.sessionID)
     }
 
-    func test_flagAlreadyPresent_isIdempotent() {
-        let probes = makeProbes(hasConversation: true)
-        for existing in ["--continue", "-c", "--resume"] {
-            let out = AgentTerminalSurface.applyResumeFlag(
-                command: "claude", args: [existing], cwd: "/tmp/foo",
-                fileExists: probes.fileExists,
-                directoryContents: probes.directoryContents
-            )
-            XCTAssertEqual(out, [existing], "Should not double-add for \(existing)")
+    func test_flagAlreadyPresent_isLeftAlone() {
+        for existing in [
+            "--continue", "-c", "--resume", "-r", "--session-id",
+            "--resume=x", "--session-id=x", "--fork-session"
+        ] {
+            let plan = resolve(args: [existing], stored: .pinned(storedID))
+            XCTAssertEqual(plan.args, [existing], "Should not add a flag next to \(existing)")
+            XCTAssertNil(plan.sessionID, "User-managed session for \(existing)")
         }
     }
 
     func test_claudeWithFullPath_stillDetected() {
-        let probes = makeProbes(hasConversation: true)
-        let out = AgentTerminalSurface.applyResumeFlag(
-            command: "/Users/me/.claude/local/bin/claude", args: [],
-            cwd: "/tmp/foo",
-            fileExists: probes.fileExists,
-            directoryContents: probes.directoryContents
+        let plan = resolve(
+            command: "/Users/me/.claude/local/bin/claude", args: [], stored: .unpinned,
+            projects: ["-tmp-foo": ["x.jsonl"]]
         )
-        XCTAssertEqual(out, ["--continue"])
+        XCTAssertEqual(plan.args, ["--continue"])
     }
 
-    func test_directoryExistsButNoJsonl_doesNotResume() {
-        let exists: (String) -> Bool = { _ in true }
-        let contents: (String) -> [String]? = { _ in ["metadata.json"] }
-        let out = AgentTerminalSurface.applyResumeFlag(
+    func test_pinnedTranscriptInAnotherProjectDir_resumes() {
+        // --resume searches every project dir, so a transcript under a different
+        // encoding (moved worktree, long-path hash) still counts; passing
+        // --session-id again would exit 1 with "already in use".
+        let plan = resolve(cwd: "/tmp/fix_foo", stored: .pinned(storedID), projects: [
+            "-tmp-fix-foo-a1b2c3": ["\(storedID).jsonl"]
+        ])
+        XCTAssertEqual(plan.args, ["--dangerously-skip-permissions", "--resume", storedID])
+    }
+
+    func test_newTab_onWorktreeWithOtherConversations_isPinnedNotContinued() {
+        // No session_state row → a new tab, even if claude was used here before.
+        let plan = resolve(projects: ["-tmp-foo": ["someone-else.jsonl"]])
+        XCTAssertEqual(plan.args, ["--dangerously-skip-permissions", "--session-id", newID])
+        XCTAssertEqual(plan.sessionID, newID)
+    }
+
+    func test_unreadableSessionRow_neverMintsANewID() {
+        // A DB read error must not replace an existing pin with a fresh id.
+        let plan = resolve(stored: .unknown, projects: ["-tmp-foo": ["x.jsonl"]])
+        XCTAssertEqual(plan.args, ["--dangerously-skip-permissions", "--continue"])
+        XCTAssertNil(plan.sessionID)
+    }
+
+    func test_claudeWrapperBinaries_areNotPinned() {
+        // Wrappers like claude-squad don't accept claude's session flags.
+        for wrapper in ["claude-squad", "/usr/local/bin/claudebox"] {
+            let plan = resolve(command: wrapper, args: [])
+            XCTAssertEqual(plan.args, [], wrapper)
+            XCTAssertNil(plan.sessionID, wrapper)
+        }
+    }
+
+    func test_pinnedTranscriptInOwnProjectDir_skipsFullScan() {
+        var listed: [String] = []
+        let plan = AgentTerminalSurface.resolveResume(
             command: "claude", args: [], cwd: "/tmp/foo",
-            fileExists: exists, directoryContents: contents
+            stored: .pinned(storedID), newSessionID: newID, home: home,
+            fileExists: { $0 == "\(self.home)/.claude/projects/-tmp-foo/\(self.storedID).jsonl" },
+            directoryContents: { listed.append($0)
+                return nil
+            }
         )
-        XCTAssertEqual(out, [])
+        XCTAssertEqual(plan.args, ["--resume", storedID])
+        XCTAssertEqual(listed, [], "the cwd's own project dir should be checked directly")
     }
 }
