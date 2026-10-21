@@ -181,7 +181,7 @@ final class AppServices {
 
     /// Worktree manager for `repo` on `host`, once the repo's single checkout
     /// there is pinned and cloned (if it was missing).
-    private nonisolated static func remoteWorktreeManager(
+    nonisolated static func remoteWorktreeManager(
         on host: RemoteHost, repo: Repo, hostRepos: HostRepoStore
     ) async throws -> WorktreeManager {
         let checkout = try hostRepos.pin(host: host, repo: repo)

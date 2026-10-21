@@ -120,6 +120,10 @@ final class SessionsModel {
         return true
     }
 
+    func livePID(for tabID: Int64) -> pid_t? {
+        livePIDs[tabID]
+    }
+
     func unregisterLivePID(for tabID: Int64) {
         livePIDs[tabID] = nil
     }

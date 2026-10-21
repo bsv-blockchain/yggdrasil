@@ -439,6 +439,25 @@ struct SidebarView: View {
         return true
     }
 
+    /// "Move to ▸": between this Mac and the configured hosts. Host to host
+    /// isn't offered; that goes through this Mac.
+    @ViewBuilder
+    private func moveMenu(for tab: YggdrasilTab) -> some View {
+        let hosts = (try? services.hostStore.list()) ?? []
+        if !hosts.isEmpty {
+            Menu("Move to") {
+                if tab.hostID != nil {
+                    Button("This Mac") { SidebarActions.moveTab(tab, to: nil, services: services) }
+                } else {
+                    ForEach(hosts, id: \.id) { host in
+                        Button(host.name) { SidebarActions.moveTab(tab, to: host, services: services) }
+                    }
+                }
+            }
+            .disabled(!tab.isReady)
+        }
+    }
+
     @ViewBuilder
     private func contextMenu(for tab: YggdrasilTab) -> some View {
         if let id = tab.id {
@@ -468,6 +487,7 @@ struct SidebarView: View {
         Button("New Shell") {
             if let id = tab.id { SidebarActions.openShell(tabID: id, services: services) }
         }
+        moveMenu(for: tab)
         Divider()
         // The worktree of a remote tab isn't on this Mac.
         Button("Open in Finder") { SidebarActions.openInFinder(path: tab.worktreePath) }

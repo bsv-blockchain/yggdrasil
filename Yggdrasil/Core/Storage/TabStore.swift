@@ -82,6 +82,17 @@ struct TabStore {
         }
     }
 
+    /// Repoints a tab at another machine's worktree, after a move between
+    /// this Mac (`hostID` nil) and a host.
+    func move(id: Int64, hostID: Int64?, worktreePath: String) throws {
+        try database.queue.write { db in
+            try db.execute(
+                sql: "UPDATE tab SET host_id = ?, worktree_path = ? WHERE id = ?",
+                arguments: [hostID, worktreePath, id]
+            )
+        }
+    }
+
     /// Rows left mid-preparation by a quit or crash. Nothing resumes them on
     /// the next launch, so without this they keep a "preparing" chip forever,
     /// never spawn an agent, and — since Retry only offers itself for failures
