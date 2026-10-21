@@ -118,6 +118,10 @@ final class ClipboardGuardDelegate: TerminalViewDelegate {
 ///      position.
 @MainActor
 class DroppableTerminalView: LocalProcessTerminalView {
+    /// Paste-image and file drop type local paths into the agent. Off for
+    /// remote tabs, where those paths don't exist; paste falls back to text.
+    var sendsLocalFilePaths = true
+
     /// nil = follow tail; Double in [0, 1) = the position the user pinned
     /// the viewport at while reading history. Stored as a fractional
     /// position rather than a row index so it survives scrollback trim.
@@ -244,7 +248,7 @@ class DroppableTerminalView: LocalProcessTerminalView {
     /// temp PNG written from the raw image bytes. Everything else falls through
     /// to SwiftTerm's normal text paste.
     override func paste(_ sender: Any) {
-        if let payload = DroppableTerminalView.imagePastePayload(from: .general) {
+        if sendsLocalFilePaths, let payload = DroppableTerminalView.imagePastePayload(from: .general) {
             send(txt: payload)
             return
         }
@@ -313,12 +317,13 @@ class DroppableTerminalView: LocalProcessTerminalView {
     // MARK: - File drag-and-drop
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: nil)
+        sendsLocalFilePaths && sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: nil)
             ? .copy
             : []
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard sendsLocalFilePaths else { return false }
         let pasteboard = sender.draggingPasteboard
         guard let urls = pasteboard.readObjects(
             forClasses: [NSURL.self],

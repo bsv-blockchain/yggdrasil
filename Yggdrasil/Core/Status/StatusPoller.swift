@@ -104,6 +104,9 @@ actor StatusPoller {
                     // guaranteed subprocess failure and a warning line, per
                     // tab per tick.
                     guard tab.isReady else { continue }
+                    // Remote worktrees aren't on this disk; probing them needs
+                    // git over ssh.
+                    guard tab.hostID == nil else { continue }
                     let agent = snapshot.agents[tabID] ?? .claude
                     let previous = sessionCaches[tabID]
                     let lastGit = lastGitStates[tabID]

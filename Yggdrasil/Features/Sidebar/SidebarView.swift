@@ -469,8 +469,11 @@ struct SidebarView: View {
             if let id = tab.id { SidebarActions.openShell(tabID: id, services: services) }
         }
         Divider()
+        // The worktree of a remote tab isn't on this Mac.
         Button("Open in Finder") { SidebarActions.openInFinder(path: tab.worktreePath) }
+            .disabled(tab.hostID != nil)
         Button("Open in Terminal.app") { SidebarActions.openInTerminal(path: tab.worktreePath) }
+            .disabled(tab.hostID != nil)
         Divider()
         if let id = tab.id {
             // "Has a PR" = a PR-only tab (primary task is the PR) or an issue

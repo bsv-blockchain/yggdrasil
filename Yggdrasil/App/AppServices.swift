@@ -21,6 +21,8 @@ final class AppServices {
     let agentStore: CodingAgentStore
     let sessionStore: SessionStateStore
     let tabStore: TabStore
+    let hostStore: HostStore
+    let remoteControl = RemoteSessionControl()
     let worktreeManager = WorktreeManager()
     let sessions = SessionsModel()
     let tabs: TabsModel
@@ -58,6 +60,7 @@ final class AppServices {
         self.syncService = syncService
         self.agentStore = CodingAgentStore(database: database)
         self.sessionStore = SessionStateStore(database: database)
+        self.hostStore = HostStore(database: database)
         let tabStore = TabStore(database: database)
         self.tabStore = tabStore
         let tabsModel = TabsModel(store: tabStore, database: database)
@@ -132,6 +135,17 @@ final class AppServices {
 
         await statusPoller.stop()
         await statusPoller.start(interval: .seconds(resolved.statusProbeSeconds))
+    }
+
+    /// ssh host `tab` runs on, or nil for a local tab.
+    func host(for tab: YggdrasilTab) -> RemoteHost? {
+        guard let hostID = tab.hostID else { return nil }
+        do {
+            return try hostStore.get(id: hostID)
+        } catch {
+            YggdrasilLog.ui.error("Host lookup failed: \(String(describing: error), privacy: .public)")
+            return nil
+        }
     }
 
     /// `applicationDidFinishLaunching` calls this in place of the bare

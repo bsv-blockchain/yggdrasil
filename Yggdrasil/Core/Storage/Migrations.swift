@@ -21,7 +21,27 @@ enum Migrations {
         migrator.registerMigration("v14", migrate: v14)
         migrator.registerMigration("v15", migrate: v15)
         migrator.registerMigration("v16", migrate: v16)
+        migrator.registerMigration("v17", migrate: v17)
         return migrator
+    }
+
+    // MARK: - v17 — Remote hosts
+
+    ///
+    /// Tabs can run on an ssh host instead of locally. `tab.host_id` NULL means
+    /// local. RESTRICT rather than SET NULL: nulling it would turn a remote tab
+    /// into a "local" one pointing at a path that only exists on the server.
+    private static func v17(_ db: Database) throws {
+        try db.create(table: "host") { table in
+            table.autoIncrementedPrimaryKey("id")
+            table.column("name", .text).notNull().unique()
+            table.column("ssh_target", .text).notNull()
+            table.column("repos_root", .text).notNull()
+            table.column("created_at", .datetime).notNull()
+        }
+        try db.alter(table: "tab") { table in
+            table.add(column: "host_id", .integer).references("host", onDelete: .restrict)
+        }
     }
 
     // MARK: - v16 — Pinned Claude session id per tab

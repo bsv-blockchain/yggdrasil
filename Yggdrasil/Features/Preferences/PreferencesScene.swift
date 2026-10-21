@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// `Settings` scene installed by `YggdrasilApp`. Renders the standard macOS
-/// Preferences window with four tabs: Repos, Agents, Intervals, Appearance.
+/// Preferences window with five tabs: Repos, Agents, Hosts, Intervals, Appearance.
 struct PreferencesScene: Scene {
     @ObservedObject var appDelegate: AppDelegate
 
@@ -28,6 +28,8 @@ struct PreferencesRoot: View {
                         .tabItem { Label("Repos", systemImage: "folder.badge.gearshape") }
                     AgentPrefsPane(services: services)
                         .tabItem { Label("Agents", systemImage: "cpu") }
+                    HostPrefsPane(services: services)
+                        .tabItem { Label("Hosts", systemImage: "server.rack") }
                     IntervalsPrefsPane(services: services)
                         .tabItem { Label("Intervals", systemImage: "clock") }
                     AppearancePrefsPane(services: services)

@@ -39,42 +39,36 @@ enum SidebarActions {
               let agentID = tab.codingAgentID,
               let agent = try? services.agentStore.get(id: agentID)
         else { return }
+        let session = OpenSession(
+            id: tabID,
+            displayName: "\(agent.name) \u{00b7} \(tab.branchName)",
+            cwd: tab.worktreePath,
+            command: agent.command,
+            args: agent.args,
+            env: agent.env,
+            host: services.host(for: tab)
+        )
         services.sessions.clearExited(tabID: tabID)
         services.sessions.terminate(tabID: tabID)
-        // Defer the re-add one runloop tick so SwiftUI can dismantle the old
-        // AgentTerminalSurface (and its dead PTY) before the replacement row
-        // mounts a fresh one.
-        DispatchQueue.main.async {
-            services.sessions.add(OpenSession(
-                id: tabID,
-                displayName: "\(agent.name) \u{00b7} \(tab.branchName)",
-                cwd: tab.worktreePath,
-                command: agent.command,
-                args: agent.args,
-                env: agent.env
-            ))
-        }
+        respawn(session, services: services)
     }
 
     @MainActor
     static func openShell(tabID: Int64, services: AppServices) {
         guard let session = services.sessions.sessions.first(where: { $0.id == tabID }) else { return }
-        let cwd = session.cwd
         services.sessions.clearExited(tabID: tabID)
         services.sessions.terminate(tabID: tabID)
-        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-        // Defer the re-add one runloop tick so SwiftUI can dismantle the old
-        // AgentTerminalSurface (and its dead PTY) before the replacement row
-        // mounts a fresh one.
-        DispatchQueue.main.async {
-            services.sessions.add(OpenSession(
-                id: tabID,
-                displayName: "Shell",
-                cwd: cwd,
-                command: shell,
-                args: []
-            ))
-        }
+        // On a host, an empty command makes the helper start the user's own
+        // login shell there.
+        let shell = session.host == nil ? ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh" : ""
+        respawn(OpenSession(
+            id: tabID,
+            displayName: "Shell",
+            cwd: session.cwd,
+            command: shell,
+            args: [],
+            host: session.host
+        ), services: services)
     }
 
     /// The three-way remove-tab prompt, in the order the buttons are presented.
@@ -118,8 +112,13 @@ enum SidebarActions {
 
     /// Confirm-then-delete a tab. Tears down any running session and (optionally)
     /// removes the worktree on disk. See `RemoveTabChoice` for the prompt.
+    @MainActor
     static func removeTab(id: Int64, services: AppServices) {
         guard let tab = services.tabs.tabs.first(where: { $0.id == id }) else { return }
+        if let host = services.host(for: tab) {
+            removeRemoteTab(id: id, tab: tab, host: host, services: services)
+            return
+        }
         let alert = NSAlert()
         alert.messageText = "Remove this tab?"
         alert.informativeText = """
@@ -376,5 +375,62 @@ enum SidebarActions {
         alert.informativeText = text
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+}
+
+// MARK: - Remote tabs
+
+extension SidebarActions {
+    /// Mounts `session` in place of the one just terminated. Local: defer the
+    /// re-add one runloop tick so SwiftUI can dismantle the old
+    /// AgentTerminalSurface (and its dead PTY) before the replacement row
+    /// mounts a fresh one. Remote: `terminate` only detached, so end the
+    /// agent on the host first; otherwise `ygg attach` would just reattach
+    /// to it. A failed kill (host unreachable) still respawns, and the new
+    /// surface's reconnect loop takes over.
+    @MainActor
+    private static func respawn(_ session: OpenSession, services: AppServices) {
+        guard let host = session.host else {
+            DispatchQueue.main.async { services.sessions.add(session) }
+            return
+        }
+        Task { @MainActor in
+            do {
+                try await services.remoteControl.kill(host: host, tabID: session.id)
+            } catch {
+                YggdrasilLog.ui.error(
+                    "Remote kill failed for tab \(session.id, privacy: .public): \(String(describing: error), privacy: .public)"
+                )
+            }
+            services.sessions.add(session)
+        }
+    }
+
+    /// Worktrees on a host can't be removed from here yet, so the only choice
+    /// is the tab itself. Its agent is ended on the host either way.
+    @MainActor
+    private static func removeRemoteTab(id: Int64, tab: YggdrasilTab, host: RemoteHost, services: AppServices) {
+        let alert = NSAlert()
+        alert.messageText = "Remove this tab?"
+        alert.informativeText = """
+        Branch: \(tab.branchName)
+        Worktree: \(tab.worktreePath) on \(host.name)
+
+        The agent running on \(host.name) is stopped. The worktree stays on the host.
+        """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Remove Tab")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Task {
+            do {
+                try await services.remoteControl.kill(host: host, tabID: id)
+            } catch {
+                YggdrasilLog.ui.error(
+                    "Remote kill failed for removed tab \(id, privacy: .public): \(String(describing: error), privacy: .public)"
+                )
+            }
+        }
+        performRemoval(id: id, tab: tab, deleteWorktree: false, services: services)
     }
 }

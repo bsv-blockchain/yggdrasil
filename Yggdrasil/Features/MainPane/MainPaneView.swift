@@ -100,6 +100,8 @@ struct MainPaneView: View {
         switch segment {
         case .agent: agentSurface
         case .github: GitHubSubPane(services: services, tab: selectedTab)
+        case .diff where selectedTab.hostID != nil:
+            RemoteUnavailableNotice(feature: "Diff", scheme: scheme)
         case .diff:
             DiffSubPane(
                 services: services,
@@ -126,10 +128,13 @@ struct MainPaneView: View {
                     env: session.env,
                     sessionStore: services.sessionStore,
                     sessions: services.sessions,
+                    host: session.host,
                     isActive: services.tabs.selectedID == selectedTab.id
                 )
 
-                if services.sessions.exitedTabs[session.id] != nil {
+                if let host = session.host, services.sessions.reconnecting.contains(session.id) {
+                    ReconnectingBanner(hostName: host.name, scheme: scheme)
+                } else if services.sessions.exitedTabs[session.id] != nil {
                     TerminalExitBanner(
                         agentLabel: services.tabs.agentIdentity(for: selectedTab).label,
                         scheme: scheme
@@ -184,7 +189,8 @@ struct MainPaneView: View {
                     cwd: selectedTab.worktreePath,
                     command: agent.command,
                     args: agent.args,
-                    env: agent.env
+                    env: agent.env,
+                    host: services.host(for: selectedTab)
                 )
             )
             services.sessions.selectedID = tabID
@@ -534,5 +540,41 @@ struct TerminalExitBanner: View {
                 .frame(height: 0.5),
             alignment: .top
         )
+    }
+}
+
+/// Shown while a remote tab's ssh connection is down and the surface retries
+/// on its own. ssh exits 255 for auth and host-key failures too, so this
+/// doesn't promise the agent is still running.
+struct ReconnectingBanner: View {
+    let hostName: String
+    let scheme: ColorScheme
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ProgressView().controlSize(.small)
+            Text("Lost the ssh connection to \(hostName). Reconnecting… ssh's own error is shown above.")
+                .font(.system(size: 11))
+        }
+        .foregroundStyle(YggdrasilTheme.textDim(scheme))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(YggdrasilTheme.bgPaneSoft(scheme))
+    }
+}
+
+/// Placeholder for panes that need the worktree on this Mac.
+struct RemoteUnavailableNotice: View {
+    let feature: String
+    let scheme: ColorScheme
+
+    var body: some View {
+        ZStack {
+            YggdrasilTheme.bgPane(scheme)
+            Text("\(feature) isn't available for remote tabs yet.")
+                .font(.callout)
+                .foregroundStyle(YggdrasilTheme.textDim(scheme))
+        }
     }
 }

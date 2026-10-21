@@ -55,6 +55,9 @@ struct YggdrasilTab: Codable, FetchableRecord, MutablePersistableRecord, Equatab
         preparationState == .ready
     }
 
+    /// ssh host the tab's agent and worktree live on; nil means this Mac.
+    var hostID: Int64?
+
     enum CodingKeys: String, CodingKey {
         case id
         case taskID = "task_id"
@@ -68,6 +71,7 @@ struct YggdrasilTab: Codable, FetchableRecord, MutablePersistableRecord, Equatab
         case lastActiveAt = "last_active_at"
         case preparationState = "preparation_state"
         case preparationError = "preparation_error"
+        case hostID = "host_id"
     }
 
     mutating func didInsert(_ inserted: InsertionSuccess) {
