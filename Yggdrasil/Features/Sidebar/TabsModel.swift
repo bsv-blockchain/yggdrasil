@@ -276,16 +276,25 @@ final class TabsModel {
     }
 
     /// Returns the tabs filtered by a case-insensitive substring match against the
-    /// row's titleLine (task title or branch fallback) and branchName. Returns the
-    /// full list when `query` is empty after trimming.
+    /// row's titleLine (task title or branch fallback), branchName, and the
+    /// issue/PR numbers shown in its badges (incl. an issue tab's linked PR), so
+    /// `1889` or `#1889` finds a PR linked to an issue tab. Returns the full list
+    /// when `query` is empty after trimming.
     func filtered(by query: String) -> [YggdrasilTab] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return tabs }
         let needle = trimmed.lowercased()
         return tabs.filter { tab in
             let row = model(for: tab)
+            let numbers = [row.trailingBadge, row.secondaryBadge].compactMap { badge -> String? in
+                switch badge {
+                case let .prNumber(number), let .issueNumber(number): "#\(number)"
+                case .none: nil
+                }
+            }
             return row.titleLine.lowercased().contains(needle)
                 || row.branchLine.lowercased().contains(needle)
+                || numbers.contains { $0.contains(needle) }
         }
     }
 
