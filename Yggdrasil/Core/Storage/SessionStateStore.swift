@@ -31,6 +31,17 @@ struct SessionStateStore {
         }
     }
 
+    /// Pins an existing row to a Claude conversation, e.g. a tab from before
+    /// pinning, before it's moved to another machine.
+    func pin(tabID: Int64, claudeSessionID: String) throws {
+        try database.queue.write { db in
+            try db.execute(
+                sql: "UPDATE session_state SET claude_session_id = ? WHERE tab_id = ?",
+                arguments: [claudeSessionID, tabID]
+            )
+        }
+    }
+
     /// Records the exit code + pty_ended_at on an existing session row. No-op if
     /// no row exists for `tabID`.
     func end(tabID: Int64, exitCode: Int32) throws {

@@ -109,4 +109,46 @@ final class BranchTransferTests: XCTestCase {
         XCTAssertTrue(BranchTransfer.sshCommand.hasPrefix("/usr/bin/ssh -o ControlMaster=auto"))
         XCTAssertTrue(BranchTransfer.sshCommand.contains("-o BatchMode=yes"))
     }
+
+    func testDirtyDestinationWorktreeIsRefused() async throws {
+        try await BranchTransfer.push(branch: "feat/x", from: source, to: dest.path, git: git)
+        try await BranchTransfer.adopt(branch: "feat/x", checkout: dest, git: git)
+        let worktree = root.appendingPathComponent("dest-wt")
+        try await run(["worktree", "add", "-q", worktree.path, "feat/x"], in: dest)
+        try "stale".write(to: worktree.appendingPathComponent("left-behind.txt"), atomically: true, encoding: .utf8)
+        try await commit("work 2", in: source)
+
+        try await BranchTransfer.push(branch: "feat/x", from: source, to: dest.path, git: git)
+        do {
+            try await BranchTransfer.adopt(branch: "feat/x", checkout: dest, git: git)
+            XCTFail("expected a refusal")
+        } catch {
+            // git reports /private/var/…; Foundation spells it /var/….
+            guard case let .dirtyWorktree(path)? = error as? MigrationError else { return XCTFail("\(error)") }
+            XCTAssertTrue(path.hasSuffix("/dest-wt"), path)
+        }
+    }
+
+    func testAWorktreeDeletedByHandDoesNotBlockAdopt() async throws {
+        try await BranchTransfer.push(branch: "feat/x", from: source, to: dest.path, git: git)
+        try await BranchTransfer.adopt(branch: "feat/x", checkout: dest, git: git)
+        let worktree = root.appendingPathComponent("dest-wt")
+        try await run(["worktree", "add", "-q", worktree.path, "feat/x"], in: dest)
+        try FileManager.default.removeItem(at: worktree) // rm -rf, no `git worktree remove`
+        try await commit("work 2", in: source)
+
+        try await BranchTransfer.push(branch: "feat/x", from: source, to: dest.path, git: git)
+        try await BranchTransfer.adopt(branch: "feat/x", checkout: dest, git: git)
+        let moved = try await head("refs/heads/feat/x", in: dest)
+        let original = try await head("feat/x", in: source)
+        XCTAssertEqual(moved, original)
+    }
+
+    func testIPv6TargetsAreBracketed() {
+        let host = RemoteHost(id: 1, name: "d", sshTarget: "me@2001:db8::5", reposRoot: "/srv", createdAt: Date())
+        XCTAssertEqual(BranchTransfer.url(host: host, path: "/srv/w"), "ssh://me@[2001:db8::5]/srv/w")
+        XCTAssertEqual(host.scpHost, "me@[2001:db8::5]")
+        let plain = RemoteHost(id: 2, name: "d", sshTarget: "dev", reposRoot: "/srv", createdAt: Date())
+        XCTAssertEqual(plain.scpHost, "dev")
+    }
 }

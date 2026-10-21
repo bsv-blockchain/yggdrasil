@@ -73,4 +73,13 @@ final class SessionsModelTests: XCTestCase {
         XCTAssertTrue(model.releaseLivePID(200, for: 1))
         XCTAssertFalse(model.releaseLivePID(200, for: 1))
     }
+
+    func testMovingTabsAreTrackedUntilTheMoveEnds() {
+        let model = SessionsModel()
+        XCTAssertTrue(model.beginMove(tabID: 5))
+        XCTAssertFalse(model.beginMove(tabID: 5), "a second move of the same tab must be refused")
+        XCTAssertTrue(model.movingTabs.contains(5))
+        model.endMove(tabID: 5)
+        XCTAssertFalse(model.movingTabs.contains(5))
+    }
 }

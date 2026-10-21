@@ -454,7 +454,7 @@ struct SidebarView: View {
                     }
                 }
             }
-            .disabled(!tab.isReady)
+            .disabled(!tab.isReady || tab.id.map { services.sessions.movingTabs.contains($0) } ?? false)
         }
     }
 
@@ -475,7 +475,9 @@ struct SidebarView: View {
             }
             Divider()
         }
-        if tab.preparationState != .ready {
+        // A move stops and starts the agent itself; these would race it.
+        let moving = tab.id.map { services.sessions.movingTabs.contains($0) } ?? false
+        if tab.preparationState != .ready, !moving {
             Button("Retry Setup") {
                 SidebarActions.retryPreparation(tab: tab, services: services)
             }
@@ -484,9 +486,11 @@ struct SidebarView: View {
         Button("Resume Session") {
             if let id = tab.id { SidebarActions.restartAgent(tabID: id, services: services) }
         }
+        .disabled(moving)
         Button("New Shell") {
             if let id = tab.id { SidebarActions.openShell(tabID: id, services: services) }
         }
+        .disabled(moving)
         moveMenu(for: tab)
         Divider()
         // The worktree of a remote tab isn't on this Mac.

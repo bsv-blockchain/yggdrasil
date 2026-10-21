@@ -8,6 +8,13 @@ enum MigrationError: Error, Equatable {
     case sameLocation
     /// Branches move between this Mac and a host; host to host isn't supported.
     case hostToHost
+    /// The worktree isn't on the tab's branch (switched, or detached when nil);
+    /// moving the recorded branch would leave the real work behind.
+    case branchMismatch(expected: String, actual: String?)
+    /// On a host the default branch belongs to the shared main checkout.
+    case defaultBranchToHost(String)
+    /// The local agent survived SIGTERM and SIGKILL.
+    case agentStillRunning
     /// Moving to this Mac needs the repo cloned here.
     case noLocalClone(String)
     case transcriptCopyFailed(String)
@@ -25,7 +32,7 @@ enum BranchTransfer {
 
     /// `ssh://<target><path>` — works for ~/.ssh/config aliases and user@host.
     static func url(host: RemoteHost, path: String) -> String {
-        "ssh://\(host.sshTarget)\(path)"
+        "ssh://\(host.scpHost)\(path)"
     }
 
     /// git's ssh, sharing the app's connection to the host. BatchMode: there's
@@ -62,8 +69,18 @@ enum BranchTransfer {
     static func adopt(branch: String, checkout: URL, git: GitRunner) async throws {
         let scratch = scratchRef(branch)
         do {
+            // A worktree directory deleted by hand still claims its branch
+            // until pruned, and merging "in" it would fail every time.
+            try await git.run(args: ["worktree", "prune"], cwd: checkout)
             let listing = try await git.run(args: ["worktree", "list", "--porcelain"], cwd: checkout)
             if let worktree = try WorktreeInfo.parsePorcelain(listing.stdout).first(where: { $0.branch == branch }) {
+                // Leftover edits there would otherwise make the merge fail
+                // opaquely, or mix into the moved work.
+                let status = try await git.run(args: ["status", "--porcelain"], cwd: worktree.path)
+                guard status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    _ = try? await git.run(args: ["update-ref", "-d", scratch], cwd: checkout)
+                    throw MigrationError.dirtyWorktree(worktree.path.path)
+                }
                 try await git.run(args: ["merge", "--ff-only", "--quiet", scratch], cwd: worktree.path)
             } else {
                 // No `+`: fetch refuses anything but a fast-forward.

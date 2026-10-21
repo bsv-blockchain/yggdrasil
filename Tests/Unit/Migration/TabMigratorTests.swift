@@ -21,13 +21,18 @@ final class TabMigratorTests: XCTestCase {
         }
     }
 
-    private func environment(_ log: Log, clean: Bool = true) -> TabMigrator.Environment {
+    private func environment(_ log: Log, clean: Bool = true, head: String? = "b") -> TabMigrator.Environment {
         TabMigrator.Environment(
-            isClean: { _, _ in log.steps.append("check")
+            isClean: { _, _ in
+                try log.step("check")
                 return clean
             },
+            headBranch: { _, _ in
+                try log.step("head")
+                return head
+            },
             setMoving: { moving in log.steps.append(moving ? "moving" : "settled") },
-            stopAgent: { _ in log.steps.append("stop") },
+            stopAgent: { _ in try log.step("stop") },
             moveBranch: { _ in try log.step("branch") },
             ensureWorktree: { request in
                 try log.step("worktree")
@@ -39,21 +44,36 @@ final class TabMigratorTests: XCTestCase {
         )
     }
 
-    private func request(to destination: RemoteHost?, from source: RemoteHost? = nil) -> TabMigrator.Request {
+    private func request(
+        to destination: RemoteHost?, from source: RemoteHost? = nil, branch: String = "b"
+    ) -> TabMigrator.Request {
         TabMigrator.Request(
-            tabID: 3, repo: repo, branch: "b", sessionID: "sid",
+            tabID: 3, repo: repo, branch: branch, sessionID: "sid",
             source: source,
             sourcePath: source == nil ? "/Users/me/widget/.worktrees/b" : "/srv/acme/widget/.worktrees/b",
             destination: destination
         )
     }
 
+    private func refusal(_ log: Log, _ request: TabMigrator.Request, clean: Bool = true,
+                         head: String? = "b") async -> Error? {
+        do {
+            _ = try await TabMigrator(environment: environment(log, clean: clean, head: head)).migrate(request)
+            return nil
+        } catch {
+            return error
+        }
+    }
+
     func testLocalToHostRunsEveryStepInOrder() async throws {
         let log = Log()
         let path = try await TabMigrator(environment: environment(log)).migrate(request(to: host))
         XCTAssertEqual(path, "/srv/acme/widget/.worktrees/b")
+        // The agent is stopped before the checks, so nothing it writes mid-turn
+        // can slip past them; it's started before the tab settles, so the
+        // main pane's auto-spawn never races it.
         XCTAssertEqual(log.steps, [
-            "check", "moving", "stop", "branch", "worktree", "transcript", "switch", "settled", "start"
+            "moving", "stop", "check", "head", "branch", "worktree", "transcript", "switch", "start", "settled"
         ])
     }
 
@@ -61,28 +81,61 @@ final class TabMigratorTests: XCTestCase {
         let log = Log()
         let path = try await TabMigrator(environment: environment(log)).migrate(request(to: nil, from: host))
         XCTAssertEqual(path, "/Users/me/widget/.worktrees/b")
-        XCTAssertEqual(log.steps.last, "start")
+        XCTAssertEqual(Array(log.steps.suffix(2)), ["start", "settled"])
     }
 
-    func testDirtyWorktreeIsRefusedBeforeAnythingStops() async {
+    func testDirtyWorktreeIsRefusedAndTheAgentRestarted() async {
         let log = Log()
-        do {
-            _ = try await TabMigrator(environment: environment(log, clean: false)).migrate(request(to: host))
-            XCTFail("expected refusal")
-        } catch {
-            XCTAssertEqual(error as? MigrationError, .dirtyWorktree("/Users/me/widget/.worktrees/b"))
-        }
-        XCTAssertEqual(log.steps, ["check"])
+        let error = await refusal(log, request(to: host), clean: false)
+        XCTAssertEqual(error as? MigrationError, .dirtyWorktree("/Users/me/widget/.worktrees/b"))
+        XCTAssertEqual(log.steps, ["moving", "stop", "check", "start", "settled"])
+    }
+
+    func testWorktreeOnAnotherBranchIsRefused() async {
+        // The tab's recorded branch is what moves; if the worktree has since
+        // switched, the real work would stay behind.
+        let log = Log()
+        let error = await refusal(log, request(to: host), head: "other")
+        XCTAssertEqual(error as? MigrationError, .branchMismatch(expected: "b", actual: "other"))
+        XCTAssertFalse(log.steps.contains("branch"))
+        XCTAssertEqual(Array(log.steps.suffix(2)), ["start", "settled"])
+    }
+
+    func testDetachedHeadIsRefused() async {
+        let error = await refusal(Log(), request(to: host), head: nil)
+        XCTAssertEqual(error as? MigrationError, .branchMismatch(expected: "b", actual: nil))
+    }
+
+    func testAFailedStopAbortsTheMove() async {
+        // An agent that may still be running must never get a twin on the
+        // other side resuming the same conversation.
+        let log = Log()
+        log.failAt = "stop"
+        let error = await refusal(log, request(to: nil, from: host))
+        XCTAssertNotNil(error)
+        XCTAssertEqual(log.steps, ["moving", "stop", "start", "settled"])
     }
 
     func testSameLocationIsRefused() async {
         let log = Log()
-        do {
-            _ = try await TabMigrator(environment: environment(log)).migrate(request(to: host, from: host))
-            XCTFail("expected refusal")
-        } catch {
-            XCTAssertEqual(error as? MigrationError, .sameLocation)
-        }
+        let error = await refusal(log, request(to: host, from: host))
+        XCTAssertEqual(error as? MigrationError, .sameLocation)
+        XCTAssertEqual(log.steps, [])
+    }
+
+    func testHostToHostIsRefusedUpFront() async {
+        let other = RemoteHost(id: 8, name: "build", sshTarget: "build", reposRoot: "/srv", createdAt: Date())
+        let log = Log()
+        let error = await refusal(log, request(to: other, from: host))
+        XCTAssertEqual(error as? MigrationError, .hostToHost)
+        XCTAssertEqual(log.steps, [])
+    }
+
+    func testDefaultBranchCannotMoveToAHost() async {
+        // On a host the default branch belongs to the shared main checkout.
+        let log = Log()
+        let error = await refusal(log, request(to: host, branch: "main"))
+        XCTAssertEqual(error as? MigrationError, .defaultBranchToHost("main"))
         XCTAssertEqual(log.steps, [])
     }
 
@@ -93,24 +146,17 @@ final class TabMigratorTests: XCTestCase {
             tabID: 3, repo: bare, branch: "b", sessionID: nil,
             source: host, sourcePath: "/srv/acme/widget/.worktrees/b", destination: nil
         )
-        do {
-            _ = try await TabMigrator(environment: environment(Log())).migrate(request)
-            XCTFail("expected refusal")
-        } catch {
-            XCTAssertEqual(error as? MigrationError, .noLocalClone("acme/widget"))
-        }
+        let error = await refusal(Log(), request)
+        XCTAssertEqual(error as? MigrationError, .noLocalClone("acme/widget"))
     }
 
     func testFailureBeforeTheSwitchRestartsTheSourceAgent() async {
         for failing in ["branch", "worktree", "transcript", "switch"] {
             let log = Log()
             log.failAt = failing
-            do {
-                _ = try await TabMigrator(environment: environment(log)).migrate(request(to: host))
-                XCTFail("expected \(failing) to fail")
-            } catch {}
-            XCTAssertEqual(Array(log.steps.suffix(2)), ["settled", "start"], "\(failing): \(log.steps)")
-            XCTAssertFalse(log.steps.contains("switch") && failing != "switch", failing)
+            let error = await refusal(log, request(to: host))
+            XCTAssertNotNil(error, failing)
+            XCTAssertEqual(Array(log.steps.suffix(2)), ["start", "settled"], "\(failing): \(log.steps)")
         }
     }
 
@@ -122,17 +168,5 @@ final class TabMigratorTests: XCTestCase {
         )
         _ = try await TabMigrator(environment: environment(log)).migrate(request)
         XCTAssertFalse(log.steps.contains("transcript"))
-    }
-
-    func testHostToHostIsRefusedUpFront() async {
-        let other = RemoteHost(id: 8, name: "build", sshTarget: "build", reposRoot: "/srv", createdAt: Date())
-        let log = Log()
-        do {
-            _ = try await TabMigrator(environment: environment(log)).migrate(request(to: other, from: host))
-            XCTFail("expected refusal")
-        } catch {
-            XCTAssertEqual(error as? MigrationError, .hostToHost)
-        }
-        XCTAssertEqual(log.steps, [])
     }
 }

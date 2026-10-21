@@ -21,19 +21,37 @@ struct TranscriptTransfer {
     }
 
     /// The conversation on this Mac, in whichever project dir it lives —
-    /// `--resume` looks in all of them, so a moved worktree doesn't matter.
+    /// `--resume` looks in all of them, so a moved worktree doesn't matter. A
+    /// tab that has moved around leaves older copies behind; the most recently
+    /// written one is the live conversation.
     static func localTranscript(sessionID: String, home: String) -> Local? {
         let root = "\(home)/.claude/projects"
         let files = FileManager.default
-        for dir in (try? files.contentsOfDirectory(atPath: root)) ?? [] {
-            let file = URL(fileURLWithPath: "\(root)/\(dir)/\(sessionID).jsonl")
-            guard files.fileExists(atPath: file.path) else { continue }
-            var isDir: ObjCBool = false
-            let sidecar = file.deletingPathExtension()
-            let hasSidecar = files.fileExists(atPath: sidecar.path, isDirectory: &isDir) && isDir.boolValue
-            return Local(jsonl: file, sidecar: hasSidecar ? sidecar : nil)
-        }
-        return nil
+        let copies = ((try? files.contentsOfDirectory(atPath: root)) ?? [])
+            .map { URL(fileURLWithPath: "\(root)/\($0)/\(sessionID).jsonl") }
+            .compactMap { file -> (URL, Date)? in
+                guard let modified = try? files.attributesOfItem(atPath: file.path)[.modificationDate] as? Date
+                else { return nil }
+                return (file, modified)
+            }
+        guard let file = copies.max(by: { $0.1 < $1.1 })?.0 else { return nil }
+        var isDir: ObjCBool = false
+        let sidecar = file.deletingPathExtension()
+        let hasSidecar = files.fileExists(atPath: sidecar.path, isDirectory: &isDir) && isDir.boolValue
+        return Local(jsonl: file, sidecar: hasSidecar ? sidecar : nil)
+    }
+
+    /// The most recently written conversation in one project dir, by id.
+    static func newestSessionID(inProjectDirectory dir: String) -> String? {
+        let files = FileManager.default
+        return ((try? files.contentsOfDirectory(atPath: dir)) ?? [])
+            .filter { $0.hasSuffix(".jsonl") }
+            .compactMap { name -> (String, Date)? in
+                guard let modified = try? files.attributesOfItem(atPath: "\(dir)/\(name)")[.modificationDate] as? Date
+                else { return nil }
+                return (String(name.dropLast(".jsonl".count)), modified)
+            }
+            .max { $0.1 < $1.1 }?.0
     }
 
     /// This Mac → host. Returns false when there's no transcript yet (a tab
@@ -45,26 +63,25 @@ struct TranscriptTransfer {
         mkdir -p "$HOME/.claude/projects/$1" && cd "$HOME/.claude/projects/$1" && pwd
         """, AgentSessionLocator.encode(cwd: cwd)).trimmingCharacters(in: .whitespacesAndNewlines)
         let sources = [local.jsonl.path] + (local.sidecar.map { [$0.path] } ?? [])
-        try await scp(sources + ["\(host.sshTarget):\(remoteDir)/"])
+        try await scp(sources + ["\(host.scpHost):\(remoteDir)/"])
         return true
     }
 
     /// Host → this Mac. Returns false when the host has no transcript.
     @discardableResult
     func download(sessionID: String, from host: RemoteHost, cwd: String) async throws -> Bool {
+        // Newest copy first, for the same reason as `localTranscript`.
         let found = try await remote(host, """
-        for f in "$HOME"/.claude/projects/*/"$1".jsonl; do
-            [ -f "$f" ] || continue
-            echo "$f"
-            [ -d "${f%.jsonl}" ] && echo "${f%.jsonl}"
-            break
-        done
+        f=$(ls -t "$HOME"/.claude/projects/*/"$1".jsonl 2>/dev/null | head -n 1)
+        [ -n "$f" ] || exit 0
+        echo "$f"
+        if [ -d "${f%.jsonl}" ]; then echo "${f%.jsonl}"; fi
         """, sessionID)
         let paths = found.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
         guard !paths.isEmpty else { return false }
         let localDir = AgentSessionLocator.projectDirectory(forWorktreePath: cwd, home: home)
         try FileManager.default.createDirectory(atPath: localDir, withIntermediateDirectories: true)
-        try await scp(paths.map { "\(host.sshTarget):\($0)" } + [localDir + "/"])
+        try await scp(paths.map { "\(host.scpHost):\($0)" } + [localDir + "/"])
         return true
     }
 

@@ -16,6 +16,7 @@ extension TabMigrator {
                 )
                 return status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             },
+            headBranch: headBranch,
             setMoving: { moving in
                 await MainActor.run {
                     try? services.tabStore.setPreparation(id: tabID, state: moving ? .preparing : .ready)
@@ -23,7 +24,7 @@ extension TabMigrator {
                 }
             },
             stopAgent: { host in
-                await stopAgent(tabID: tabID, host: host, services: services)
+                try await stopAgent(tabID: tabID, host: host, services: services)
             },
             moveBranch: { request in
                 try await moveBranch(request, hostRepos: services.hostRepoStore)
@@ -56,12 +57,25 @@ extension TabMigrator {
                 }
             },
             startAgent: {
+                // Added directly, not via restartAgent: the agent is already
+                // stopped, and restartAgent's remote kill would land after the
+                // new session attached and end it.
                 await MainActor.run {
                     services.tabs.reload()
-                    SidebarActions.restartAgent(tabID: tabID, services: services)
+                    guard let session = SidebarActions.agentSession(tabID: tabID, services: services) else { return }
+                    services.sessions.clearExited(tabID: tabID)
+                    services.sessions.add(session)
                 }
             }
         )
+    }
+
+    /// The branch checked out at `path`; nil when HEAD is detached.
+    private static func headBranch(on host: RemoteHost?, path: String) async throws -> String? {
+        let head = try await git(on: host).run(
+            args: ["rev-parse", "--abbrev-ref", "HEAD"], cwd: URL(fileURLWithPath: path, isDirectory: true)
+        ).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return head == "HEAD" ? nil : head
     }
 
     private static func git(on host: RemoteHost?) -> GitRunner {
@@ -70,11 +84,13 @@ extension TabMigrator {
     }
 
     /// Ends the agent and waits for it to go, so its transcript is complete
-    /// before it's copied.
+    /// before it's copied. Throws if it may still be running, which aborts the
+    /// move: the helper's kill succeeds when nothing is alive, so a failure
+    /// there means ssh or the helper failed, not that the agent is gone.
     @MainActor
-    private static func stopAgent(tabID: Int64, host: RemoteHost?, services: AppServices) async {
+    private static func stopAgent(tabID: Int64, host: RemoteHost?, services: AppServices) async throws {
         if let host {
-            try? await services.remoteControl.kill(host: host, tabID: tabID)
+            try await services.remoteControl.kill(host: host, tabID: tabID)
             services.sessions.terminate(tabID: tabID)
             return
         }
@@ -84,6 +100,10 @@ extension TabMigrator {
         for _ in 0 ..< 50 where kill(pid, 0) == 0 {
             try? await Task.sleep(for: .milliseconds(100))
         }
+        guard kill(pid, 0) == 0 else { return }
+        kill(pid, SIGKILL)
+        try? await Task.sleep(for: .seconds(1))
+        if kill(pid, 0) == 0 { throw MigrationError.agentStillRunning }
     }
 
     /// Branch over ssh: pushed to the host's checkout, or fetched from it into
@@ -126,6 +146,7 @@ extension SidebarActions {
             presentInfo(title: "Can't move this tab", text: "This tab isn't inside a tracked repository.")
             return
         }
+        guard !services.sessions.movingTabs.contains(tabID) else { return }
         let source = services.host(for: tab)
         let alert = NSAlert()
         alert.messageText = "Move “\(tab.branchName)” to \(destination?.name ?? "this Mac")?"
@@ -137,18 +158,37 @@ extension SidebarActions {
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
+        guard services.sessions.beginMove(tabID: tabID) else { return }
         let request = TabMigrator.Request(
             tabID: tabID, repo: repo, branch: tab.branchName,
-            sessionID: try? services.sessionStore.get(tabID: tabID)?.claudeSessionID,
+            sessionID: conversationToMove(tab: tab, tabID: tabID, source: source, services: services),
             source: source, sourcePath: tab.worktreePath, destination: destination
         )
         Task { @MainActor in
+            defer { services.sessions.endMove(tabID: tabID) }
             do {
                 try await TabMigrator(environment: TabMigrator.live(tabID: tabID, services: services)).migrate(request)
             } catch {
                 presentInfo(title: "Couldn't move “\(tab.branchName)”", text: describe(error))
             }
         }
+    }
+
+    /// The tab's pinned conversation. A local tab from before pinning resumed
+    /// with --continue, i.e. the newest transcript for its worktree; pin that
+    /// so it moves too instead of the destination starting afresh.
+    @MainActor
+    private static func conversationToMove(
+        tab: YggdrasilTab, tabID: Int64, source: RemoteHost?, services: AppServices
+    ) -> String? {
+        if let pinned = try? services.sessionStore.get(tabID: tabID)?.claudeSessionID { return pinned }
+        guard source == nil,
+              let legacy = TranscriptTransfer.newestSessionID(
+                  inProjectDirectory: AgentSessionLocator.projectDirectory(forWorktreePath: tab.worktreePath)
+              )
+        else { return nil }
+        try? services.sessionStore.pin(tabID: tabID, claudeSessionID: legacy)
+        return legacy
     }
 
     private static func describe(_ error: Error) -> String {
@@ -161,6 +201,12 @@ extension SidebarActions {
             "\(repo) isn't cloned on this Mac. Set its location in Settings → Repositories."
         case let MigrationError.transcriptCopyFailed(message):
             "Copying the conversation failed: \(message)"
+        case let MigrationError.branchMismatch(expected, actual):
+            "The worktree is on \(actual ?? "a detached HEAD"), not \(expected). Switch it back to \(expected) first."
+        case let MigrationError.defaultBranchToHost(branch):
+            "\(branch) is the default branch; on a host it belongs to the shared checkout. Work on a branch of it instead."
+        case MigrationError.agentStillRunning:
+            "The agent didn't stop, so the move was called off."
         case MigrationError.hostToHost:
             "Move the tab to this Mac first, then to the other host."
         case let WorktreeError.gitFailed(stderr, _):

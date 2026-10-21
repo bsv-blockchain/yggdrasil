@@ -35,11 +35,20 @@ enum SidebarActions {
 
     @MainActor
     static func restartAgent(tabID: Int64, services: AppServices) {
+        guard let session = agentSession(tabID: tabID, services: services) else { return }
+        services.sessions.clearExited(tabID: tabID)
+        services.sessions.terminate(tabID: tabID)
+        respawn(session, services: services)
+    }
+
+    /// The tab's agent as a session, wherever the tab row points now.
+    @MainActor
+    static func agentSession(tabID: Int64, services: AppServices) -> OpenSession? {
         guard let tab = services.tabs.tabs.first(where: { $0.id == tabID }),
               let agentID = tab.codingAgentID,
               let agent = try? services.agentStore.get(id: agentID)
-        else { return }
-        let session = OpenSession(
+        else { return nil }
+        return OpenSession(
             id: tabID,
             displayName: "\(agent.name) \u{00b7} \(tab.branchName)",
             cwd: tab.worktreePath,
@@ -48,9 +57,6 @@ enum SidebarActions {
             env: agent.env,
             host: services.host(for: tab)
         )
-        services.sessions.clearExited(tabID: tabID)
-        services.sessions.terminate(tabID: tabID)
-        respawn(session, services: services)
     }
 
     @MainActor

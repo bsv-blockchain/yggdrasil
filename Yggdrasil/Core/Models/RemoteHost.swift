@@ -26,6 +26,22 @@ struct RemoteHost: Codable, FetchableRecord, MutablePersistableRecord, Equatable
         id = inserted.rowID
     }
 
+    /// The target for URLs and scp operands: an IPv6 literal gets brackets,
+    /// or its colons would read as a port or a path separator.
+    var scpHost: String {
+        let user: Substring?
+        let address: Substring
+        if let separator = sshTarget.lastIndex(of: "@") {
+            user = sshTarget[..<separator]
+            address = sshTarget[sshTarget.index(after: separator)...]
+        } else {
+            user = nil
+            address = sshTarget[...]
+        }
+        guard address.contains(":"), !address.hasPrefix("[") else { return sshTarget }
+        return (user.map { "\($0)@" } ?? "") + "[\(address)]"
+    }
+
     /// Main checkout of `owner/name` on this host. Worktrees go under its
     /// `.worktrees/`, the same layout as local checkouts.
     func repoPath(owner: String, name: String) -> String {

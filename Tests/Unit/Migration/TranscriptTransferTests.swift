@@ -115,4 +115,32 @@ final class TranscriptTransferTests: XCTestCase {
             XCTAssertEqual(error as? MigrationError, .transcriptCopyFailed("Permission denied"))
         }
     }
+
+    func testPicksTheNewestCopyWhenSeveralProjectDirsHaveIt() throws {
+        // A tab that has moved around leaves copies behind; the newest one is
+        // the live conversation.
+        let old = try writeTranscript(project: "-a-old")
+        let new = try writeTranscript(project: "-z-new")
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: -3600)],
+            ofItemAtPath: old.path
+        )
+        try FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: new.path)
+        XCTAssertEqual(TranscriptTransfer.localTranscript(sessionID: sessionID, home: home.path)?.jsonl.path, new.path)
+    }
+
+    func testNewestSessionInAProjectDirFindsTheLegacyConversation() throws {
+        // Tabs from before session pinning used --continue: the newest
+        // transcript in the worktree's project dir is the conversation.
+        let older = try writeTranscript(project: "-w")
+        let dir = older.deletingLastPathComponent()
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: -3600)],
+            ofItemAtPath: older.path
+        )
+        let newer = dir.appendingPathComponent("abcd-newer.jsonl")
+        try "{}".write(to: newer, atomically: true, encoding: .utf8)
+        XCTAssertEqual(TranscriptTransfer.newestSessionID(inProjectDirectory: dir.path), "abcd-newer")
+        XCTAssertNil(TranscriptTransfer.newestSessionID(inProjectDirectory: home.appendingPathComponent("nope").path))
+    }
 }

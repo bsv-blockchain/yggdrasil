@@ -42,6 +42,9 @@ final class SessionsModel {
     /// Remote tabs whose ssh connection dropped and are waiting to reattach.
     private(set) var reconnecting: Set<Int64> = []
     private var reconnectAttempts: [Int64: Int] = [:]
+    /// Tabs being moved to or from a host. Actions that would start or stop
+    /// their agent are off until the move ends.
+    private(set) var movingTabs: Set<Int64> = []
 
     /// `AgentTerminalSurface.Coordinator` registers its PID here so app-quit
     /// can iterate and SIGTERM every live agent. YggdrasilTab id → PID.
@@ -75,6 +78,15 @@ final class SessionsModel {
 
     func clearExited(tabID: Int64) {
         exitedTabs.removeValue(forKey: tabID)
+    }
+
+    /// False when the tab is already moving.
+    func beginMove(tabID: Int64) -> Bool {
+        movingTabs.insert(tabID).inserted
+    }
+
+    func endMove(tabID: Int64) {
+        movingTabs.remove(tabID)
     }
 
     /// Records a dropped connection and returns how many reconnects already

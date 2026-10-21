@@ -5,7 +5,12 @@ import Foundation
 /// once everything is in place on the destination; a failure before that
 /// restarts the agent where it was. The source worktree is never deleted.
 ///
-///     check → stop agent → move branch → worktree → transcript → switch → start
+///     stop agent → check (clean, on its branch) → move branch → worktree
+///       → transcript → switch → start agent → settle
+///
+/// The agent is stopped before the checks, so nothing it writes mid-turn can
+/// slip past them; it's started before the tab settles, so nothing else
+/// (the main pane's auto-spawn) starts a second one.
 struct TabMigrator {
     struct Request {
         let tabID: Int64
@@ -24,9 +29,13 @@ struct TabMigrator {
     struct Environment {
         /// `git status --porcelain` is empty in the worktree (on its host).
         var isClean: (_ host: RemoteHost?, _ path: String) async throws -> Bool
+        /// The branch checked out in the worktree; nil when HEAD is detached.
+        var headBranch: (_ host: RemoteHost?, _ path: String) async throws -> String?
         /// Marks the tab as busy so nothing spawns an agent mid-move.
         var setMoving: (_ moving: Bool) async -> Void
-        var stopAgent: (_ host: RemoteHost?) async -> Void
+        /// Throws when the agent may still be running: a twin resuming the
+        /// same conversation elsewhere must never happen.
+        var stopAgent: (_ host: RemoteHost?) async throws -> Void
         var moveBranch: (Request) async throws -> Void
         /// Creates (or reuses) the destination worktree; returns its path.
         var ensureWorktree: (Request) async throws -> String
@@ -45,14 +54,21 @@ struct TabMigrator {
         if request.destination == nil, request.repo.localMainPath == nil {
             throw MigrationError.noLocalClone(request.repo.fullName)
         }
-        guard try await environment.isClean(request.source, request.sourcePath) else {
-            throw MigrationError.dirtyWorktree(request.sourcePath)
+        if request.destination != nil, request.branch == request.repo.defaultBranch {
+            throw MigrationError.defaultBranchToHost(request.branch)
         }
 
         await environment.setMoving(true)
-        await environment.stopAgent(request.source)
         let destinationPath: String
         do {
+            try await environment.stopAgent(request.source)
+            guard try await environment.isClean(request.source, request.sourcePath) else {
+                throw MigrationError.dirtyWorktree(request.sourcePath)
+            }
+            let head = try await environment.headBranch(request.source, request.sourcePath)
+            guard head == request.branch else {
+                throw MigrationError.branchMismatch(expected: request.branch, actual: head)
+            }
             try await environment.moveBranch(request)
             destinationPath = try await environment.ensureWorktree(request)
             if request.sessionID != nil {
@@ -61,12 +77,12 @@ struct TabMigrator {
             try await environment.switchTab(request, destinationPath)
         } catch {
             // Nothing points at the destination yet: put the agent back.
-            await environment.setMoving(false)
             await environment.startAgent()
+            await environment.setMoving(false)
             throw error
         }
-        await environment.setMoving(false)
         await environment.startAgent()
+        await environment.setMoving(false)
         return destinationPath
     }
 }

@@ -104,4 +104,12 @@ final class SessionStateStoreTests: XCTestCase {
         let store = SessionStateStore(database: db)
         XCTAssertNil(try store.get(tabID: 1234))
     }
+
+    func testPinSetsTheSessionIDOnAnExistingRow() throws {
+        let store = SessionStateStore(database: db)
+        let tabID = try makeTab()
+        _ = try store.start(tabID: tabID, cwd: "/tmp/x", command: "claude", args: ["--continue"])
+        try store.pin(tabID: tabID, claudeSessionID: "legacy-id")
+        XCTAssertEqual(try store.get(tabID: tabID)?.claudeSessionID, "legacy-id")
+    }
 }

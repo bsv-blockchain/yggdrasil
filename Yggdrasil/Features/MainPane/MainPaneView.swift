@@ -471,9 +471,11 @@ struct PaneHeader: View {
                 Button("Resume Session") {
                     SidebarActions.restartAgent(tabID: id, services: services)
                 }
+                .disabled(services.sessions.movingTabs.contains(id))
                 Button("New Shell") {
                     SidebarActions.openShell(tabID: id, services: services)
                 }
+                .disabled(services.sessions.movingTabs.contains(id))
             }
         }
     }
