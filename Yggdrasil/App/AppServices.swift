@@ -22,6 +22,7 @@ final class AppServices {
     let sessionStore: SessionStateStore
     let tabStore: TabStore
     let hostStore: HostStore
+    let hostRepoStore: HostRepoStore
     let remoteControl = RemoteSessionControl()
     let worktreeManager = WorktreeManager()
     let sessions = SessionsModel()
@@ -61,6 +62,7 @@ final class AppServices {
         self.agentStore = CodingAgentStore(database: database)
         self.sessionStore = SessionStateStore(database: database)
         self.hostStore = HostStore(database: database)
+        self.hostRepoStore = HostRepoStore(database: database)
         let tabStore = TabStore(database: database)
         self.tabStore = tabStore
         let tabsModel = TabsModel(store: tabStore, database: database)
@@ -75,9 +77,14 @@ final class AppServices {
         // written straight to the tab row, so a preparation that finishes (or
         // fails) while you're looking elsewhere still lands.
         let manager = worktreeManager
+        let hostRepos = hostRepoStore
         worktreePreparer = WorktreePreparer(
-            prepare: { repo, branch, baseRef in
-                try await manager.ensure(repo: repo, branch: branch, baseRef: baseRef).path
+            prepare: { repo, host, branch, baseRef in
+                var target = manager
+                if let host {
+                    target = try await Self.remoteWorktreeManager(on: host, repo: repo, hostRepos: hostRepos)
+                }
+                return try await target.ensure(repo: repo, branch: branch, baseRef: baseRef).path
             },
             record: { event in
                 switch event {
@@ -135,6 +142,49 @@ final class AppServices {
 
         await statusPoller.stop()
         await statusPoller.start(interval: .seconds(resolved.statusProbeSeconds))
+    }
+
+    private static let defaultHostKey = "tabs.default_host_id"
+
+    /// Where new tabs run unless the user picks otherwise: a host, or nil for
+    /// this Mac. Settings → Hosts.
+    var defaultHostID: Int64? {
+        get { (try? settingsStore.get(forKey: Self.defaultHostKey)).flatMap { Int64($0) } }
+        set { try? settingsStore.set(newValue.map(String.init) ?? "", forKey: Self.defaultHostKey) }
+    }
+
+    /// The `defaultHostID` host, when it still exists.
+    var defaultHost: RemoteHost? {
+        defaultHostID.flatMap { try? hostStore.get(id: $0) }
+    }
+
+    /// Worktree manager for `repo` on `host`, once the repo's single checkout
+    /// there is pinned and cloned (if it was missing).
+    private nonisolated static func remoteWorktreeManager(
+        on host: RemoteHost, repo: Repo, hostRepos: HostRepoStore
+    ) async throws -> WorktreeManager {
+        let checkout = try hostRepos.pin(host: host, repo: repo)
+        let site = RemoteWorktreeSite(host: host, checkoutPath: { _ in checkout })
+        try await site.ensureCloned(repo)
+        return remoteWorktreeManager(site: site)
+    }
+
+    /// Where a new tab's worktree will land, before any git runs: under the
+    /// local clone, or under the repo's checkout on `host` (pinned here).
+    func plannedWorktreePath(repo: Repo, branch: String, host: RemoteHost?) throws -> String? {
+        guard let host else { return WorktreePreparer.predictedWorktreePath(repo: repo, branch: branch) }
+        let checkout = try hostRepoStore.pin(host: host, repo: repo)
+        return WorktreePreparer.predictedWorktreePath(checkout: checkout, branch: branch)
+    }
+
+    /// Manager for worktrees under an existing checkout on `host`; never clones.
+    func existingWorktreeManager(on host: RemoteHost, repo: Repo) throws -> WorktreeManager {
+        let checkout = try hostRepoStore.checkoutPath(host: host, repo: repo)
+        return Self.remoteWorktreeManager(site: RemoteWorktreeSite(host: host, checkoutPath: { _ in checkout }))
+    }
+
+    private nonisolated static func remoteWorktreeManager(site: RemoteWorktreeSite) -> WorktreeManager {
+        WorktreeManager(git: GitRunner(runner: site.runner, gitExecutable: "git"), site: site)
     }
 
     /// ssh host `tab` runs on, or nil for a local tab.

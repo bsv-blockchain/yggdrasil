@@ -286,4 +286,34 @@ final class TabsModelTests: XCTestCase {
         model.reload()
         XCTAssertEqual(model.pendingAssignedCount, 0, "issue (task_id) and linked PR (pr_task_id) both excluded")
     }
+
+    func testRemoteTabMapsToRepoByItsHostCheckout() {
+        let widget = Repo(
+            id: 1,
+            owner: "acme",
+            name: "widget",
+            defaultBranch: "main",
+            localMainPath: "/Users/me/widget",
+            addedAt: Date()
+        )
+        let gadget = Repo(
+            id: 2,
+            owner: "acme",
+            name: "gadget",
+            defaultBranch: "main",
+            localMainPath: nil,
+            addedAt: Date()
+        )
+        let checkouts = [
+            HostRepoCheckout(repo: widget, path: "/srv/widget"),
+            HostRepoCheckout(repo: gadget, path: "/srv/widget-gadget")
+        ]
+        XCTAssertEqual(
+            TabsModel.repoOwning(remoteWorktreePath: "/srv/widget-gadget/.worktrees/b", checkouts: checkouts)?.id, 2
+        )
+        XCTAssertEqual(
+            TabsModel.repoOwning(remoteWorktreePath: "/srv/widget/.worktrees/b", checkouts: checkouts)?.id, 1
+        )
+        XCTAssertNil(TabsModel.repoOwning(remoteWorktreePath: "/Users/me/widget/.worktrees/b", checkouts: checkouts))
+    }
 }

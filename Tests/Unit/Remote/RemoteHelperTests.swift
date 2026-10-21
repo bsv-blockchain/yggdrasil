@@ -209,4 +209,24 @@ final class RemoteHelperTests: XCTestCase {
         XCTAssertEqual(result.exitCode, 0, result.stderr)
         XCTAssertEqual(try sh("\"$HOME/.yggdrasil/bin/ygg\" version").stdout, "\(RemoteHelper.version)\n")
     }
+
+    func testRunExecsCommandWithLoginPath() throws {
+        let result = try sh(ygg("run -- claude --version"))
+        XCTAssertEqual(result.exitCode, 0, result.stderr)
+        XCTAssertEqual(try read("claude.args"), "--version")
+    }
+
+    func testRunPassesExitStatusThrough() throws {
+        XCTAssertEqual(try sh(ygg("run -- sh -c 'exit 7'")).exitCode, 7)
+    }
+
+    func testRunReusesCachedLoginPath() throws {
+        // The login shell can be slow (nvm & co.); `run` is called for every
+        // git command, so it reads the PATH that check/attach cached.
+        try sh(ygg("check"))
+        try FileManager.default.removeItem(at: bin.appendingPathComponent("loginshell"))
+        let result = try sh(ygg("run -- claude --cached"))
+        XCTAssertEqual(result.exitCode, 0, result.stderr)
+        XCTAssertEqual(try read("claude.args"), "--cached")
+    }
 }

@@ -13,7 +13,7 @@ import Foundation
 /// tcsh login shell can't misparse it. The login shell is only asked for the
 /// PATH its rc files set, via `env`, whose output doesn't depend on the shell.
 enum RemoteHelper {
-    static let version = 1
+    static let version = 2
     static let path = "~/.yggdrasil/bin/ygg"
     static let requiredTools = ["claude", "git", "gh", "dtach"]
 
@@ -23,12 +23,14 @@ enum RemoteHelper {
     #   ygg version | ygg check
     #   ygg attach <tab> <cwd> [--claude-session <id>] -- [<cmd> [args...]]
     #   ygg kill <tab> | ygg alive <tab> | ygg list
+    #   ygg run -- <cmd> [args...]
     set -eu
     YGG_VERSION=\(version)
     TOOLS="\(requiredTools.joined(separator: " "))"
     STATE="$HOME/.yggdrasil/sessions"
+    PATH_CACHE="$HOME/.yggdrasil/login-path"
 
-    usage() { echo "usage: ygg version|check|attach|kill|alive|list" >&2; exit 2; }
+    usage() { echo "usage: ygg version|check|attach|kill|alive|list|run" >&2; exit 2; }
     tab_ok() { case "$1" in ''|*[!0-9]*) usage ;; esac; }
     # Live = dtach still holds the tab's socket and the recorded agent pid
     # runs. dtach removes the socket when the agent exits, so a pid that's
@@ -41,8 +43,22 @@ enum RemoteHelper {
     # stdin closed so an rc file can't sit waiting on it.
     login_path() {
         p=$("${SHELL:-/bin/sh}" -l -i -c env </dev/null 2>/dev/null | sed -n 's/^PATH=//p' | tail -n 1)
-        if [ -n "$p" ]; then PATH=$p:$PATH; fi
+        if [ -n "$p" ]; then
+            mkdir -p "$HOME/.yggdrasil"
+            printf '%s\\n' "$p" > "$PATH_CACHE"
+            PATH=$p:$PATH
+        fi
         export PATH
+    }
+    # For `run`, which the app calls for every git command: reuse the PATH
+    # check/attach last saw instead of starting a login shell each time.
+    cached_login_path() {
+        if [ -s "$PATH_CACHE" ]; then
+            PATH=$(cat "$PATH_CACHE"):$PATH
+            export PATH
+        else
+            login_path
+        fi
     }
 
     case "${1:-}" in
@@ -106,6 +122,12 @@ enum RemoteHelper {
             t=$(basename "$f" .pid)
             if alive "$t"; then echo "$t"; fi
         done ;;
+    run)
+        shift
+        if [ "${1:-}" = -- ]; then shift; fi
+        [ $# -gt 0 ] || usage
+        cached_login_path
+        exec "$@" ;;
     *)
         usage ;;
     esac

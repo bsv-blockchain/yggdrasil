@@ -320,7 +320,9 @@ struct AssignedTaskPicker: View {
         error = nil
         defer { openingTaskIDs.remove(taskID) }
         do {
-            guard row.repo.localMainPath != nil else {
+            // Settings → General → "Run new tabs on".
+            let host = services.defaultHost
+            guard host != nil || row.repo.localMainPath != nil else {
                 error = "Repo \(row.repo.fullName) has no local clone. Set it in Preferences → Repos."
                 return
             }
@@ -342,8 +344,8 @@ struct AssignedTaskPicker: View {
             // left the later ones queued on that lock until they timed out. The
             // path is deterministic, so the tab can be inserted against it now
             // and the git work can happen in the background.
-            guard let plannedPath = WorktreePreparer.predictedWorktreePath(
-                repo: row.repo, branch: branch
+            guard let plannedPath = try services.plannedWorktreePath(
+                repo: row.repo, branch: branch, host: host
             ) else {
                 error = "Repo \(row.repo.fullName) has no local clone. Set it in Preferences → Repos."
                 return
@@ -361,13 +363,14 @@ struct AssignedTaskPicker: View {
                 worktreePath: plannedPath,
                 agentID: agent.id,
                 taskID: liveTaskID,
-                preparationState: .pending
+                preparationState: .pending,
+                hostID: host?.id
             )
             services.tabs.reload()
             if let tabID = newTab.id {
                 services.tabs.select(tabID)
                 await services.worktreePreparer.enqueue(
-                    tabID: tabID, repo: row.repo, branch: branch, baseRef: baseRef
+                    tabID: tabID, repo: row.repo, host: host, branch: branch, baseRef: baseRef
                 )
             }
             services.triggerSyncNow()

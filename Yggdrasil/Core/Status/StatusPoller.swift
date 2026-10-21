@@ -72,6 +72,8 @@ actor StatusPoller {
         let agent: AgentIdentity
         let previousSession: AgentSessionProbe.Cache?
         let lastGitState: GitState?
+        /// The tab's ssh host; nil for a local tab.
+        let host: RemoteHost?
     }
 
     private struct Probed {
@@ -86,6 +88,10 @@ actor StatusPoller {
         let snapshot = await MainActor.run {
             (tabs: tabsModel.tabs, agents: tabsModel.agentByTabID)
         }
+        let hosts = Dictionary(
+            ((try? HostStore(database: database).list()) ?? []).compactMap { host in host.id.map { ($0, host) } },
+            uniquingKeysWith: { first, _ in first }
+        )
         var freshCaches: [Int64: AgentSessionProbe.Cache] = [:]
 
         var freshGitStates: [Int64: GitState] = [:]
@@ -104,15 +110,15 @@ actor StatusPoller {
                     // guaranteed subprocess failure and a warning line, per
                     // tab per tick.
                     guard tab.isReady else { continue }
-                    // Remote worktrees aren't on this disk; probing them needs
-                    // git over ssh.
-                    guard tab.hostID == nil else { continue }
+                    let host = tab.hostID.flatMap { hosts[$0] }
+                    // A remote tab whose host row is gone can't be probed here.
+                    if tab.hostID != nil, host == nil { continue }
                     let agent = snapshot.agents[tabID] ?? .claude
                     let previous = sessionCaches[tabID]
                     let lastGit = lastGitStates[tabID]
                     let input = ProbeInput(
                         tab: tab, tabID: tabID, agent: agent,
-                        previousSession: previous, lastGitState: lastGit
+                        previousSession: previous, lastGitState: lastGit, host: host
                     )
                     group.addTask { [self] in await probeTab(input) }
                 }
@@ -148,7 +154,10 @@ actor StatusPoller {
         var gitState = lastGitState ?? GitState(dirty: false, remote: .noRemote)
         var gitSucceeded = lastGitState != nil
         do {
-            let gitProbe = probe
+            // A remote worktree is probed with git on its host.
+            let gitProbe = input.host.map {
+                GitStateProbe(git: GitRunner(runner: SSHSubprocessRunner(host: $0), gitExecutable: "git"))
+            } ?? probe
             let path = tab.worktreePath
             gitState = try await withDeadline(Self.probeDeadline) {
                 try await gitProbe.probe(worktreePath: path)
@@ -165,9 +174,11 @@ actor StatusPoller {
         // state A, making the mute lapse instantly or mute something unseen.
         let row = readGitHubRow(taskID: tab.taskID)
         let github = Self.aggregate(from: row)
-        let (sample, cache) = sessionProbe.probe(
-            worktreePath: tab.worktreePath, agent: agent, previous: previousSession
-        )
+        // The agent's transcripts are on the host for a remote tab; reading
+        // this Mac's ~/.claude would describe some other session.
+        let (sample, cache) = input.host == nil
+            ? sessionProbe.probe(worktreePath: tab.worktreePath, agent: agent, previous: previousSession)
+            : (nil, nil)
         let claude = ClaudeStateDetector.evaluate(activity: sample, now: Date())
         let signature = AttentionSignature.make(row: row, session: sample)
 

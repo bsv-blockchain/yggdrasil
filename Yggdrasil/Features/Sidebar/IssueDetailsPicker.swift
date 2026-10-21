@@ -386,8 +386,10 @@ struct IssueDetailsPicker: View {
         defer { openingIssueIDs.remove(row.id) }
         do {
             let repos = try await services.database.queue.read { db in try Repo.fetchAll(db) }
+            // Settings → General → "Run new tabs on".
+            let host = services.defaultHost
             guard let repo = repos.first(where: { $0.owner == row.owner && $0.name == row.repoName }),
-                  repo.localMainPath != nil else {
+                  host != nil || repo.localMainPath != nil else {
                 error = "\(row.repoFull) isn't tracked locally. Add it in Preferences → Repos."
                 return
             }
@@ -409,8 +411,8 @@ struct IssueDetailsPicker: View {
             )
             let branch = TaskPickerMode.assigned.branchName(for: dummyTask, agentName: agent.name)
             // Prepared in the background, like the other two open paths.
-            guard let plannedPath = WorktreePreparer.predictedWorktreePath(
-                repo: repo, branch: branch
+            guard let plannedPath = try services.plannedWorktreePath(
+                repo: repo, branch: branch, host: host
             ) else {
                 error = "\(row.repoFull) has no local clone. Add it in Preferences → Repos."
                 return
@@ -420,13 +422,14 @@ struct IssueDetailsPicker: View {
                 worktreePath: plannedPath,
                 agentID: agent.id,
                 taskID: nil,
-                preparationState: .pending
+                preparationState: .pending,
+                hostID: host?.id
             )
             services.tabs.reload()
             if let tabID = newTab.id {
                 services.tabs.select(tabID)
                 await services.worktreePreparer.enqueue(
-                    tabID: tabID, repo: repo, branch: branch, baseRef: nil
+                    tabID: tabID, repo: repo, host: host, branch: branch, baseRef: nil
                 )
             }
             services.triggerSyncNow()
@@ -442,8 +445,10 @@ struct IssueDetailsPicker: View {
         guard let repos = try? services.database.queue.read({ db in try Repo.fetchAll(db) }) else {
             return false
         }
-        return repos.first(where: { $0.owner == row.owner && $0.name == row.repoName })?
-            .localMainPath != nil
+        guard let repo = repos.first(where: { $0.owner == row.owner && $0.name == row.repoName }) else {
+            return false
+        }
+        return services.defaultHost != nil || repo.localMainPath != nil
     }
 
     private func tone(for state: String) -> StatusChip.Tone {

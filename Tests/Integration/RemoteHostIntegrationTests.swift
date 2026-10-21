@@ -156,4 +156,63 @@ final class RemoteHostIntegrationTests: XCTestCase {
         try await RemoteSessionControl().kill(host: host, tabID: claudeTab)
         _ = try await remote("rmdir \(cwd)")
     }
+
+    func testWorktreesOnHostShareOneCheckoutAndNeverUseIt() async throws {
+        _ = try await RemoteSessionControl().preflight(host: host)
+        let (_, root) = try await remote("mktemp -d /tmp/ygg-it-repos.XXXXXX")
+        let repo = Repo(
+            id: 1,
+            owner: "acme",
+            name: "widget",
+            defaultBranch: "main",
+            localMainPath: nil,
+            addedAt: Date()
+        )
+        let checkout = "\(root)/acme/widget"
+        let (initCode, _) = try await remote("""
+        mkdir -p \(checkout) && cd \(checkout) && git init -q -b main && \
+        git -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
+        """)
+        XCTAssertEqual(initCode, 0)
+        let site = RemoteWorktreeSite(host: host, checkoutPath: { _ in checkout })
+        let manager = WorktreeManager(git: GitRunner(runner: site.runner, gitExecutable: "git"), site: site)
+
+        let first = try await manager.ensure(repo: repo, branch: "feat/a")
+        let second = try await manager.ensure(repo: repo, branch: "feat/b")
+        XCTAssertEqual(first.path, "\(checkout)/.worktrees/feat-a")
+        XCTAssertEqual(second.path, "\(checkout)/.worktrees/feat-b")
+        let again = try await manager.ensure(repo: repo, branch: "feat/a")
+        XCTAssertEqual(again, first)
+        let (_, worktrees) = try await remote("git -C \(checkout) worktree list | wc -l")
+        XCTAssertEqual(worktrees, "3", "one checkout + two worktrees")
+        let (_, excluded) = try await remote("grep -cxF .worktrees/ \(checkout)/.git/info/exclude")
+        XCTAssertEqual(excluded, "1")
+        do {
+            _ = try await manager.ensure(repo: repo, branch: "main")
+            XCTFail("a tab must never get the main checkout")
+        } catch {
+            XCTAssertEqual(error as? WorktreeError, .branchInMainCheckout("main"))
+        }
+
+        try await manager.remove(repo: repo, path: first, force: true)
+        let (gone, _) = try await remote("test -e \(first.path)")
+        XCTAssertNotEqual(gone, 0)
+        _ = try await remote("rm -rf -- '\(root)'")
+    }
+
+    func testEnsureClonedUsesHostGhOnceThenReusesCheckout() async throws {
+        _ = try await RemoteSessionControl().preflight(host: host)
+        let (_, root) = try await remote("mktemp -d /tmp/ygg-it-clone.XXXXXX")
+        let repo = Repo(
+            id: 1, owner: "octocat", name: "Hello-World", defaultBranch: "master", localMainPath: nil, addedAt: Date()
+        )
+        let site = RemoteWorktreeSite(host: host, checkoutPath: { _ in "\(root)/octocat/Hello-World" })
+        let clonedFirst = try await site.ensureCloned(repo)
+        XCTAssertTrue(clonedFirst)
+        let clonedAgain = try await site.ensureCloned(repo)
+        XCTAssertFalse(clonedAgain)
+        let (code, _) = try await remote("test -d \(root)/octocat/Hello-World/.git")
+        XCTAssertEqual(code, 0)
+        _ = try await remote("rm -rf -- '\(root)'")
+    }
 }

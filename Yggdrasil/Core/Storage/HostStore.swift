@@ -22,12 +22,7 @@ struct HostStore {
     }
 
     func add(name: String, sshTarget: String, reposRoot: String) throws -> RemoteHost {
-        // The target is passed to ssh as an argument after `--`, but reject a
-        // leading `-` anyway: it's never a valid destination.
-        guard !sshTarget.isEmpty, !sshTarget.hasPrefix("-"),
-              !sshTarget.contains(where: \.isWhitespace)
-        else { throw HostStoreError.invalidSSHTarget(sshTarget) }
-        guard reposRoot.hasPrefix("/") else { throw HostStoreError.reposRootNotAbsolute(reposRoot) }
+        try Self.validate(sshTarget: sshTarget, reposRoot: reposRoot)
         return try database.queue.write { db in
             var host = RemoteHost(
                 id: nil, name: name, sshTarget: sshTarget, reposRoot: reposRoot, createdAt: Date()
@@ -35,6 +30,27 @@ struct HostStore {
             try host.insert(db)
             return host
         }
+    }
+
+    /// A new repos root only applies to repos not yet used on the host; the
+    /// checkouts already pinned in `host_repo` stay where they are.
+    func update(id: Int64, name: String, sshTarget: String, reposRoot: String) throws {
+        try Self.validate(sshTarget: sshTarget, reposRoot: reposRoot)
+        try database.queue.write { db in
+            try db.execute(
+                sql: "UPDATE host SET name = ?, ssh_target = ?, repos_root = ? WHERE id = ?",
+                arguments: [name, sshTarget, reposRoot, id]
+            )
+        }
+    }
+
+    private static func validate(sshTarget: String, reposRoot: String) throws {
+        // The target is passed to ssh as an argument after `--`, but reject a
+        // leading `-` anyway: it's never a valid destination.
+        guard !sshTarget.isEmpty, !sshTarget.hasPrefix("-"),
+              !sshTarget.contains(where: \.isWhitespace)
+        else { throw HostStoreError.invalidSSHTarget(sshTarget) }
+        guard reposRoot.hasPrefix("/") else { throw HostStoreError.reposRootNotAbsolute(reposRoot) }
     }
 
     /// Refuses while any tab runs on the host: dropping it would leave those

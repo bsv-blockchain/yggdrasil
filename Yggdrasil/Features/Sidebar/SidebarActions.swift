@@ -273,7 +273,7 @@ enum SidebarActions {
         services.tabs.reload()
         Task {
             await services.worktreePreparer.enqueue(
-                tabID: tabID, repo: repo, branch: tab.branchName, baseRef: baseRef
+                tabID: tabID, repo: repo, host: services.host(for: tab), branch: tab.branchName, baseRef: baseRef
             )
         }
     }
@@ -406,8 +406,9 @@ extension SidebarActions {
         }
     }
 
-    /// Worktrees on a host can't be removed from here yet, so the only choice
-    /// is the tab itself. Its agent is ended on the host either way.
+    /// Same choice as for a local tab. Either way the agent is stopped on the
+    /// host first; the worktree is removed with git on the host, and the repo's
+    /// checkout there stays.
     @MainActor
     private static func removeRemoteTab(id: Int64, tab: YggdrasilTab, host: RemoteHost, services: AppServices) {
         let alert = NSAlert()
@@ -416,18 +417,27 @@ extension SidebarActions {
         Branch: \(tab.branchName)
         Worktree: \(tab.worktreePath) on \(host.name)
 
-        The agent running on \(host.name) is stopped. The worktree stays on the host.
+        The agent running on \(host.name) is stopped. Deleting the worktree runs \
+        `git worktree remove --force` on the host, which discards any uncommitted work in it.
         """
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Remove Tab")
-        alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        for choice in RemoveTabChoice.allCases {
+            alert.addButton(withTitle: choice.title).hasDestructiveAction = choice.isDestructive
+        }
+        let choice = RemoveTabChoice.from(response: alert.runModal())
+        guard choice != .cancel else { return }
+        let repo = services.tabs.repoByTabID[id]
         Task {
             do {
                 try await services.remoteControl.kill(host: host, tabID: id)
+                if choice == .tabAndWorktree, let repo {
+                    try await services.existingWorktreeManager(on: host, repo: repo).remove(
+                        repo: repo, path: URL(fileURLWithPath: tab.worktreePath, isDirectory: true), force: true
+                    )
+                }
             } catch {
                 YggdrasilLog.ui.error(
-                    "Remote kill failed for removed tab \(id, privacy: .public): \(String(describing: error), privacy: .public)"
+                    "Removing remote tab \(id, privacy: .public) failed: \(String(describing: error), privacy: .public)"
                 )
             }
         }

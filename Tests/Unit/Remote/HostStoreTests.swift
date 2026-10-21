@@ -84,4 +84,14 @@ final class HostStoreTests: XCTestCase {
         let host = try store.add(name: "devbox", sshTarget: "devbox", reposRoot: "/home/me/src/")
         XCTAssertEqual(host.repoPath(owner: "bsv-blockchain", name: "teranode"), "/home/me/src/bsv-blockchain/teranode")
     }
+
+    func testUpdateChangesFieldsWithSameValidation() throws {
+        let host = try store.add(name: "devbox", sshTarget: "devbox", reposRoot: "/src")
+        let id = try XCTUnwrap(host.id)
+        try store.update(id: id, name: "dev", sshTarget: "me@dev", reposRoot: "/data/src")
+        let read = try XCTUnwrap(try store.get(id: id))
+        XCTAssertEqual([read.name, read.sshTarget, read.reposRoot], ["dev", "me@dev", "/data/src"])
+        XCTAssertThrowsError(try store.update(id: id, name: "dev", sshTarget: "-x", reposRoot: "/src"))
+        XCTAssertThrowsError(try store.update(id: id, name: "dev", sshTarget: "dev", reposRoot: "src"))
+    }
 }

@@ -22,7 +22,25 @@ enum Migrations {
         migrator.registerMigration("v15", migrate: v15)
         migrator.registerMigration("v16", migrate: v16)
         migrator.registerMigration("v17", migrate: v17)
+        migrator.registerMigration("v18", migrate: v18)
         return migrator
+    }
+
+    // MARK: - v18 — One checkout per repo per host
+
+    ///
+    /// Where a repo's main checkout lives on a host. Pinned the first time a
+    /// tab for the repo runs there, so changing the host's repos root later
+    /// never clones a second copy; editable per repo. Every tab works in a
+    /// worktree under it.
+    private static func v18(_ db: Database) throws {
+        try db.create(table: "host_repo") { table in
+            table.column("host_id", .integer).notNull().references("host", onDelete: .cascade)
+            table.column("repo_id", .integer).notNull().references("repo", onDelete: .cascade)
+            table.column("checkout_path", .text).notNull()
+            table.primaryKey(["host_id", "repo_id"])
+            table.uniqueKey(["host_id", "checkout_path"])
+        }
     }
 
     // MARK: - v17 — Remote hosts
