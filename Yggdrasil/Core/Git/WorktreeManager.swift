@@ -6,9 +6,11 @@ import Foundation
 /// Worktrees live at `<parent-of-main-clone>/.worktrees/<branch-slug>` per spec §2.1.
 actor WorktreeManager {
     private let git: GitRunner
+    private let site: WorktreeSite
 
-    init(git: GitRunner = GitRunner()) {
+    init(git: GitRunner = GitRunner(), site: WorktreeSite = LocalWorktreeSite()) {
         self.git = git
+        self.site = site
     }
 
     // MARK: - Public API
@@ -27,7 +29,7 @@ actor WorktreeManager {
     /// - For regular refs: `git worktree add -b <branch> <path> <baseRef ?? default>`,
     ///   unless `<branch>` already exists locally — then plain `worktree add <path> <branch>`.
     func ensure(repo: Repo, branch: String, baseRef: String? = nil) async throws -> URL {
-        guard let mainPath = repo.localMainPath else {
+        guard let mainPath = site.mainPath(for: repo) else {
             throw WorktreeError.parseFailure(reason: "repo \(repo.fullName) has no localMainPath")
         }
         let mainURL = URL(fileURLWithPath: mainPath, isDirectory: true)
@@ -39,32 +41,23 @@ actor WorktreeManager {
         // keep working — the tab row still references the old path and
         // `TabsModel.repoOwning` accepts both conventions.
         let worktreesDir = mainURL.appendingPathComponent(".worktrees", isDirectory: true)
-        ensureGitExcludeContainsWorktreesDir(repoURL: mainURL)
+        try await site.prepareWorktreesDir(mainURL: mainURL)
         let slug = BranchSlug.slug(for: branch)
         // isDirectory: true so the URL representation is stable regardless of whether
         // the directory exists on disk yet (avoids "/path/foo" vs "/path/foo/" drift
         // between idempotent calls).
         let target = worktreesDir.appendingPathComponent(slug, isDirectory: true)
 
-        // Acquire the per-repo POSIX file lock — cross-process serialisation per spec
-        // §Phase 2. (Same-actor calls are already serialised by actor isolation; the
-        // flock is purely for cross-process protection.) FileLock uses LOCK_NB + async
-        // retry so a contending caller doesn't wedge the cooperative thread.
-        let lock = try await FileLock.acquireExclusive(
-            at: worktreesDir.appendingPathComponent(".yggdrasil.lock")
-        )
+        let lock = try await site.lock(worktreesDir: worktreesDir)
         defer { lock.release() }
 
-        // Resolve both sides through symlinks because git outputs canonical paths
-        // (e.g. /private/var/...) but our `target` is built from the user-facing form
-        // (e.g. /var/folders/...).
-        let canonicalTarget = target.resolvingSymlinksInPath().path
+        let canonicalTarget = site.canonicalPath(target)
         let existing = try await listWorktrees(at: mainURL)
 
         // Case 1a: a worktree is already registered at exactly `target` —
         // idempotent (or error if it's on the wrong branch).
         if let match = existing.first(where: {
-            $0.path.resolvingSymlinksInPath().path == canonicalTarget
+            site.canonicalPath($0.path) == canonicalTarget
         }) {
             if match.branch == branch || match.branch == nil {
                 return target
@@ -84,13 +77,13 @@ actor WorktreeManager {
         // the existing path — the user's contract: "use it if it
         // exists, on the right branch".
         if let match = existing.first(where: { $0.branch == branch }) {
+            if !site.allowsMainCheckout, match.path == existing.first?.path {
+                throw WorktreeError.branchInMainCheckout(branch)
+            }
             return match.path
         }
 
-        // Case 2: create the .worktrees parent if needed.
-        try FileManager.default.createDirectory(
-            at: worktreesDir, withIntermediateDirectories: true
-        )
+        // (The .worktrees parent was created by `site.prepareWorktreesDir`.)
 
         // Case 3a: PR ref → fetch then worktree add. Force-update the
         // local branch with `+pull/N/head:<branch>` so re-opening an
@@ -124,7 +117,7 @@ actor WorktreeManager {
         // Case 3b: regular ref.
         // - branch exists locally → check it out without `-b`.
         // - branch doesn't exist  → create it off `baseRef ?? defaultBranch`.
-        let base = baseRef ?? repo.defaultBranch
+        let base = await branchBase(repo: repo, baseRef: baseRef, mainURL: mainURL)
         let branchExistsLocally: Bool
         do {
             _ = try await git.run(
@@ -138,14 +131,16 @@ actor WorktreeManager {
         do {
             let addArgs: [String] = branchExistsLocally
                 ? ["worktree", "add", target.path, branch]
-                : ["worktree", "add", "-b", branch, target.path, base]
+                // --no-track: starting from origin/<default> would otherwise make
+                // that the branch's upstream, and a bare `git push` aim at it.
+                : ["worktree", "add", "--no-track", "-b", branch, target.path, base]
             try await git.run(args: addArgs, cwd: mainURL)
         } catch let WorktreeError.gitFailed(stderr, code) {
             // Map git's reference-resolution failure to a typed error so callers can
             // distinguish "you typoed the base ref" from arbitrary git failures.
             if Self.stderrIndicatesUnknownRef(stderr) {
                 // Best-effort cleanup: in case git left a partial dir behind.
-                try? FileManager.default.removeItem(at: target)
+                await site.removeLeftover(at: target)
                 throw WorktreeError.unknownRef(base)
             }
             throw WorktreeError.gitFailed(stderr: stderr, exitCode: code)
@@ -155,6 +150,30 @@ actor WorktreeManager {
     }
 
     // swiftlint:enable function_body_length
+
+    /// What a new branch starts from: the given ref, else the default branch —
+    /// freshly fetched from origin where the site asks for it.
+    private func branchBase(repo: Repo, baseRef: String?, mainURL: URL) async -> String {
+        if let baseRef { return baseRef }
+        if site.refreshesDefaultBranch, await refreshDefaultBranch(repo, in: mainURL) {
+            return "origin/\(repo.defaultBranch)"
+        }
+        return repo.defaultBranch
+    }
+
+    /// `git fetch origin <default>`; false (keep the checkout's own copy) when
+    /// that fails, e.g. offline — a stale base beats no tab at all.
+    private func refreshDefaultBranch(_ repo: Repo, in mainURL: URL) async -> Bool {
+        do {
+            try await git.run(args: ["fetch", "--quiet", "origin", repo.defaultBranch], cwd: mainURL)
+            return true
+        } catch {
+            YggdrasilLog.ui.warning(
+                "Couldn't fetch \(repo.defaultBranch, privacy: .public) for \(repo.fullName, privacy: .public); using the checkout's copy"
+            )
+            return false
+        }
+    }
 
     private static func pullRequestNumber(from baseRef: String) -> Int? {
         let regex = try? NSRegularExpression(pattern: pullRefRegex)
@@ -169,7 +188,7 @@ actor WorktreeManager {
     /// `git worktree list --porcelain` parsed into `[WorktreeInfo]`. Includes the
     /// main clone as the first entry.
     func list(for repo: Repo) async throws -> [WorktreeInfo] {
-        guard let mainPath = repo.localMainPath else {
+        guard let mainPath = site.mainPath(for: repo) else {
             return []
         }
         return try await listWorktrees(at: URL(fileURLWithPath: mainPath, isDirectory: true))
@@ -177,7 +196,7 @@ actor WorktreeManager {
 
     /// Remove a worktree. Refuses if the worktree is dirty unless `force: true`.
     func remove(repo: Repo, path: URL, force: Bool) async throws {
-        guard let mainPath = repo.localMainPath else {
+        guard let mainPath = site.mainPath(for: repo) else {
             throw WorktreeError.parseFailure(reason: "repo \(repo.fullName) has no localMainPath")
         }
         let mainURL = URL(fileURLWithPath: mainPath, isDirectory: true)
@@ -224,7 +243,7 @@ actor WorktreeManager {
     /// `git worktree prune` — drops administrative entries for worktree directories
     /// that no longer exist on disk.
     func cleanupOrphans(for repo: Repo) async throws {
-        guard let mainPath = repo.localMainPath else { return }
+        guard let mainPath = site.mainPath(for: repo) else { return }
         let mainURL = URL(fileURLWithPath: mainPath, isDirectory: true)
         try await git.run(args: ["worktree", "prune"], cwd: mainURL)
     }
@@ -234,31 +253,6 @@ actor WorktreeManager {
     private func listWorktrees(at mainURL: URL) async throws -> [WorktreeInfo] {
         let result = try await git.run(args: ["worktree", "list", "--porcelain"], cwd: mainURL)
         return try WorktreeInfo.parsePorcelain(result.stdout)
-    }
-
-    /// Best-effort append of `.worktrees/` to the repo's `.git/info/exclude`
-    /// so the in-repo worktree directory doesn't show up as untracked in
-    /// `git status`. We touch `.git/info/exclude` (not `.gitignore`) so the
-    /// change stays private to the user's checkout and never lands in any
-    /// commit. Silent no-op if the file already mentions the line, or if
-    /// the file can't be opened for any reason.
-    private func ensureGitExcludeContainsWorktreesDir(repoURL: URL) {
-        let excludeURL = repoURL
-            .appendingPathComponent(".git", isDirectory: true)
-            .appendingPathComponent("info", isDirectory: true)
-            .appendingPathComponent("exclude")
-        // `.git` may be a file rather than a directory in some worktrees; in
-        // that case there is no info/exclude to edit and we just bail.
-        var infoDirIsDir: ObjCBool = false
-        guard FileManager.default.fileExists(
-            atPath: excludeURL.deletingLastPathComponent().path, isDirectory: &infoDirIsDir
-        ), infoDirIsDir.boolValue else { return }
-        let needle = ".worktrees/"
-        let existing = (try? String(contentsOf: excludeURL, encoding: .utf8)) ?? ""
-        if existing.contains(needle) { return }
-        let separator = (existing.isEmpty || existing.hasSuffix("\n")) ? "" : "\n"
-        let appended = existing + separator + needle + "\n"
-        try? appended.write(to: excludeURL, atomically: true, encoding: .utf8)
     }
 
     /// Git reference-resolution failure messages we want to map to .unknownRef.

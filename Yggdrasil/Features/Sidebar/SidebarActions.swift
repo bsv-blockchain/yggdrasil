@@ -35,46 +35,46 @@ enum SidebarActions {
 
     @MainActor
     static func restartAgent(tabID: Int64, services: AppServices) {
+        guard let session = agentSession(tabID: tabID, services: services) else { return }
+        services.sessions.clearExited(tabID: tabID)
+        services.sessions.terminate(tabID: tabID)
+        respawn(session, services: services)
+    }
+
+    /// The tab's agent as a session, wherever the tab row points now.
+    @MainActor
+    static func agentSession(tabID: Int64, services: AppServices) -> OpenSession? {
         guard let tab = services.tabs.tabs.first(where: { $0.id == tabID }),
               let agentID = tab.codingAgentID,
               let agent = try? services.agentStore.get(id: agentID)
-        else { return }
-        services.sessions.clearExited(tabID: tabID)
-        services.sessions.terminate(tabID: tabID)
-        // Defer the re-add one runloop tick so SwiftUI can dismantle the old
-        // AgentTerminalSurface (and its dead PTY) before the replacement row
-        // mounts a fresh one.
-        DispatchQueue.main.async {
-            services.sessions.add(OpenSession(
-                id: tabID,
-                displayName: "\(agent.name) \u{00b7} \(tab.branchName)",
-                cwd: tab.worktreePath,
-                command: agent.command,
-                args: agent.args,
-                env: agent.env
-            ))
-        }
+        else { return nil }
+        return OpenSession(
+            id: tabID,
+            displayName: "\(agent.name) \u{00b7} \(tab.branchName)",
+            cwd: tab.worktreePath,
+            command: agent.command,
+            args: agent.args,
+            env: agent.env,
+            host: services.host(for: tab)
+        )
     }
 
     @MainActor
     static func openShell(tabID: Int64, services: AppServices) {
         guard let session = services.sessions.sessions.first(where: { $0.id == tabID }) else { return }
-        let cwd = session.cwd
         services.sessions.clearExited(tabID: tabID)
         services.sessions.terminate(tabID: tabID)
-        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-        // Defer the re-add one runloop tick so SwiftUI can dismantle the old
-        // AgentTerminalSurface (and its dead PTY) before the replacement row
-        // mounts a fresh one.
-        DispatchQueue.main.async {
-            services.sessions.add(OpenSession(
-                id: tabID,
-                displayName: "Shell",
-                cwd: cwd,
-                command: shell,
-                args: []
-            ))
-        }
+        // On a host, an empty command makes the helper start the user's own
+        // login shell there.
+        let shell = session.host == nil ? ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh" : ""
+        respawn(OpenSession(
+            id: tabID,
+            displayName: "Shell",
+            cwd: session.cwd,
+            command: shell,
+            args: [],
+            host: session.host
+        ), services: services)
     }
 
     /// The three-way remove-tab prompt, in the order the buttons are presented.
@@ -118,8 +118,13 @@ enum SidebarActions {
 
     /// Confirm-then-delete a tab. Tears down any running session and (optionally)
     /// removes the worktree on disk. See `RemoveTabChoice` for the prompt.
+    @MainActor
     static func removeTab(id: Int64, services: AppServices) {
         guard let tab = services.tabs.tabs.first(where: { $0.id == id }) else { return }
+        if let host = services.host(for: tab) {
+            removeRemoteTab(id: id, tab: tab, host: host, services: services)
+            return
+        }
         let alert = NSAlert()
         alert.messageText = "Remove this tab?"
         alert.informativeText = """
@@ -274,7 +279,7 @@ enum SidebarActions {
         services.tabs.reload()
         Task {
             await services.worktreePreparer.enqueue(
-                tabID: tabID, repo: repo, branch: tab.branchName, baseRef: baseRef
+                tabID: tabID, repo: repo, host: services.host(for: tab), branch: tab.branchName, baseRef: baseRef
             )
         }
     }
@@ -370,11 +375,93 @@ enum SidebarActions {
 
     /// Single-button informational NSAlert.
     @MainActor
-    private static func presentInfo(title: String, text: String) {
+    static func presentInfo(title: String, text: String) {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = text
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+}
+
+// MARK: - Remote tabs
+
+extension SidebarActions {
+    /// Mounts `session` in place of the one just terminated. Local: defer the
+    /// re-add one runloop tick so SwiftUI can dismantle the old
+    /// AgentTerminalSurface (and its dead PTY) before the replacement row
+    /// mounts a fresh one. Remote: `terminate` only detached, so end the
+    /// agent on the host first; otherwise `ygg attach` would just reattach
+    /// to it. A failed kill (host unreachable) still respawns, and the new
+    /// surface's reconnect loop takes over.
+    @MainActor
+    private static func respawn(_ session: OpenSession, services: AppServices) {
+        guard let host = session.host else {
+            DispatchQueue.main.async { services.sessions.add(session) }
+            return
+        }
+        Task { @MainActor in
+            do {
+                try await services.remoteControl.kill(host: host, tabID: session.id)
+            } catch {
+                YggdrasilLog.ui.error(
+                    "Remote kill failed for tab \(session.id, privacy: .public): \(String(describing: error), privacy: .public)"
+                )
+            }
+            services.sessions.add(session)
+        }
+    }
+
+    /// Same choice as for a local tab. Either way the agent is stopped on the
+    /// host first; the worktree is removed with git on the host, and the repo's
+    /// checkout there stays.
+    @MainActor
+    private static func removeRemoteTab(id: Int64, tab: YggdrasilTab, host: RemoteHost, services: AppServices) {
+        let alert = NSAlert()
+        alert.messageText = "Remove this tab?"
+        alert.informativeText = """
+        Branch: \(tab.branchName)
+        Worktree: \(tab.worktreePath) on \(host.name)
+
+        The agent running on \(host.name) is stopped. Deleting the worktree runs \
+        `git worktree remove --force` on the host, which discards any uncommitted work in it.
+        """
+        alert.alertStyle = .warning
+        for choice in RemoveTabChoice.allCases {
+            alert.addButton(withTitle: choice.title).hasDestructiveAction = choice.isDestructive
+        }
+        let choice = RemoveTabChoice.from(response: alert.runModal())
+        guard choice != .cancel else { return }
+        let repo = services.tabs.repoByTabID[id]
+        Task { @MainActor in
+            var problems: [String] = []
+            do {
+                try await services.remoteControl.kill(host: host, tabID: id)
+            } catch {
+                problems.append("The agent couldn't be stopped: \(error)")
+            }
+            // Independent of the kill: a dead agent is no reason to leave the
+            // worktree behind for the next tab on this branch to pick up.
+            if choice == .tabAndWorktree {
+                if let repo {
+                    do {
+                        try await services.existingWorktreeManager(on: host, repo: repo).remove(
+                            repo: repo, path: URL(fileURLWithPath: tab.worktreePath, isDirectory: true), force: true
+                        )
+                    } catch {
+                        problems.append("The worktree couldn't be removed: \(error)")
+                    }
+                } else {
+                    problems
+                        .append("The worktree isn't under a tracked repository's checkout, so it was left in place.")
+                }
+            }
+            guard !problems.isEmpty else { return }
+            presentInfo(
+                title: "Removed the tab, but not everything on \(host.name)",
+                text: problems.joined(separator: "\n\n") + "\n\nWorktree: \(tab.worktreePath)"
+            )
+        }
+        performRemoval(id: id, tab: tab, deleteWorktree: false, services: services)
     }
 }

@@ -9,6 +9,9 @@ enum WorktreeError: Error, Equatable {
     case unknownRef(String)
     /// A `git` invocation returned non-zero exit. Carries stderr + the exit code.
     case gitFailed(stderr: String, exitCode: Int32)
+    /// The branch is checked out in the repo's main checkout, and this site
+    /// only runs tabs in worktrees.
+    case branchInMainCheckout(String)
     /// Worktree was expected at this path but already exists on a different branch.
     case existsOnDifferentBranch(path: URL, found: String, expected: String)
     /// Could not acquire the per-repo file lock within the deadline.

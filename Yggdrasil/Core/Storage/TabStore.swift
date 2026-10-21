@@ -33,7 +33,8 @@ struct TabStore {
         worktreePath: String,
         agentID: Int64?,
         taskID: Int64?,
-        preparationState: YggdrasilTab.PreparationState = .ready
+        preparationState: YggdrasilTab.PreparationState = .ready,
+        hostID: Int64? = nil
     ) throws -> YggdrasilTab {
         try database.queue.write { db in
             let maxPosition = try Int.fetchOne(
@@ -45,7 +46,8 @@ struct TabStore {
                 position: maxPosition + 1,
                 branchName: branchName, worktreePath: worktreePath,
                 lastMainView: .agent, createdAt: now, lastActiveAt: now,
-                preparationState: preparationState
+                preparationState: preparationState,
+                hostID: hostID
             )
             try tab.insert(db)
             return tab
@@ -76,6 +78,17 @@ struct TabStore {
             try db.execute(
                 sql: "UPDATE tab SET worktree_path = ? WHERE id = ?",
                 arguments: [path, id]
+            )
+        }
+    }
+
+    /// Repoints a tab at another machine's worktree, after a move between
+    /// this Mac (`hostID` nil) and a host.
+    func move(id: Int64, hostID: Int64?, worktreePath: String) throws {
+        try database.queue.write { db in
+            try db.execute(
+                sql: "UPDATE tab SET host_id = ?, worktree_path = ? WHERE id = ?",
+                arguments: [hostID, worktreePath, id]
             )
         }
     }

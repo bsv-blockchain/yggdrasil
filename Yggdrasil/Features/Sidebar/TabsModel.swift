@@ -98,7 +98,15 @@ final class TabsModel {
             let allRepos = try Repo.fetchAll(db)
             for tab in self.tabs {
                 guard let tabID = tab.id else { continue }
-                if let owning = Self.repoOwning(worktreePath: tab.worktreePath, repos: allRepos) {
+                let owning = if let hostID = tab.hostID {
+                    try Self.repoOwning(
+                        remoteWorktreePath: tab.worktreePath,
+                        checkouts: HostRepoStore(database: self.database).list(hostID: hostID, in: db)
+                    )
+                } else {
+                    Self.repoOwning(worktreePath: tab.worktreePath, repos: allRepos)
+                }
+                if let owning {
                     repos[tabID] = owning
                 }
                 if let prTaskID = tab.prTaskID,
@@ -247,6 +255,15 @@ final class TabsModel {
     ///   • new (current): `<repo>/.worktrees/<slug>` — inside the repo
     ///   • legacy:        `<repo-parent>/.worktrees/<slug>` — sibling of repo
     /// We try in-repo first (path prefix match), then sibling-of-repo.
+    /// A remote tab's repo: the one whose checkout on the tab's host contains
+    /// the worktree. Remote tabs never fall back to local clone paths.
+    static func repoOwning(remoteWorktreePath: String, checkouts: [HostRepoCheckout]) -> Repo? {
+        checkouts
+            .filter { remoteWorktreePath.hasPrefix($0.path.hasSuffix("/") ? $0.path : $0.path + "/") }
+            .max { $0.path.count < $1.path.count }?
+            .repo
+    }
+
     static func repoOwning(worktreePath: String, repos: [Repo]) -> Repo? {
         // 1. In-repo: any tracked repo whose localMainPath is an ancestor of
         //    the worktree path. Most specific (longest) match wins so a

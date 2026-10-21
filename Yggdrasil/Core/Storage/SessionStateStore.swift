@@ -11,15 +11,35 @@ struct SessionStateStore {
     }
 
     /// Upsert: starts (or restarts) a session for `tabID`. `pty_started_at` is reset
-    /// to "now"; `pty_ended_at` and `last_known_exit_code` are cleared.
+    /// to "now"; `pty_ended_at` and `last_known_exit_code` are cleared. A nil
+    /// `claudeSessionID` keeps the stored one, so respawning the tab with a
+    /// non-Claude command (e.g. "Open Shell") doesn't drop its conversation.
     @discardableResult
-    func start(tabID: Int64, cwd: String, command: String, args: [String]) throws -> SessionState {
-        let state = SessionState(
-            tabID: tabID, cwd: cwd, agentCommand: command, agentArgs: args,
-            lastKnownExitCode: nil, ptyStartedAt: Date(), ptyEndedAt: nil
-        )
-        try database.queue.write { db in try state.save(db) }
-        return state
+    func start(
+        tabID: Int64, cwd: String, command: String, args: [String],
+        claudeSessionID: String? = nil
+    ) throws -> SessionState {
+        try database.queue.write { db in
+            let keptID = try claudeSessionID ?? SessionState.fetchOne(db, key: tabID)?.claudeSessionID
+            let state = SessionState(
+                tabID: tabID, cwd: cwd, agentCommand: command, agentArgs: args,
+                lastKnownExitCode: nil, ptyStartedAt: Date(), ptyEndedAt: nil,
+                claudeSessionID: keptID
+            )
+            try state.save(db)
+            return state
+        }
+    }
+
+    /// Pins an existing row to a Claude conversation, e.g. a tab from before
+    /// pinning, before it's moved to another machine.
+    func pin(tabID: Int64, claudeSessionID: String) throws {
+        try database.queue.write { db in
+            try db.execute(
+                sql: "UPDATE session_state SET claude_session_id = ? WHERE tab_id = ?",
+                arguments: [claudeSessionID, tabID]
+            )
+        }
     }
 
     /// Records the exit code + pty_ended_at on an existing session row. No-op if

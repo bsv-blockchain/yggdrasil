@@ -49,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             let services = try AppServices()
             self.services = services
             Diagnostics.ensureCrashFolder()
-            AppearancePrefsPane.applyPersisted(services: services)
+            AppearanceSettings.applyPersisted(services: services)
             // One-shot cleanup: tear down any leftover yggdrasil-* tmux
             // sessions from previous versions of the app (we used to back
             // every tab with a tmux session). Runs best-effort in the

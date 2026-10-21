@@ -90,10 +90,10 @@ struct SidebarView: View {
             tabsModel.visibleTabIDs = ids
         }
         .onAppear {
-            groupByRepo = AppearancePrefsPane.readGroupByRepo(services: services)
+            groupByRepo = AppearanceSettings.readGroupByRepo(services: services)
         }
         .onReceive(NotificationCenter.default.publisher(for: .sidebarGroupingChanged)) { _ in
-            groupByRepo = AppearancePrefsPane.readGroupByRepo(services: services)
+            groupByRepo = AppearanceSettings.readGroupByRepo(services: services)
         }
     }
 
@@ -439,6 +439,25 @@ struct SidebarView: View {
         return true
     }
 
+    /// "Move to ▸": between this Mac and the configured hosts. Host to host
+    /// isn't offered; that goes through this Mac.
+    @ViewBuilder
+    private func moveMenu(for tab: YggdrasilTab) -> some View {
+        let hosts = (try? services.hostStore.list()) ?? []
+        if !hosts.isEmpty {
+            Menu("Move to") {
+                if tab.hostID != nil {
+                    Button("This Mac") { SidebarActions.moveTab(tab, to: nil, services: services) }
+                } else {
+                    ForEach(hosts, id: \.id) { host in
+                        Button(host.name) { SidebarActions.moveTab(tab, to: host, services: services) }
+                    }
+                }
+            }
+            .disabled(!tab.isReady || tab.id.map { services.sessions.movingTabs.contains($0) } ?? false)
+        }
+    }
+
     @ViewBuilder
     private func contextMenu(for tab: YggdrasilTab) -> some View {
         if let id = tab.id {
@@ -456,7 +475,9 @@ struct SidebarView: View {
             }
             Divider()
         }
-        if tab.preparationState != .ready {
+        // A move stops and starts the agent itself; these would race it.
+        let moving = tab.id.map { services.sessions.movingTabs.contains($0) } ?? false
+        if tab.preparationState != .ready, !moving {
             Button("Retry Setup") {
                 SidebarActions.retryPreparation(tab: tab, services: services)
             }
@@ -465,12 +486,18 @@ struct SidebarView: View {
         Button("Resume Session") {
             if let id = tab.id { SidebarActions.restartAgent(tabID: id, services: services) }
         }
+        .disabled(moving)
         Button("New Shell") {
             if let id = tab.id { SidebarActions.openShell(tabID: id, services: services) }
         }
+        .disabled(moving)
+        moveMenu(for: tab)
         Divider()
+        // The worktree of a remote tab isn't on this Mac.
         Button("Open in Finder") { SidebarActions.openInFinder(path: tab.worktreePath) }
+            .disabled(tab.hostID != nil)
         Button("Open in Terminal.app") { SidebarActions.openInTerminal(path: tab.worktreePath) }
+            .disabled(tab.hostID != nil)
         Divider()
         if let id = tab.id {
             // "Has a PR" = a PR-only tab (primary task is the PR) or an issue

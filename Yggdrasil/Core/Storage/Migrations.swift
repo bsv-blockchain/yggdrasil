@@ -20,7 +20,60 @@ enum Migrations {
         migrator.registerMigration("v13", migrate: v13)
         migrator.registerMigration("v14", migrate: v14)
         migrator.registerMigration("v15", migrate: v15)
+        migrator.registerMigration("v16", migrate: v16)
+        migrator.registerMigration("v17", migrate: v17)
+        migrator.registerMigration("v18", migrate: v18)
         return migrator
+    }
+
+    // MARK: - v18 — One checkout per repo per host
+
+    ///
+    /// Where a repo's main checkout lives on a host. Pinned the first time a
+    /// tab for the repo runs there, so changing the host's repos root later
+    /// never clones a second copy; editable per repo. Every tab works in a
+    /// worktree under it.
+    private static func v18(_ db: Database) throws {
+        try db.create(table: "host_repo") { table in
+            table.column("host_id", .integer).notNull().references("host", onDelete: .cascade)
+            table.column("repo_id", .integer).notNull().references("repo", onDelete: .cascade)
+            table.column("checkout_path", .text).notNull()
+            table.primaryKey(["host_id", "repo_id"])
+            table.uniqueKey(["host_id", "checkout_path"])
+        }
+    }
+
+    // MARK: - v17 — Remote hosts
+
+    ///
+    /// Tabs can run on an ssh host instead of locally. `tab.host_id` NULL means
+    /// local. RESTRICT rather than SET NULL: nulling it would turn a remote tab
+    /// into a "local" one pointing at a path that only exists on the server.
+    private static func v17(_ db: Database) throws {
+        try db.create(table: "host") { table in
+            table.autoIncrementedPrimaryKey("id")
+            table.column("name", .text).notNull().unique()
+            table.column("ssh_target", .text).notNull()
+            table.column("repos_root", .text).notNull()
+            table.column("created_at", .datetime).notNull()
+        }
+        try db.alter(table: "tab") { table in
+            table.add(column: "host_id", .integer).references("host", onDelete: .restrict)
+        }
+    }
+
+    // MARK: - v16 — Pinned Claude session id per tab
+
+    ///
+    /// The app now owns the Claude conversation id for a tab: the first spawn
+    /// passes `--session-id <uuid>`, later spawns `--resume <uuid>`. Replaces
+    /// the "most recent transcript in this cwd" `--continue` guess for new tabs,
+    /// and is what lets a conversation be moved between machines. Nullable:
+    /// tabs that predate it keep the `--continue` path.
+    private static func v16(_ db: Database) throws {
+        try db.alter(table: "session_state") { table in
+            table.add(column: "claude_session_id", .text)
+        }
     }
 
     // MARK: - v15 — a tab exists before its worktree does

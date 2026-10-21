@@ -306,4 +306,12 @@ final class MigrationsTests: XCTestCase {
         XCTAssertTrue(read?.commitsAfterEngagement ?? false)
         XCTAssertTrue(read?.reviewActionOutstanding ?? false)
     }
+
+    func testV16AddsClaudeSessionIDColumn() throws {
+        let db = try YggdrasilDatabase.inMemory()
+        let columns = try db.queue.read { db in
+            try db.columns(in: "session_state").map(\.name)
+        }
+        XCTAssertTrue(columns.contains("claude_session_id"), "columns=\(columns)")
+    }
 }

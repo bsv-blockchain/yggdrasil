@@ -144,4 +144,20 @@ final class TabStoreTests: XCTestCase {
         let updated = try XCTUnwrap(try store.get(id: XCTUnwrap(one.id)))
         XCTAssertGreaterThan(updated.lastActiveAt, before)
     }
+
+    func testMoveRepointsHostAndWorktree() throws {
+        let host = try HostStore(database: db).add(name: "dev", sshTarget: "dev", reposRoot: "/srv")
+        let tab = try store.insert(branchName: "b", worktreePath: "/Users/me/w/.worktrees/b", agentID: nil, taskID: nil)
+        let id = try XCTUnwrap(tab.id)
+
+        try store.move(id: id, hostID: host.id, worktreePath: "/srv/w/.worktrees/b")
+        var read = try XCTUnwrap(try store.get(id: id))
+        XCTAssertEqual(read.hostID, host.id)
+        XCTAssertEqual(read.worktreePath, "/srv/w/.worktrees/b")
+
+        try store.move(id: id, hostID: nil, worktreePath: "/Users/me/w/.worktrees/b")
+        read = try XCTUnwrap(try store.get(id: id))
+        XCTAssertNil(read.hostID)
+        XCTAssertEqual(read.worktreePath, "/Users/me/w/.worktrees/b")
+    }
 }

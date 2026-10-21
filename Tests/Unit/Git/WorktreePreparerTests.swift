@@ -37,6 +37,14 @@ final class WorktreePreparerTests: XCTestCase {
         )
     }
 
+    /// On a host the worktree goes under the repo's pinned checkout there.
+    func testPredictsTheWorktreePathUnderAHostCheckout() {
+        XCTAssertEqual(
+            WorktreePreparer.predictedWorktreePath(checkout: "/srv/src/teranode", branch: "claude-fix/x"),
+            "/srv/src/teranode/.worktrees/claude-fix-x"
+        )
+    }
+
     func testPredictedPathIsNilWithoutALocalClone() {
         var bare = repo(id: 1)
         bare.localMainPath = nil
@@ -48,7 +56,7 @@ final class WorktreePreparerTests: XCTestCase {
     func testSuccessMarksTheTabReadyAtTheRealPath() async {
         let recorder = Recorder()
         let preparer = WorktreePreparer(
-            prepare: { _, _, _ in "/repos/teranode/.worktrees/actual" },
+            prepare: { _, _, _, _ in "/repos/teranode/.worktrees/actual" },
             record: recorder.record
         )
         await preparer.prepare(tabID: 1, repo: repo(id: 1), branch: "b", baseRef: nil)
@@ -66,7 +74,7 @@ final class WorktreePreparerTests: XCTestCase {
     func testFailureRecordsTheErrorOnTheTab() async {
         let recorder = Recorder()
         let preparer = WorktreePreparer(
-            prepare: { _, _, _ in throw WorktreeError.unknownRef("origin/nope") },
+            prepare: { _, _, _, _ in throw WorktreeError.unknownRef("origin/nope") },
             record: recorder.record
         )
         await preparer.prepare(tabID: 2, repo: repo(id: 1), branch: "b", baseRef: nil)
@@ -86,7 +94,7 @@ final class WorktreePreparerTests: XCTestCase {
         let tracker = ConcurrencyTracker()
         let recorder = Recorder()
         let preparer = WorktreePreparer(
-            prepare: { _, _, _ in
+            prepare: { _, _, _, _ in
                 await tracker.enter()
                 try? await Task.sleep(for: .milliseconds(20))
                 await tracker.leave()
@@ -111,7 +119,7 @@ final class WorktreePreparerTests: XCTestCase {
     func testWorkInDifferentReposRunsConcurrently() async {
         let tracker = ConcurrencyTracker()
         let preparer = WorktreePreparer(
-            prepare: { _, _, _ in
+            prepare: { _, _, _, _ in
                 await tracker.enter()
                 try? await Task.sleep(for: .milliseconds(30))
                 await tracker.leave()
@@ -126,6 +134,49 @@ final class WorktreePreparerTests: XCTestCase {
 
         let peak = await tracker.peak
         XCTAssertEqual(peak, 2)
+    }
+
+    /// The same repo on another host is another checkout, so it gets its own
+    /// queue, and the host reaches the prepare closure.
+    func testSameRepoOnDifferentHostsRunsConcurrentlyWithItsHost() async {
+        let tracker = ConcurrencyTracker()
+        let seen = HostRecorder()
+        let host = RemoteHost(id: 9, name: "dev", sshTarget: "dev", reposRoot: "/srv", createdAt: Date())
+        let preparer = WorktreePreparer(
+            prepare: { _, host, _, _ in
+                seen.add(host?.id)
+                await tracker.enter()
+                try? await Task.sleep(for: .milliseconds(30))
+                await tracker.leave()
+                return "/p"
+            },
+            record: { _ in }
+        )
+
+        await preparer.enqueue(tabID: 1, repo: repo(id: 1), branch: "a", baseRef: nil)
+        await preparer.enqueue(tabID: 2, repo: repo(id: 1), host: host, branch: "b", baseRef: nil)
+        await preparer.drain()
+
+        let peak = await tracker.peak
+        XCTAssertEqual(peak, 2)
+        XCTAssertEqual(Set(seen.ids), [nil, 9])
+    }
+}
+
+private final class HostRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [Int64?] = []
+
+    var ids: [Int64?] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func add(_ id: Int64?) {
+        lock.lock()
+        defer { lock.unlock() }
+        storage.append(id)
     }
 }
 
