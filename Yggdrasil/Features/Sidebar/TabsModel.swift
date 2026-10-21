@@ -278,8 +278,9 @@ final class TabsModel {
     /// Returns the tabs filtered by a case-insensitive substring match against the
     /// row's titleLine (task title or branch fallback), branchName, and the
     /// issue/PR numbers shown in its badges (incl. an issue tab's linked PR), so
-    /// `1889` or `#1889` finds a PR linked to an issue tab. Returns the full list
-    /// when `query` is empty after trimming.
+    /// `1889` finds a PR linked to an issue tab. A leading `#` (`#1889`) matches
+    /// that exact number instead of a substring. Returns the full list when
+    /// `query` is empty after trimming.
     func filtered(by query: String) -> [YggdrasilTab] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return tabs }
@@ -288,13 +289,16 @@ final class TabsModel {
             let row = model(for: tab)
             let numbers = [row.trailingBadge, row.secondaryBadge].compactMap { badge -> String? in
                 switch badge {
-                case let .prNumber(number), let .issueNumber(number): "#\(number)"
+                case let .prNumber(number), let .issueNumber(number): String(number)
                 case .none: nil
                 }
             }
+            let matchesNumber = needle.hasPrefix("#")
+                ? numbers.contains(String(needle.dropFirst()))
+                : numbers.contains { $0.contains(needle) }
             return row.titleLine.lowercased().contains(needle)
                 || row.branchLine.lowercased().contains(needle)
-                || numbers.contains { $0.contains(needle) }
+                || matchesNumber
         }
     }
 

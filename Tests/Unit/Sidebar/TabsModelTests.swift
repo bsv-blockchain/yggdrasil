@@ -222,6 +222,9 @@ final class TabsModelTests: XCTestCase {
         XCTAssertEqual(model.filtered(by: "1835").map(\.branchName), ["linked"], "issue number")
         XCTAssertEqual(model.filtered(by: "1889").map(\.branchName), ["linked"], "linked PR number")
         XCTAssertEqual(model.filtered(by: "#1889").map(\.branchName), ["linked"], "leading # is accepted")
+        XCTAssertEqual(model.filtered(by: "89").map(\.branchName), ["linked"], "bare number is a substring match")
+        XCTAssertEqual(model.filtered(by: "#18").map(\.branchName), [], "# means that exact number")
+        XCTAssertEqual(model.filtered(by: "#89").map(\.branchName), [], "# means that exact number")
     }
 
     func testReorderPersistsViaStore() throws {
