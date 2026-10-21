@@ -14,7 +14,7 @@ final class AppServices {
     let restClient: RESTClient
     let graphqlClient: GraphQLClient
     let syncService: TaskSyncService
-    /// Replaceable from `applyIntervals(_:)` — IntervalsPrefsPane rebuilds
+    /// Replaceable from `applyIntervals(_:)` — Settings → General rebuilds
     /// the scheduler when the user changes the sync interval. Readers see
     /// the latest instance because lookups always go through `services`.
     private(set) var scheduler: SyncScheduler
@@ -36,8 +36,13 @@ final class AppServices {
     /// Snapshot of the live intervals. Mutated by `applyIntervals(_:)`.
     private(set) var intervals: IntervalSettings
 
-    init() throws {
-        let database = try YggdrasilDatabase.openDefault()
+    convenience init() throws {
+        try self.init(database: YggdrasilDatabase.openDefault())
+    }
+
+    /// Builds the graph on `database`. Nothing is started here; tests and
+    /// snapshot tooling use it with an in-memory database.
+    init(database: YggdrasilDatabase) {
         self.database = database
         let settingsStore = SettingsStore(database: database)
         self.settingsStore = settingsStore

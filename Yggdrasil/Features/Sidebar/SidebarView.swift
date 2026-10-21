@@ -90,10 +90,10 @@ struct SidebarView: View {
             tabsModel.visibleTabIDs = ids
         }
         .onAppear {
-            groupByRepo = AppearancePrefsPane.readGroupByRepo(services: services)
+            groupByRepo = AppearanceSettings.readGroupByRepo(services: services)
         }
         .onReceive(NotificationCenter.default.publisher(for: .sidebarGroupingChanged)) { _ in
-            groupByRepo = AppearancePrefsPane.readGroupByRepo(services: services)
+            groupByRepo = AppearanceSettings.readGroupByRepo(services: services)
         }
     }
 
