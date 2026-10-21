@@ -192,6 +192,41 @@ final class TabsModelTests: XCTestCase {
         XCTAssertEqual(model.filtered(by: "   ").count, 2, "whitespace-only counts as empty")
     }
 
+    func testFilteredByQueryMatchesIssueAndLinkedPRNumbers() throws {
+        let epoch = Date(timeIntervalSince1970: 0)
+        let (issueID, prID) = try db.queue.write { db -> (Int64, Int64) in
+            var repo = Repo(
+                id: nil, owner: "o", name: "r", defaultBranch: "main",
+                localMainPath: nil, addedAt: epoch
+            )
+            try repo.insert(db)
+            let repoID = try XCTUnwrap(repo.id)
+            func makeTask(_ type: YggdrasilTask.Kind, _ number: Int) throws -> Int64 {
+                var task = YggdrasilTask(
+                    id: nil, repoID: repoID, type: type, number: number, title: "t",
+                    body: nil, state: .open, authorLogin: "me", githubURL: "", apiURL: "",
+                    createdAt: epoch, updatedAt: epoch, lastSyncedAt: epoch,
+                    etag: nil, labelsJSON: "[]", milestoneTitle: nil
+                )
+                try task.insert(db)
+                return try XCTUnwrap(task.id)
+            }
+            return try (makeTask(.issue, 1835), makeTask(.pullRequest, 1889))
+        }
+        // Branch names deliberately carry no numbers so only the badges can match.
+        let tab = try store.insert(branchName: "linked", worktreePath: "/a", agentID: nil, taskID: issueID)
+        try store.setPRTaskID(id: XCTUnwrap(tab.id), prTaskID: prID)
+        _ = try store.insert(branchName: "other", worktreePath: "/b", agentID: nil, taskID: nil)
+        model.reload()
+
+        XCTAssertEqual(model.filtered(by: "1835").map(\.branchName), ["linked"], "issue number")
+        XCTAssertEqual(model.filtered(by: "1889").map(\.branchName), ["linked"], "linked PR number")
+        XCTAssertEqual(model.filtered(by: "#1889").map(\.branchName), ["linked"], "leading # is accepted")
+        XCTAssertEqual(model.filtered(by: "89").map(\.branchName), ["linked"], "bare number is a substring match")
+        XCTAssertEqual(model.filtered(by: "#18").map(\.branchName), [], "# means that exact number")
+        XCTAssertEqual(model.filtered(by: "#89").map(\.branchName), [], "# means that exact number")
+    }
+
     func testReorderPersistsViaStore() throws {
         let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
