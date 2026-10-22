@@ -69,6 +69,14 @@ struct TabCommands: Commands {
             item("Next Session") { SidebarActions.selectTab(by: 1, services: $0) }
                 .keyboardShortcut("]", modifiers: [.command, .shift])
 
+            // Fires normally outside a terminal. With a terminal focused the
+            // menu never sees ⌘K, so `TerminalKeyInterceptor` claims it there
+            // and posts the same notification.
+            item("Search Tabs") { _ in
+                NotificationCenter.default.post(name: TabSearchCommand.focus, object: nil)
+            }
+            .keyboardShortcut("k", modifiers: .command)
+
             item("Close Tab…") { services in
                 guard let id = services.tabs.selectedID else {
                     YggdrasilLog.ui.notice("Close Tab…: no tab selected; nothing to close")
