@@ -30,6 +30,10 @@ struct IssueDetailsPicker: View {
     @State private var agents: [CodingAgent] = []
     /// nil until the user picks one, which means "use the default".
     @State private var selectedAgentID: Int64?
+    @State private var hosts: [RemoteHost] = []
+    /// nil = this Mac. Starts on the default host; see `HostChooser`.
+    @State private var selectedHostID: Int64?
+    @State private var hostsLoaded = false
     @State private var selection: Row.ID?
 
     /// Local-DB snapshot needed to compute linked-PR + repo metadata.
@@ -234,7 +238,7 @@ struct IssueDetailsPicker: View {
                     }
                 }
                 Button("Open as Tab") { Task { await open(row) } }
-                    .disabled(!canOpen(row))
+                    .disabled(openBlocker(row) != nil)
             }
         }
     }
@@ -249,15 +253,18 @@ struct IssueDetailsPicker: View {
             Spacer()
             if let id = selection,
                let row = rows.first(where: { $0.id == id }) {
-                if canOpen(row) {
+                // Always shown: whether the row can open depends on this choice,
+                // so hiding it with the button would leave no way back.
+                HostChooser(hosts: hosts, selectedHostID: $selectedHostID, scheme: scheme)
+                if let blocker = openBlocker(row) {
+                    Text(blocker)
+                        .font(.callout)
+                        .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                } else {
                     AgentChooser(agents: agents, selectedAgentID: $selectedAgentID, scheme: scheme)
                     Button("Open as Tab") { Task { await open(row) } }
                         .keyboardShortcut(.return, modifiers: [])
                         .disabled(openingIssueIDs.contains(row.id))
-                } else {
-                    Text("Repo not tracked — add it in Preferences → Repos to open as a tab.")
-                        .font(.callout)
-                        .foregroundStyle(YggdrasilTheme.textMute(scheme))
                 }
                 Button("Open on GitHub") {
                     if let url = URL(string: row.htmlURL) {
@@ -279,27 +286,26 @@ struct IssueDetailsPicker: View {
         )
     }
 
-    /// Pure helper exposed for unit testing. The view body just renders the
-    /// result, so all filter logic lives here in one place.
-    static func filter(
-        rows: [Row], search: String, trackedRepoKeys: Set<String>, trackedOnly: Bool
-    ) -> [Row] {
-        var result = rows
-        if trackedOnly {
-            result = result.filter { trackedRepoKeys.contains($0.repoFull) }
-        }
-        let trimmed = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !trimmed.isEmpty else { return result }
-        return result.filter { row in
-            row.title.lowercased().contains(trimmed)
-                || row.repoFull.lowercased().contains(trimmed)
-                || "#\(row.number)".contains(trimmed)
-                || row.labels.contains { $0.name.lowercased().contains(trimmed) }
-                || row.milestone.lowercased().contains(trimmed)
+    /// Re-read every reload, so hosts added, edited or removed in Settings
+    /// while the window is open are what gets used. Only the starting
+    /// selection is set once; later reloads keep the user's pick unless that
+    /// host is gone, which falls back to this Mac.
+    private func loadHosts() {
+        hosts = (try? services.hostStore.list()) ?? []
+        if !hostsLoaded {
+            hostsLoaded = true
+            selectedHostID = HostChooser.initialSelection(defaultHostID: services.defaultHostID, hosts: hosts)
+        } else if let id = selectedHostID, !hosts.contains(where: { $0.id == id }) {
+            selectedHostID = nil
         }
     }
 
+    private var chosenHost: RemoteHost? {
+        HostChooser.resolveHost(selectedID: selectedHostID, hosts: hosts)
+    }
+
     private func reload() async {
+        loadHosts()
         loading = true
         error = nil
         defer { loading = false }
@@ -355,28 +361,6 @@ struct IssueDetailsPicker: View {
         }
     }
 
-    /// Local-DB-driven heuristic. We only know about PRs in tracked repos,
-    /// so untracked-repo issues never get a linked PR — that's a known
-    /// limitation, documented in the footer when the user selects one.
-    static func linkedPR(
-        forIssueNumber issueNumber: Int,
-        repoKey: String,
-        candidatePRs: [YggdrasilTask],
-        repos: [String: Repo]
-    ) -> YggdrasilTask? {
-        guard let repoID = repos[repoKey]?.id else { return nil }
-        let needle = "#\(issueNumber)"
-        let pattern = try? NSRegularExpression(
-            pattern: "(?<![0-9])\(NSRegularExpression.escapedPattern(for: needle))(?![0-9])"
-        )
-        return candidatePRs.first { pull in
-            guard pull.repoID == repoID else { return false }
-            let haystack = pull.title + " " + (pull.body ?? "")
-            guard let pattern else { return haystack.contains(needle) }
-            return pattern.firstMatch(in: haystack, range: NSRange(haystack.startIndex..., in: haystack)) != nil
-        }
-    }
-
     /// Open as a tab — only works for tracked repos (we need a localMainPath
     /// to create a worktree). For others, the footer surfaces a hint.
     private func open(_ row: Row) async {
@@ -386,11 +370,10 @@ struct IssueDetailsPicker: View {
         defer { openingIssueIDs.remove(row.id) }
         do {
             let repos = try await services.database.queue.read { db in try Repo.fetchAll(db) }
-            // Settings → General → "Run new tabs on".
-            let host = services.defaultHost
+            let host = chosenHost
             guard let repo = repos.first(where: { $0.owner == row.owner && $0.name == row.repoName }),
                   host != nil || repo.localMainPath != nil else {
-                error = "\(row.repoFull) isn't tracked locally. Add it in Preferences → Repos."
+                error = openBlocker(row)
                 return
             }
             guard let agent = try AgentChooser.resolveAgent(
@@ -414,7 +397,7 @@ struct IssueDetailsPicker: View {
             guard let plannedPath = try services.plannedWorktreePath(
                 repo: repo, branch: branch, host: host
             ) else {
-                error = "\(row.repoFull) has no local clone. Add it in Preferences → Repos."
+                error = "\(row.repoFull) isn't cloned on this Mac — run it on a host, or set its location in Settings → Repositories."
                 return
             }
             let newTab = try services.tabStore.insert(
@@ -441,14 +424,16 @@ struct IssueDetailsPicker: View {
         }
     }
 
-    private func canOpen(_ row: Row) -> Bool {
-        guard let repos = try? services.database.queue.read({ db in try Repo.fetchAll(db) }) else {
-            return false
-        }
+    /// Why the row can't open as a tab where it's set to run, or nil if it can.
+    private func openBlocker(_ row: Row) -> String? {
+        let repos = (try? services.database.queue.read { db in try Repo.fetchAll(db) }) ?? []
         guard let repo = repos.first(where: { $0.owner == row.owner && $0.name == row.repoName }) else {
-            return false
+            return "Repo not tracked — add it in Settings → Repositories to open as a tab."
         }
-        return services.defaultHost != nil || repo.localMainPath != nil
+        guard chosenHost != nil || repo.localMainPath != nil else {
+            return "Not cloned on this Mac — run it on a host, or set its location in Settings → Repositories."
+        }
+        return nil
     }
 
     private func tone(for state: String) -> StatusChip.Tone {
