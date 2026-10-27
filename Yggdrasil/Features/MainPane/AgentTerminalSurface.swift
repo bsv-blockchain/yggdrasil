@@ -289,18 +289,10 @@ struct AgentTerminalSurface: NSViewRepresentable {
         }
 
         func terminate() {
-            // Direct SIGTERM the agent PID; SIGKILL after 5s if it hasn't
-            // exited cleanly. Replaces the tmux-killSession path we used
-            // when agent survival was a feature.
-            let targetPid = pid
-            guard targetPid > 0 else { return }
-            kill(targetPid, SIGTERM)
-            Task { [weak self] in
-                try? await Task.sleep(for: .seconds(5))
-                if self?.lastExitCode == nil {
-                    kill(targetPid, SIGKILL)
-                }
-            }
+            // SIGTERM, SIGKILL after 5s, and collect the child: this view (and
+            // SwiftTerm's exit watcher with it) is usually being torn down, so
+            // nothing else would, and it would stay a zombie.
+            ChildReaper.stopInBackground(pid)
         }
 
         // MARK: - LocalProcessTerminalViewDelegate
@@ -326,6 +318,9 @@ struct AgentTerminalSurface: NSViewRepresentable {
             }
             let id = tabID
             let exitedPID = pid
+            // The child is gone (SwiftTerm collected it); a later terminate()
+            // on this surface must not signal its pid, which may be reused.
+            pid = 0
             let remote = host != nil
             DispatchQueue.main.async { [weak self] in
                 guard let sessions = self?.sessions else { return }
@@ -348,7 +343,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
                 }
                 sessions.markExited(tabID: id, exitCode: resolved)
             }
-            YggdrasilLog.pty.info("Agent pid=\(self.pid, privacy: .public) exited code=\(resolved, privacy: .public)")
+            YggdrasilLog.pty.info("Agent pid=\(exitedPID, privacy: .public) exited code=\(resolved, privacy: .public)")
         }
     }
 

@@ -42,6 +42,11 @@ final class SessionsModel {
     /// Remote tabs whose ssh connection dropped and are waiting to reattach.
     private(set) var reconnecting: Set<Int64> = []
     private var reconnectAttempts: [Int64: Int] = [:]
+    /// Tabs the user has opened this run. Only these mount their pane (agent,
+    /// GitHub web view, diff), so tabs nobody looked at cost nothing — the
+    /// app used to start an agent and a WebKit process for every tab at
+    /// launch. Once opened a tab stays mounted, so switching back is instant.
+    private(set) var openedTabs: Set<Int64> = []
     /// Tabs being moved to or from a host. Actions that would start or stop
     /// their agent are off until the move ends.
     private(set) var movingTabs: Set<Int64> = []
@@ -120,6 +125,20 @@ final class SessionsModel {
         }
     }
 
+    func markOpened(tabID: Int64?) {
+        guard let tabID else { return }
+        openedTabs.insert(tabID)
+    }
+
+    func isOpened(tabID: Int64?) -> Bool {
+        tabID.map(openedTabs.contains) ?? false
+    }
+
+    /// For a deleted tab. (A restart keeps the tab opened.)
+    func forgetOpened(tabID: Int64) {
+        openedTabs.remove(tabID)
+    }
+
     func registerLivePID(_ pid: pid_t, for tabID: Int64) {
         livePIDs[tabID] = pid
     }
@@ -155,7 +174,7 @@ final class SessionsModel {
     @MainActor
     func terminate(tabID: Int64) {
         if let pid = livePIDs[tabID], pid > 0 {
-            kill(pid, SIGTERM)
+            ChildReaper.stopInBackground(pid)
         }
         remove(id: tabID)
     }

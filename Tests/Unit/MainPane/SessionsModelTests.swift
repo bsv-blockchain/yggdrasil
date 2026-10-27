@@ -82,4 +82,22 @@ final class SessionsModelTests: XCTestCase {
         model.endMove(tabID: 5)
         XCTAssertFalse(model.movingTabs.contains(5))
     }
+
+    func testATabIsOpenedOnceSelectedAndStaysOpened() {
+        // Only opened tabs mount their pane (agent, GitHub web view, diff), so
+        // a launch with many tabs starts one agent, not one per tab.
+        let model = SessionsModel()
+        XCTAssertFalse(model.isOpened(tabID: 4))
+        model.markOpened(tabID: 4)
+        XCTAssertTrue(model.isOpened(tabID: 4))
+        model.markOpened(tabID: nil)
+        XCTAssertEqual(model.openedTabs, [4])
+    }
+
+    func testRemovingATabForgetsItWasOpened() {
+        let model = SessionsModel()
+        model.markOpened(tabID: 4)
+        model.forgetOpened(tabID: 4)
+        XCTAssertFalse(model.isOpened(tabID: 4))
+    }
 }
