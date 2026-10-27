@@ -107,13 +107,14 @@ struct SidebarSessionsLayout: View {
         if services.tabs.tabs.isEmpty {
             emptyMainPane
         } else {
-            // Stack one MainPaneView per tab and toggle visibility via opacity.
-            // This keeps every tab's agent PTY, GitHub WebView, and diff view
-            // mounted across selection, so switching tabs is instant — nothing
-            // is torn down + respawned. Costs more RAM (one terminal +
-            // WebKit per tab) but per user direction that's the trade.
+            // Stack one MainPaneView per *opened* tab and toggle visibility via
+            // opacity. An opened tab keeps its agent PTY, GitHub WebView and
+            // diff view mounted across selection, so switching back is instant.
+            // Tabs not opened this run aren't mounted at all: mounting every
+            // tab started an agent and a WebKit process per tab at launch —
+            // 44 idle agents (~11 GB) and 37 WebKit processes on a real setup.
             ZStack {
-                ForEach(services.tabs.tabs, id: \.id) { tab in
+                ForEach(services.tabs.tabs.filter { services.sessions.isOpened(tabID: $0.id) }, id: \.id) { tab in
                     MainPaneView(services: services, selectedTab: tab)
                         .opacity(tab.id == services.tabs.selectedID ? 1 : 0)
                         .allowsHitTesting(tab.id == services.tabs.selectedID)
@@ -121,6 +122,9 @@ struct SidebarSessionsLayout: View {
                 if services.tabs.selectedID == nil {
                     selectedTabHasNoSession
                 }
+            }
+            .onChange(of: services.tabs.selectedID, initial: true) { _, id in
+                services.sessions.markOpened(tabID: id)
             }
         }
     }

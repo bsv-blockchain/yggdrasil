@@ -154,8 +154,10 @@ enum SidebarActions {
         id: Int64, tab: YggdrasilTab, deleteWorktree: Bool, services: AppServices
     ) {
         // Tear down the running agent first so its files aren't held open
-        // by the time `git worktree remove` runs.
+        // by the time `git worktree remove` runs. (Dismantling its surface
+        // stops and collects the process.)
         services.sessions.remove(id: id)
+        services.sessions.forgetOpened(tabID: id)
 
         if deleteWorktree {
             // Resolve the owning repo from the worktree's grandparent dir

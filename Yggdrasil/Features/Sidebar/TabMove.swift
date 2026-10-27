@@ -95,15 +95,11 @@ extension TabMigrator {
             return
         }
         let pid = services.sessions.livePID(for: tabID)
+        // Stops (SIGTERM, then SIGKILL after 5s) and collects in the background.
         services.sessions.terminate(tabID: tabID)
         guard let pid, pid > 0 else { return }
-        for _ in 0 ..< 50 where kill(pid, 0) == 0 {
-            try? await Task.sleep(for: .milliseconds(100))
-        }
-        guard kill(pid, 0) == 0 else { return }
-        kill(pid, SIGKILL)
-        try? await Task.sleep(for: .seconds(1))
-        if kill(pid, 0) == 0 { throw MigrationError.agentStillRunning }
+        // Waits for that to finish; kill(pid, 0) would count a zombie as alive.
+        if await !ChildReaper.reap(pid, timeout: .seconds(11)) { throw MigrationError.agentStillRunning }
     }
 
     /// Branch over ssh: pushed to the host's checkout, or fetched from it into
