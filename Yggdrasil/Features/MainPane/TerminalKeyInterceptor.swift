@@ -9,6 +9,13 @@ enum TerminalKeyAction: Equatable {
     case sendBytes([UInt8])
     case previousSession
     case nextSession
+    /// ⌘K: focus the sidebar's "Search tabs" field.
+    case focusTabSearch
+}
+
+/// Posted to focus the sidebar's search field (⌘K, View ▸ Search Tabs).
+enum TabSearchCommand {
+    static let focus = Notification.Name("yggdrasil.tabsearch.focus")
 }
 
 /// Key rewriter for the keystrokes neither AppKit nor SwiftTerm gets right.
@@ -114,6 +121,14 @@ enum TerminalKeyInterceptor {
                 keyCode: keyCode, commandCharacter: commandCharacter,
                 layoutTypesBrackets: layoutTypesBrackets, isMainWindow: isMainWindow
             )
+        // ⌘K, which the search field advertises, from a focused terminal:
+        // there neither a SwiftUI shortcut nor a menu item fires, and the
+        // query would be typed into the agent instead. Anywhere else it's
+        // left alone — the GitHub pane's web view uses ⌘K, and native views
+        // reach View ▸ Search Tabs. Matched by what the layout types with ⌘
+        // held, like the brackets.
+        case _ where mods == .command && isTerminalFocused:
+            return isMainWindow && commandCharacter() == "k" ? .focusTabSearch : .passThrough
         default:
             return .passThrough
         }
@@ -169,6 +184,9 @@ enum TerminalKeyInterceptor {
             return step(by: -1)
         case .nextSession:
             return step(by: 1)
+        case .focusTabSearch:
+            NotificationCenter.default.post(name: TabSearchCommand.focus, object: nil)
+            return true
         }
     }
 

@@ -15,6 +15,7 @@ struct SidebarView: View {
     /// the insertion line so the user knows where the dropped tab will land.
     @State private var dropTargetTabID: Int64?
     @State private var rawSearchQuery: String = ""
+    @FocusState private var searchFocused: Bool
     @State private var debouncedQuery: String = ""
     @State private var debounceTask: Task<Void, Never>?
     @State private var activeFilter: Filter = .all
@@ -32,6 +33,18 @@ struct SidebarView: View {
         case issues = "Issues"
         var id: String {
             rawValue
+        }
+
+        /// Whether the PRs / Issues pill keeps a tab with this primary task and
+        /// linked PR. An issue tab with a linked PR shows that PR's number, so
+        /// it counts under PRs too; otherwise searching that number under PRs
+        /// came up empty. (All and Needs me don't look at tasks.)
+        func keeps(task: YggdrasilTask?, prTask: YggdrasilTask?) -> Bool {
+            switch self {
+            case .prs: task?.type == .pullRequest || prTask != nil
+            case .issues: task?.type == .issue
+            case .all, .needsMe: true
+            }
         }
     }
 
@@ -53,15 +66,10 @@ struct SidebarView: View {
         case .all: return bySearch
         case .needsMe:
             return bySearch.filter(needsAttention)
-        case .prs:
+        case .prs, .issues:
             return bySearch.filter { tab in
-                guard let id = tab.id, let task = tabsModel.tasksByTabID[id] else { return false }
-                return task.type == .pullRequest
-            }
-        case .issues:
-            return bySearch.filter { tab in
-                guard let id = tab.id, let task = tabsModel.tasksByTabID[id] else { return false }
-                return task.type == .issue
+                guard let id = tab.id else { return false }
+                return activeFilter.keeps(task: tabsModel.tasksByTabID[id], prTask: tabsModel.prTasksByTabID[id])
             }
         }
     }
@@ -175,6 +183,10 @@ struct SidebarView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(YggdrasilTheme.textMute(scheme))
             TextField("Search tabs, branches, repos", text: $rawSearchQuery)
+                .focused($searchFocused)
+                .onReceive(NotificationCenter.default.publisher(for: TabSearchCommand.focus)) { _ in
+                    searchFocused = true
+                }
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundStyle(YggdrasilTheme.text(scheme))

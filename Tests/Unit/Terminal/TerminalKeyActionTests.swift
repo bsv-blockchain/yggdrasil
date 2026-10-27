@@ -201,4 +201,38 @@ final class TerminalKeyActionTests: XCTestCase {
     func testUnrelatedKeyIsLeftAlone() {
         XCTAssertEqual(action(0, [.option]), .passThrough)
     }
+
+    // MARK: - Cmd+K (search tabs)
+
+    /// The sidebar's search field advertises ⌘K. It must work with a terminal
+    /// focused too, or the typed query goes to the agent instead.
+    private let kKey: UInt16 = 40
+
+    func testCmdKFocusesTabSearchFromTheTerminal() {
+        XCTAssertEqual(action(kKey, [.command], character: "k"), .focusTabSearch)
+    }
+
+    /// Outside a terminal ⌘K is left to the responder chain: the GitHub pane's
+    /// web view uses it (insert link, command palette), and native views reach
+    /// the View ▸ Search Tabs menu item normally.
+    func testCmdKOutsideTheTerminalIsLeftAlone() {
+        XCTAssertEqual(action(kKey, [.command], character: "k", terminalFocused: false), .passThrough)
+    }
+
+    func testCmdKOutsideMainWindowIsLeftAlone() {
+        XCTAssertEqual(action(kKey, [.command], character: "k", mainWindow: false), .passThrough)
+    }
+
+    func testCmdKWithOtherModifiersIsLeftAlone() {
+        XCTAssertEqual(action(kKey, [.command, .shift], character: "k"), .passThrough)
+        XCTAssertEqual(action(kKey, [.command, .option], character: "k"), .passThrough)
+        XCTAssertEqual(action(kKey, [], character: "k"), .passThrough)
+    }
+
+    /// Matched by what the layout types, not the US key position: Dvorak puts
+    /// "t" there, and ⌘T is New Tab.
+    func testCmdKFollowsTheLayout() {
+        XCTAssertEqual(action(kKey, [.command], character: "t"), .passThrough)
+        XCTAssertEqual(action(17, [.command], character: "k"), .focusTabSearch)
+    }
 }
