@@ -17,7 +17,7 @@ protocol HTTPClient: Sendable {
 
 /// URLSession-backed implementation.
 /// - Injects `Authorization: Bearer <token>` from `AuthService`.
-/// - Round-trips ETag via `ETagStore`; surfaces `body == nil` on 304.
+/// - Stores the response ETag via `ETagStore` but never sends it back (see `perform`).
 /// - On 401: invalidates the AuthService cache, fetches a fresh token, retries once.
 /// - Logs `X-RateLimit-Remaining` with a warn below the spec's 100-call threshold.
 final class URLSessionHTTPClient: HTTPClient {
@@ -58,9 +58,9 @@ final class URLSessionHTTPClient: HTTPClient {
             request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
-        if method == "GET", let etag = try etags.get(for: url) {
-            request.setValue(etag, forHTTPHeaderField: "If-None-Match")
-        }
+        // No If-None-Match: nothing keeps the body an ETag stands for, so a 304
+        // reached callers as an empty result, and sync pruned every assigned
+        // issue without a tab as if it were no longer assigned.
 
         let data: Data
         let response: URLResponse
