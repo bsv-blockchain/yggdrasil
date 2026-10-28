@@ -131,6 +131,19 @@ private struct ThreadCommentsNode: Decodable {
 private struct AuthoredCommentNode: Decodable {
     let viewerDidAuthor: Bool?
     let createdAt: String?
+    let author: CommentAuthorNode?
+
+    var isFromBot: Bool {
+        author?.typename == "Bot"
+    }
+}
+
+private struct CommentAuthorNode: Decodable {
+    let typename: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case typename = "__typename"
+    }
 }
 
 private struct ReviewsNode: Decodable {
@@ -182,7 +195,9 @@ struct GraphQLClient {
           comments(last: 100) { totalCount nodes { viewerDidAuthor createdAt } }
           reviews(first: 100) { totalCount nodes { comments { totalCount } } }
           viewerLatestReview { state submittedAt commit { oid } }
-          reviewThreads(first: 100) { nodes { isResolved comments(last: 100) { nodes { viewerDidAuthor createdAt } } } }
+          reviewThreads(first: 100) {
+            nodes { isResolved comments(last: 100) { nodes { viewerDidAuthor createdAt author { __typename } } } }
+          }
           reviewRequests(first: 100) { nodes { requestedReviewer { ... on User { isViewer } } } }
           timelineItems(last: 100, itemTypes: [REVIEW_REQUESTED_EVENT]) {
             nodes { ... on ReviewRequestedEvent { createdAt requestedReviewer { ... on User { isViewer } } } }
@@ -233,13 +248,15 @@ struct GraphQLClient {
         // isn't theirs. On someone else's PR they must also have joined the
         // thread — threads between others (and bot threads) are the author's to
         // resolve. On their own PR every such thread is theirs to answer,
-        // whether or not they've replied in it yet.
+        // whether or not they've replied in it yet. A bot replying isn't
+        // somebody waiting on them, so the last comment is the last one a
+        // person wrote; a thread only bots wrote in falls back to its last.
         let didAuthor = pull.viewerDidAuthor ?? false
         let unresolvedAwaitingViewer = (pull.reviewThreads?.nodes ?? []).filter { thread in
             guard !(thread.isResolved ?? false) else { return false }
             let comments = thread.comments?.nodes ?? []
             if !didAuthor, !comments.contains(where: { $0.viewerDidAuthor == true }) { return false }
-            guard let last = comments.last else { return false }
+            guard let last = comments.last(where: { !$0.isFromBot }) ?? comments.last else { return false }
             return !(last.viewerDidAuthor ?? false)
         }.count
 
