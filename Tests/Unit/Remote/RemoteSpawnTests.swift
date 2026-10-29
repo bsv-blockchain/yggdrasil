@@ -26,7 +26,7 @@ final class RemoteSpawnTests: XCTestCase {
         let spawn = spawn()
         XCTAssertEqual(spawn.executable, "/usr/bin/ssh")
         XCTAssertEqual(Array(spawn.args.suffix(3).prefix(2)), ["--", "devbox"])
-        XCTAssertEqual(remote(spawn), """
+        XCTAssertEqual(remote(spawn), RemoteHelper.ensureCurrentCommand + "; " + """
         env COLORFGBG='15;0' ~/.yggdrasil/bin/ygg attach 42 '/src/o/r/.worktrees/it'\\''s' \
         --claude-session 'new-id' -- 'claude' '--dangerously-skip-permissions'
         """)

@@ -33,11 +33,11 @@ final class RemoteHelperTests: XCTestCase {
         rm -f "$sock"
         exit $rc
         """)
-        // The user's login shell: `-l -i -c env` reports the PATH its rc files
-        // set; `-l` alone is the interactive shell itself.
+        // The user's login shell: `-l -i -c 'env; exit'` reports the PATH its
+        // rc files set; `-l` alone is the interactive shell itself.
         try writeExecutable(bin, "loginshell", """
         #!/bin/sh
-        if [ "$*" = "-l -i -c env" ]; then echo "PATH=\(loginBin.path):/usr/bin:/bin"; exit 0; fi
+        if [ "$*" = "-l -i -c env; exit" ]; then echo "PATH=\(loginBin.path):/usr/bin:/bin"; exit 0; fi
         echo "$@" > "$HOME/shell.ran"
         """)
         // claude only exists on the login PATH, like ~/.local/bin installs.
@@ -121,6 +121,36 @@ final class RemoteHelperTests: XCTestCase {
             .hasPrefix("-A \(home.path)/.yggdrasil/sessions/7.sock -E -z -r winch /bin/sh"))
     }
 
+    func testAttachLeavesTheTerminalToDtach() throws {
+        // `$SHELL -l -i -c env` execs env, so the interactive shell never hands
+        // the terminal back: dtach started in a background process group, got
+        // no raw mode, and its first read ended the session. zsh shows it here
+        // as bash 5 does on Linux. A stub dtach reports its group and the tty's.
+        try writeExecutable(bin, "dtach", """
+        #!/bin/sh
+        echo "$(ps -o pgid= -p $$ | tr -d ' ') $(ps -o tpgid= -p $$ | tr -d ' ')" > "$HOME/dtach.groups"
+        """)
+        try writeExecutable(home, "inpty", """
+        #!/usr/bin/python3
+        import os, pty, signal, sys
+        signal.alarm(20)  # a shell stuck on the terminal fails the test, not CI
+        pid, fd = pty.fork()
+        if pid == 0:
+            os.execv(sys.argv[1], sys.argv[1:])
+        while True:
+            try:
+                if not os.read(fd, 4096):
+                    break
+            except OSError:
+                break
+        os.waitpid(pid, 0)
+        """)
+        try sh("\"$HOME/inpty\" /bin/sh \"$HOME/ygg\" attach 7 \"$HOME\" -- claude", env: ["SHELL": "/bin/zsh"])
+        let groups = try read("dtach.groups").split(separator: " ")
+        XCTAssertEqual(groups.count, 2)
+        XCTAssertEqual(groups.first, groups.last, "dtach must own the terminal (pgid tpgid)")
+    }
+
     func testAttachPinsNewClaudeSession() throws {
         try sh(ygg("attach 7 \"$HOME\" --claude-session abc -- claude --x"))
         XCTAssertEqual(try read("claude.args"), "--x --session-id abc")
@@ -202,6 +232,38 @@ final class RemoteHelperTests: XCTestCase {
         XCTAssertFalse(result.stdout.contains("missing:claude"), result.stdout)
         XCTAssertFalse(result.stdout.contains("missing:dtach"), result.stdout)
         XCTAssertTrue(result.stdout.contains("missing:gh"), result.stdout)
+    }
+
+    func testEnsureCurrentReplacesAStaleHelper() throws {
+        // A host set up by an older app keeps its helper until something
+        // reinstalls it; tab spawns run this first so an update reaches it.
+        try sh("mkdir -p ~/.yggdrasil/bin")
+        try writeExecutable(home, ".yggdrasil/bin/ygg", "#!/bin/sh\necho 1\n")
+        try sh(RemoteHelper.ensureCurrentCommand)
+        XCTAssertEqual(try sh("~/.yggdrasil/bin/ygg version").stdout.trimmingCharacters(in: .whitespacesAndNewlines),
+                       String(RemoteHelper.version))
+    }
+
+    func testEnsureCurrentLeavesTheCurrentHelperAlone() throws {
+        try sh(RemoteHelper.installCommand)
+        try sh("touch -t 200001010000 ~/.yggdrasil/bin/ygg")
+        try sh(RemoteHelper.ensureCurrentCommand)
+        XCTAssertEqual(
+            try sh("date -r ~/.yggdrasil/bin/ygg +%Y").stdout.trimmingCharacters(in: .whitespacesAndNewlines),
+            "2000",
+            "not rewritten"
+        )
+    }
+
+    func testFailedInstallLeavesNoTempFile() throws {
+        // base64 failing (disk full, quota) after the temp file was created.
+        try writeExecutable(bin, "base64", "#!/bin/sh\nexit 1\n")
+        let result = try sh(RemoteHelper.installCommand)
+        XCTAssertNotEqual(result.exitCode, 0)
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: home.appendingPathComponent(".yggdrasil/bin").path),
+            []
+        )
     }
 
     func testInstallCommandWritesExecutableHelper() throws {
