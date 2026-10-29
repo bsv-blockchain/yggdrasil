@@ -132,6 +132,9 @@ final class CodingAgentRunner: NSObject, @unchecked Sendable {
 
     // MARK: - Captured output (Phase 6 fallback status detection)
 
+    /// The tail of the agent's output so far. SwiftTerm reports the exit and
+    /// reads the pty on separate queues, so the last output can arrive after
+    /// `waitUntilExited` returns.
     func capturedOutput() -> Data {
         stateLock.lock()
         defer { stateLock.unlock() }
@@ -165,10 +168,12 @@ final class CodingAgentRunner: NSObject, @unchecked Sendable {
         exitWaiters = []
         stateLock.unlock()
 
+        // Recorded before the waiters wake, so `waitUntilExited` returning
+        // means session_state already has the exit.
+        try? sessionStore.end(tabID: tabID, exitCode: resolvedCode)
         for waiter in waiters {
             waiter.resume()
         }
-        try? sessionStore.end(tabID: tabID, exitCode: resolvedCode)
     }
 
     /// Conservative shell-quoting: single-quote and escape any embedded single quotes.
