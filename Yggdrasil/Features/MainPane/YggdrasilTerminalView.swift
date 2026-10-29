@@ -20,8 +20,14 @@ import UniformTypeIdentifiers
 /// silently replace whatever the user had copied. 1.15.0 widened the reach —
 /// 1.13's `oscClipboard` required a literal `c;` prefix, 1.15's takes any
 /// selection characters before the first `;` and treats an empty one as `c`.
-/// Nothing in Yggdrasil needs an agent to drive the pasteboard, so it's denied
-/// too; ⌘C and the context menu are unaffected, they don't route through here.
+/// But over ssh there's no pbcopy, so an agent's copy-on-select (Claude's
+/// mouse selection) arrives as OSC 52. A write therefore goes through only
+/// within `writeWindow` of the user's own key or click in that terminal, on
+/// the selected tab (`TerminalInputClock`); anything printed while they
+/// aren't interacting is still refused. That's "deny while idle", not "deny
+/// unless the user asked to copy": an agent that keeps emitting OSC 52 gets
+/// through on the next keystroke. ⌘C and the context menu don't route
+/// through here.
 ///
 /// Neither `clipboardRead` nor `clipboardCopy` is `open`, so neither can be
 /// overridden from a subclass — interposing on `terminalDelegate` is what's
@@ -29,9 +35,21 @@ import UniformTypeIdentifiers
 /// Returning nil for the read is the documented deny: `Terminal.oscClipboard`
 /// then sends no response at all.
 final class ClipboardGuardDelegate: TerminalViewDelegate {
+    /// How long after the user's last key or click in the terminal an OSC 52
+    /// write still counts as theirs: room for a copy-on-select to make the
+    /// round trip over ssh.
+    static let writeWindow: Duration = .seconds(2)
+
     /// Weak both ways round: the view retains this proxy, and SwiftTerm's own
     /// `terminalDelegate` reference is weak.
     private weak var target: LocalProcessTerminalView?
+
+    /// Where an allowed write goes. Tests swap it so they never touch the real
+    /// pasteboard.
+    var pasteboardWriter: (String) -> Void = { text in
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([text as NSString])
+    }
 
     init(target: LocalProcessTerminalView) {
         self.target = target
@@ -42,16 +60,29 @@ final class ClipboardGuardDelegate: TerminalViewDelegate {
         nil
     }
 
-    /// …and never sets it either. Deliberately not forwarded to `target`,
-    /// whose implementation writes straight to `NSPasteboard.general`.
+    /// …and sets it only right after the user's own input. Not forwarded to
+    /// `target`, whose implementation writes unconditionally.
     ///
-    /// Logged because the denial is silent from the user's side and catches the
-    /// benign case too: `nvim`/`tmux`/`ssh` yanking to the system clipboard over
-    /// OSC 52 just does nothing. When someone reports that, this line is what
-    /// distinguishes "we refused it" from "the sequence never arrived". The
-    /// payload is deliberately not logged — only its size.
+    /// A refusal is logged because it's silent from the user's side: when a
+    /// copy "does nothing", this line is what distinguishes "we refused it" from
+    /// "the sequence never arrived". The payload is deliberately not logged —
+    /// only its size.
     func clipboardCopy(source _: TerminalView, content: Data) {
-        YggdrasilLog.pty.debug("OSC 52 clipboard write refused (\(content.count, privacy: .public) bytes)")
+        let lastInput = MainActor.assumeIsolated { () -> ContinuousClock.Instant? in
+            guard let view = target as? DroppableTerminalView, view.isSelectedTab else { return nil }
+            return view.lastUserInputAt
+        }
+        guard let lastInput, ContinuousClock.now - lastInput <= Self.writeWindow else {
+            YggdrasilLog.pty.debug("OSC 52 clipboard write refused (\(content.count, privacy: .public) bytes)")
+            return
+        }
+        guard let text = String(bytes: content, encoding: .utf8) else {
+            YggdrasilLog.pty
+                .debug("OSC 52 clipboard write dropped, not UTF-8 (\(content.count, privacy: .public) bytes)")
+            return
+        }
+        YggdrasilLog.pty.info("OSC 52 clipboard write accepted (\(content.count, privacy: .public) bytes)")
+        pasteboardWriter(text)
     }
 
     // MARK: - Everything else forwards unchanged
@@ -98,7 +129,8 @@ final class ClipboardGuardDelegate: TerminalViewDelegate {
 /// 1. **File drag-and-drop** — paths from Finder are shell-quoted and sent
 ///    to the PTY at the prompt. Matches iTerm2/Warp/Terminal.app.
 ///
-/// 2. **OSC 52 clipboard reads and writes refused** — see `ClipboardGuardDelegate`.
+/// 2. **OSC 52 clipboard reads refused, writes only right after user input**
+///    — see `ClipboardGuardDelegate`.
 ///
 /// 3. **Don't snap to bottom on output while the user is reading history.**
 ///    SwiftTerm's `Terminal.scroll()` snaps the viewport to `yBase` on every
@@ -121,6 +153,17 @@ class DroppableTerminalView: LocalProcessTerminalView {
     /// Paste-image and file drop type local paths into the agent. Off for
     /// remote tabs, where those paths don't exist; paste falls back to text.
     var sendsLocalFilePaths = true
+
+    /// When the user last pressed a key or used the mouse in this terminal,
+    /// stamped by `TerminalInputClock`. Gates OSC 52 clipboard writes.
+    var lastUserInputAt: ContinuousClock.Instant?
+
+    /// Whether this terminal's tab is the selected one. A hidden terminal can
+    /// stay first responder, so input meant for the visible tab must not open
+    /// the clipboard to its agent. Deselecting also forgets the last input.
+    var isSelectedTab = false {
+        didSet { if !isSelectedTab { lastUserInputAt = nil } }
+    }
 
     /// nil = follow tail; Double in [0, 1) = the position the user pinned
     /// the viewport at while reading history. Stored as a fractional
