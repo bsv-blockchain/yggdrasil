@@ -72,6 +72,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // selection now work natively via SwiftTerm since we dropped tmux
         // mouse-mode.
         TerminalKeyInterceptor.install(appDelegate: self)
+        // Lets an agent's OSC 52 copy through right after the user's own input
+        // (see ClipboardGuardDelegate): over ssh that's how Claude copies.
+        TerminalInputClock.install()
 
         // Install the AppKit "Coding" menu after the main menu bar is built.
         // SwiftUI sets up the bar during its own scene init; defer one tick

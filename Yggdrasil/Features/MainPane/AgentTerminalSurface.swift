@@ -196,6 +196,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
         @MainActor
         func setActive(_ active: Bool, on view: LocalProcessTerminalView) {
             defer { lastActive = active }
+            (view as? DroppableTerminalView)?.isSelectedTab = active
             guard active, lastActive != true else { return }
             // Defer one runloop tick so SwiftUI/AppKit has finished any
             // pending layout — without this the makeFirstResponder call
