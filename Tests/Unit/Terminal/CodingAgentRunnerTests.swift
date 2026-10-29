@@ -21,6 +21,23 @@ final class CodingAgentRunnerTests: XCTestCase {
         }
     }
 
+    /// The runner's captured output once it contains `text`, or whatever it
+    /// holds after `timeout`. The exit can be reported before the pty's last
+    /// output is read, so reading straight after `waitUntilExited` races it.
+    private func output(
+        of runner: CodingAgentRunner, containing text: String, timeout: Duration = .seconds(5)
+    ) async throws -> String {
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        var captured = ""
+        repeat {
+            let data = runner.capturedOutput()
+            captured = String(bytes: data, encoding: .utf8) ?? "<\(data.count) bytes, not UTF-8>"
+            if captured.contains(text) { return captured }
+            try await Task.sleep(for: .milliseconds(20))
+        } while ContinuousClock.now < deadline
+        return captured
+    }
+
     override func tearDown() {
         db = nil
         sessionStore = nil
@@ -57,7 +74,7 @@ final class CodingAgentRunnerTests: XCTestCase {
         XCTAssertNotNil(state.ptyEndedAt)
 
         // Output ring saw the echo'd line.
-        let captured = String(data: runner.capturedOutput(), encoding: .utf8) ?? ""
+        let captured = try await output(of: runner, containing: "hello yggdrasil")
         XCTAssertTrue(captured.contains("hello yggdrasil"),
                       "ring should contain echo output; got: \(captured.debugDescription)")
     }
@@ -125,7 +142,7 @@ final class CodingAgentRunnerTests: XCTestCase {
         try runner.start()
         try await runner.waitUntilExited(timeout: .seconds(5))
 
-        let captured = String(data: runner.capturedOutput(), encoding: .utf8) ?? ""
+        let captured = try await output(of: runner, containing: "work-account")
         XCTAssertTrue(captured.contains("work-account"),
                       "env must reach the child; got: \(captured.debugDescription)")
     }
