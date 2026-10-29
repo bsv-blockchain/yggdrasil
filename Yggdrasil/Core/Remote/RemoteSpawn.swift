@@ -34,7 +34,10 @@ struct RemoteSpawn: Equatable {
         return RemoteSpawn(
             executable: SSHCommand.executable,
             args: SSHCommand.interactive(
-                target: host.sshTarget, remoteCommand: SSHCommand.posixRemote(parts.joined(separator: " ")),
+                target: host.sshTarget,
+                remoteCommand: SSHCommand.posixRemote(
+                    RemoteHelper.ensureCurrentCommand + "; " + parts.joined(separator: " ")
+                ),
                 controlDirectory: SSHCommand.defaultControlDirectory
             ),
             claudeSessionID: sessionID

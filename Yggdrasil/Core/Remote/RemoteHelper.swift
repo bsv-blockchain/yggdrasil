@@ -7,13 +7,14 @@ import Foundation
 /// dtach rather than tmux: it passes bytes through untouched, so SwiftTerm's
 /// native selection, links and scrollback keep working (see decisions.md on
 /// why tmux was dropped). The app reinstalls the script whenever `version`
-/// differs from what `ygg version` reports.
+/// differs from what `ygg version` reports: before every tab spawn
+/// (`ensureCurrentCommand`) and on preflight.
 ///
 /// Everything runs under /bin/sh, never the user's login shell, so a fish or
 /// tcsh login shell can't misparse it. The login shell is only asked for the
-/// PATH its rc files set, via `env`, whose output doesn't depend on the shell.
+/// PATH its rc files set, via `env; exit`, whose output doesn't depend on the shell.
 enum RemoteHelper {
-    static let version = 2
+    static let version = 3
     static let path = "~/.yggdrasil/bin/ygg"
     static let requiredTools = ["claude", "git", "gh", "dtach"]
 
@@ -40,9 +41,13 @@ enum RemoteHelper {
     }
     # Put the PATH the user's login shell sets (where claude & co. tend to
     # live) in front of ssh's own, keeping the latter for dtach and friends.
-    # stdin closed so an rc file can't sit waiting on it.
+    # stdin closed so an rc file can't sit waiting on it. `env; exit`, not
+    # `env`: an interactive shell takes the tty's foreground group and only
+    # hands it back when it exits itself. Given just `env` it execs env and
+    # never does, which left dtach in a background group, unable to set raw
+    # mode, and ended the session on its first read.
     login_path() {
-        p=$("${SHELL:-/bin/sh}" -l -i -c env </dev/null 2>/dev/null | sed -n 's/^PATH=//p' | tail -n 1)
+        p=$("${SHELL:-/bin/sh}" -l -i -c 'env; exit' </dev/null 2>/dev/null | sed -n 's/^PATH=//p' | tail -n 1)
         if [ -n "$p" ]; then
             mkdir -p "$HOME/.yggdrasil"
             printf '%s\\n' "$p" > "$PATH_CACHE"
@@ -134,10 +139,19 @@ enum RemoteHelper {
     """
 
     /// POSIX sh that (re)installs the script. Embedded as base64 so it needs no
-    /// stdin plumbing.
+    /// stdin plumbing. The temp file is per shell, so tabs spawning at the
+    /// same time can't move each other's half-written copy into place.
     static var installCommand: String {
         let encoded = Data(script.utf8).base64EncodedString()
-        return "mkdir -p ~/.yggdrasil/bin && printf %s '\(encoded)' | base64 -d > \(path).tmp"
-            + " && chmod 755 \(path).tmp && mv \(path).tmp \(path)"
+        let tmp = "\(path).tmp.$$"
+        return "mkdir -p ~/.yggdrasil/bin && { printf %s '\(encoded)' | base64 -d > \(tmp)"
+            + " && chmod 755 \(tmp) && mv \(tmp) \(path) || { rm -f \(tmp); false; }; }"
+    }
+
+    /// POSIX sh that installs the script unless the host already runs this
+    /// version. Every tab spawn runs it first, so an app update reaches hosts
+    /// set up by an older app without a preflight.
+    static var ensureCurrentCommand: String {
+        "[ \"$(\(path) version 2>/dev/null)\" = \(version) ] || { \(installCommand); }"
     }
 }
