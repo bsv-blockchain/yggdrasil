@@ -188,6 +188,65 @@ final class RemoteHelperTests: XCTestCase {
         try sh(ygg("kill 8"))
     }
 
+    func testReattachAtTheSameSizeStillMakesTheAgentRedraw() throws {
+        // dtach redraws with a SIGWINCH, and Claude ignores one that doesn't
+        // change its size: reattaching at the size the session already had
+        // left the tab blank. The helper attaches a row short, then restores it.
+        try reattachInSizedPty()
+        XCTAssertEqual(try read("size.attached"), "39 100")
+        XCTAssertEqual(try read("size.final"), "40 100")
+        XCTAssertTrue(try read("size.winch").contains("40 100"), "the restore must reach dtach as a SIGWINCH")
+    }
+
+    func testResizeRightAfterReattachIsNotUndoneByTheRestore() throws {
+        // The window resized within the half second before the restore: the
+        // restore put back the old row count next to the new column count.
+        try reattachInSizedPty(resizeAfterAttachTo: (60, 150))
+        XCTAssertEqual(try read("size.final"), "60 150")
+    }
+
+    /// Reattaches tab 9 from a 40x100 pty, optionally resizing it once the
+    /// stub dtach has started. The stub logs the size it attaches at, each
+    /// size a SIGWINCH shows it, and the size it ends at.
+    private func reattachInSizedPty(resizeAfterAttachTo resize: (rows: Int, cols: Int)? = nil) throws {
+        try startSleepingSession(tab: 9)
+        defer { _ = try? sh(ygg("kill 9")) }
+        try writeExecutable(bin, "dtach", """
+        #!/bin/sh
+        trap 'stty size >> "$HOME/size.winch"' WINCH
+        stty size > "$HOME/size.attached"
+        i=0
+        while [ $i -lt 20 ]; do sleep 0.1; i=$((i + 1)); done
+        stty size > "$HOME/size.final"
+        """)
+        try writeExecutable(home, "inpty", """
+        #!/usr/bin/python3
+        import fcntl, os, pty, select, signal, struct, sys, termios
+        signal.alarm(20)  # a hang fails the test, not CI
+        resize = os.environ.get("RESIZE_TO")
+        attached = os.path.join(os.environ["HOME"], "size.attached")
+        pid, fd = pty.fork()
+        if pid == 0:
+            fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 100, 0, 0))
+            os.execv(sys.argv[1], sys.argv[1:])
+        while True:
+            if resize and os.path.exists(attached):
+                rows, cols = map(int, resize.split())
+                fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+                resize = None
+            if not select.select([fd], [], [], 0.02)[0]:
+                continue
+            try:
+                if not os.read(fd, 4096):
+                    break
+            except OSError:
+                break
+        os.waitpid(pid, 0)
+        """)
+        let env = resize.map { ["RESIZE_TO": "\($0.rows) \($0.cols)"] } ?? [:]
+        try sh("\"$HOME/inpty\" /bin/sh \"$HOME/ygg\" attach 9 \"$HOME\" -- claude", env: env)
+    }
+
     func testAliveListAndKillTrackTheAgentProcess() throws {
         try startSleepingSession(tab: 9)
         XCTAssertEqual(try sh(ygg("alive 9")).exitCode, 0)

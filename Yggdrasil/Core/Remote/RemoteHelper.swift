@@ -14,7 +14,7 @@ import Foundation
 /// tcsh login shell can't misparse it. The login shell is only asked for the
 /// PATH its rc files set, via `env; exit`, whose output doesn't depend on the shell.
 enum RemoteHelper {
-    static let version = 3
+    static let version = 4
     static let path = "~/.yggdrasil/bin/ygg"
     static let requiredTools = ["claude", "git", "gh", "dtach"]
 
@@ -38,6 +38,25 @@ enum RemoteHelper {
     # been reused since never counts.
     alive() {
         [ -S "$STATE/$1.sock" ] && [ -f "$STATE/$1.pid" ] && kill -0 "$(cat "$STATE/$1.pid")" 2>/dev/null
+    }
+    # dtach redraws with a SIGWINCH, and a full-screen TUI like Claude's
+    # ignores one that doesn't change its size: every reattach at the size
+    # the session already had came up blank. So attach a row short, then put
+    # the row back; the kernel's SIGWINCH for that passes the real size on.
+    # The row goes back only if the size is still the one set here, so a
+    # resize in the meantime stands. /dev/tty because sh gives a background
+    # job /dev/null as stdin; errors stay out of dtach's raw terminal.
+    nudge_redraw() {
+        size=$(stty size 2>/dev/null) || return 0
+        rows=${size% *}
+        [ "$rows" -gt 1 ] 2>/dev/null || return 0
+        stty rows $((rows - 1)) 2>/dev/null || return 0
+        short="$((rows - 1)) ${size#* }"
+        (
+            sleep 0.5
+            [ "$(stty size </dev/tty)" = "$short" ] || exit 0
+            stty rows "$rows" </dev/tty
+        ) 2>/dev/null &
     }
     # Put the PATH the user's login shell sets (where claude & co. tend to
     # live) in front of ssh's own, keeping the latter for dtach and friends.
@@ -82,7 +101,10 @@ enum RemoteHelper {
         shift
         sock="$STATE/$tab.sock"
         # Reattaching needs nothing else, not even the worktree.
-        if alive "$tab"; then exec dtach -a "$sock" -E -z -r winch; fi
+        if alive "$tab"; then
+            nudge_redraw
+            exec dtach -a "$sock" -E -z -r winch
+        fi
         login_path
         # No command: the user's own shell (the remote "Open Shell").
         [ $# -gt 0 ] || set -- "${SHELL:-/bin/sh}" -l
