@@ -70,6 +70,8 @@ enum TabActions {
         )
     }
 
+    // The open paths take what the New Session sheet and pickers collect.
+    // swiftlint:disable function_parameter_count
     /// Opens a row of Assigned Tasks or Review Requests, linked to its task.
     static func openTask(
         _ task: YggdrasilTask, repo: Repo, mode: TaskPickerMode, host: RemoteHost?, agent: CodingAgent,
@@ -149,6 +151,8 @@ enum TabActions {
         services.triggerSyncNow()
         return tabID
     }
+
+    // swiftlint:enable function_parameter_count
 
     // MARK: - Select
 

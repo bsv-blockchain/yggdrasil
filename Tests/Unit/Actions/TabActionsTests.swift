@@ -2,6 +2,8 @@ import GRDB
 import XCTest
 @testable import Yggdrasil
 
+// swiftlint:disable type_body_length
+
 /// The tab actions the sidebar, menus and pickers share, without their
 /// dialogs. Runs against an in-memory database; GitHub syncs are counted, not
 /// run, and every UserDefaults write goes to a throwaway suite.
@@ -251,9 +253,9 @@ final class TabActionsTests: XCTestCase {
     func testUnlinkDropsAnIssueTabsPRFirst() throws {
         let repo = try addRepo()
         let issue = try addTask(repo: repo, type: .issue, number: 1)
-        let pr = try addTask(repo: repo, type: .pullRequest, number: 2)
+        let pullRequest = try addTask(repo: repo, type: .pullRequest, number: 2)
         let tabID = try addTab(branch: "issue-1", path: "/x", taskID: issue)
-        try services.tabStore.setPRTaskID(id: tabID, prTaskID: pr)
+        try services.tabStore.setPRTaskID(id: tabID, prTaskID: pullRequest)
         try TabActions.unlinkPR(tabID: tabID, services: services)
         let tab = try XCTUnwrap(services.tabStore.get(id: tabID))
         XCTAssertEqual(tab.taskID, issue)
@@ -359,3 +361,5 @@ final class TabActionsTests: XCTestCase {
         return try XCTUnwrap(tab.id)
     }
 }
+
+// swiftlint:enable type_body_length
