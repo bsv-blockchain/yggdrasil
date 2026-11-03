@@ -138,12 +138,11 @@ extension SidebarActions {
     /// conversation to `destination` (nil = this Mac).
     @MainActor
     static func moveTab(_ tab: YggdrasilTab, to destination: RemoteHost?, services: AppServices) {
-        guard let tabID = tab.id, let repo = services.tabs.repoByTabID[tabID] else {
+        guard let tabID = tab.id, services.tabs.repoByTabID[tabID] != nil else {
             presentInfo(title: "Can't move this tab", text: "This tab isn't inside a tracked repository.")
             return
         }
         guard !services.sessions.movingTabs.contains(tabID) else { return }
-        let source = services.host(for: tab)
         let alert = NSAlert()
         alert.messageText = "Move “\(tab.branchName)” to \(destination?.name ?? "this Mac")?"
         alert.informativeText = """
@@ -154,16 +153,9 @@ extension SidebarActions {
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
-        guard services.sessions.beginMove(tabID: tabID) else { return }
-        let request = TabMigrator.Request(
-            tabID: tabID, repo: repo, branch: tab.branchName,
-            sessionID: conversationToMove(tab: tab, tabID: tabID, source: source, services: services),
-            source: source, sourcePath: tab.worktreePath, destination: destination
-        )
         Task { @MainActor in
-            defer { services.sessions.endMove(tabID: tabID) }
             do {
-                try await TabMigrator(environment: TabMigrator.live(tabID: tabID, services: services)).migrate(request)
+                try await TabActions.move(tabID: tabID, to: destination, services: services)
             } catch {
                 presentInfo(title: "Couldn't move “\(tab.branchName)”", text: describe(error))
             }
@@ -174,7 +166,7 @@ extension SidebarActions {
     /// with --continue, i.e. the newest transcript for its worktree; pin that
     /// so it moves too instead of the destination starting afresh.
     @MainActor
-    private static func conversationToMove(
+    fileprivate static func conversationToMove(
         tab: YggdrasilTab, tabID: Int64, source: RemoteHost?, services: AppServices
     ) -> String? {
         if let pinned = try? services.sessionStore.get(tabID: tabID)?.claudeSessionID { return pinned }
@@ -187,7 +179,7 @@ extension SidebarActions {
         return legacy
     }
 
-    private static func describe(_ error: Error) -> String {
+    static func describe(_ error: Error) -> String {
         switch error {
         case let MigrationError.dirtyWorktree(path):
             "\(path) has uncommitted changes. Commit or stash them first; only committed work moves."
@@ -208,7 +200,27 @@ extension SidebarActions {
         case let WorktreeError.gitFailed(stderr, _):
             stderr
         default:
-            String(describing: error)
+            error.actionMessage
         }
+    }
+}
+
+extension TabActions {
+    /// Moves the tab's branch, worktree and conversation to `destination`
+    /// (nil = this Mac). Returns the worktree path there.
+    @discardableResult
+    static func move(tabID: Int64, to destination: RemoteHost?, services: AppServices) async throws -> String {
+        let tab = try tab(tabID, services)
+        guard let repo = services.tabs.repoByTabID[tabID] else { throw ActionError.notInTrackedRepo }
+        guard tab.isReady else { throw ActionError.tabNotReady }
+        guard services.sessions.beginMove(tabID: tabID) else { throw ActionError.moveInProgress }
+        defer { services.sessions.endMove(tabID: tabID) }
+        let source = services.host(for: tab)
+        let request = TabMigrator.Request(
+            tabID: tabID, repo: repo, branch: tab.branchName,
+            sessionID: SidebarActions.conversationToMove(tab: tab, tabID: tabID, source: source, services: services),
+            source: source, sourcePath: tab.worktreePath, destination: destination
+        )
+        return try await TabMigrator(environment: TabMigrator.live(tabID: tabID, services: services)).migrate(request)
     }
 }

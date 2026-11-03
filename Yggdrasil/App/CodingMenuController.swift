@@ -247,27 +247,7 @@ final class CodingMenuController: NSObject {
                 return
             }
             guard let pick = DebugMenu.promptForNewSession(agents: agents) else { return }
-            let lastComponent = URL(fileURLWithPath: pick.cwd).lastPathComponent
-            let newTab = try services.tabStore.insert(
-                branchName: "ad-hoc",
-                worktreePath: pick.cwd,
-                agentID: pick.agent.id,
-                taskID: nil
-            )
-            services.tabs.reload()
-            if let tabID = newTab.id {
-                services.tabs.select(tabID)
-                services.sessions.add(
-                    OpenSession(
-                        id: tabID,
-                        displayName: "\(pick.agent.name) · \(lastComponent)",
-                        cwd: pick.cwd,
-                        command: pick.agent.command,
-                        args: pick.agent.args,
-                        env: pick.agent.env
-                    )
-                )
-            }
+            try TabActions.openAdHoc(path: pick.cwd, agent: pick.agent, services: services)
         } catch {
             DebugMenu.alert(title: "New session failed", message: String(describing: error))
         }

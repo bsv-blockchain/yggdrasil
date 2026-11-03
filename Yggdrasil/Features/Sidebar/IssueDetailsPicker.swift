@@ -384,43 +384,15 @@ struct IssueDetailsPicker: View {
                 error = "No coding agent configured."
                 return
             }
-            // Reuse the existing branchName helper. Mode .assigned for issues.
-            let dummyTask = YggdrasilTask(
-                id: nil, repoID: repo.id ?? 0, type: .issue, number: row.number,
-                title: row.title, body: nil, state: .open, authorLogin: "",
-                githubURL: row.htmlURL, apiURL: row.htmlURL,
-                createdAt: Date(), updatedAt: row.updatedAtSort, lastSyncedAt: Date(),
-                etag: nil, labelsJSON: "[]", milestoneTitle: nil
+            _ = try await TabActions.openIssue(
+                number: row.number, title: row.title, url: row.htmlURL,
+                repo: repo, host: host, agent: agent, services: services
             )
-            let branch = TaskPickerMode.assigned.branchName(for: dummyTask, agentName: agent.name)
-            // Prepared in the background, like the other two open paths.
-            guard let plannedPath = try services.plannedWorktreePath(
-                repo: repo, branch: branch, host: host
-            ) else {
-                error = "\(row.repoFull) isn't cloned on this Mac — run it on a host, or set its location in Settings → Repositories."
-                return
-            }
-            let newTab = try services.tabStore.insert(
-                branchName: branch,
-                worktreePath: plannedPath,
-                agentID: agent.id,
-                taskID: nil,
-                preparationState: .pending,
-                hostID: host?.id
-            )
-            services.tabs.reload()
-            if let tabID = newTab.id {
-                services.tabs.select(tabID)
-                await services.worktreePreparer.enqueue(
-                    tabID: tabID, repo: repo, host: host, branch: branch, baseRef: nil
-                )
-            }
-            services.triggerSyncNow()
             // No `dismiss()` — same reasoning as AssignedTaskPicker: opening
             // one issue usually means opening several, and a window that
             // closes itself has to be reopened for each one.
         } catch {
-            self.error = String(describing: error)
+            self.error = error.actionMessage
         }
     }
 

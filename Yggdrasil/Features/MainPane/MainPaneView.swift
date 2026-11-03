@@ -44,6 +44,10 @@ struct MainPaneView: View {
         .onReceive(NotificationCenter.default.publisher(for: FindCommand.show)) { _ in
             find.show()
         }
+        .onReceive(NotificationCenter.default.publisher(for: PaneLayout.changedNotification)) { note in
+            guard note.object as? Int64 == selectedTab.id else { return }
+            layout = PaneLayout.load(for: selectedTab)
+        }
         .onAppear {
             ensureSessionForSelectedTab()
             autoResumeIfExited()
@@ -276,6 +280,10 @@ enum PaneLayout: Hashable {
         }
     }
 
+    /// Posted with the tab id when a tab's layout is set from outside its
+    /// pane, so a mounted pane switches to it.
+    static let changedNotification = Notification.Name("yggdrasil.mainpane.layoutChanged")
+
     private static let globalKey = "yggdrasil.paneLayout"
     private static func perTabKey(_ tab: YggdrasilTab) -> String {
         "yggdrasil.paneLayout.\(tab.id.map(String.init) ?? "unknown")"
@@ -290,8 +298,7 @@ enum PaneLayout: Hashable {
 
     /// Layout for `tab`: prefers a saved per-tab choice, falls back to the
     /// last globally-used layout, finally the agent+diff default.
-    static func load(for tab: YggdrasilTab) -> PaneLayout {
-        let defaults = UserDefaults.standard
+    static func load(for tab: YggdrasilTab, defaults: UserDefaults = .standard) -> PaneLayout {
         if let raw = defaults.string(forKey: perTabKey(tab)),
            let parsed = PaneLayout(rawValue: raw) {
             return parsed
@@ -306,8 +313,7 @@ enum PaneLayout: Hashable {
     /// Persist `self` as the layout for `tab`. Also writes the same value
     /// to the global key so a freshly-opened tab inherits the user's most
     /// recent layout choice.
-    func persist(for tab: YggdrasilTab) {
-        let defaults = UserDefaults.standard
+    func persist(for tab: YggdrasilTab, defaults: UserDefaults = .standard) {
         defaults.set(rawValue, forKey: Self.perTabKey(tab))
         defaults.set(rawValue, forKey: Self.globalKey)
     }

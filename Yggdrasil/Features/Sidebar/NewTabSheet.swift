@@ -308,7 +308,6 @@ struct NewTabSheet: View {
         }
     }
 
-    // swiftlint:disable:next function_body_length
     private func confirm() async {
         // If the user pasted a GitHub URL, switch the repo picker to the
         // matching tracked repo (when available) before resolving the rest
@@ -341,75 +340,16 @@ struct NewTabSheet: View {
             }
         }
 
-        // Interpret whatever the user typed: GitHub URL ➜ pr-N/issue-N
-        // (plus repo auto-switch), bare number ➜ pr-N, otherwise pass-
-        // through. The interpretation drives both the branch name and
-        // whether we treat this as a PR session (skip agent prefix, use
-        // refs/pull/N/head as base) or a free-form session.
-        let interpretation = Self.interpretBranchInput(branchName)
-        let userBranch = interpretation.branch
-        let parsedNumber = Self.parsePRNumber(userBranch)
-        // PR sessions use the literal `pr-N` / `issue-N` branch — no
-        // agent prefix — so the local branch matches the PR and a follow-up
-        // `git push` reaches the right ref. Multi-agent parallelism stays
-        // available for free-form branches (still gets the agent prefix).
-        let agentSlug = TaskPickerMode.agentSlug(agent.name)
-        let finalBranch: String = {
-            if parsedNumber != nil { return userBranch }
-            if !agentSlug.isEmpty,
-               !userBranch.lowercased().hasPrefix(agentSlug.lowercased() + "-") {
-                return "\(agentSlug)-\(userBranch)"
-            }
-            return userBranch
-        }()
-        // For PR-identified inputs, point WorktreeManager at the PR head
-        // ref so it does `git fetch origin pull/N/head:<branch>` before
-        // creating the worktree. WorktreeManager spots this prefix and
-        // takes the fetch path. (For issue-N this isn't a thing, so we
-        // skip.)
-        let trimmedBase = baseBranch.trimmingCharacters(in: .whitespacesAndNewlines)
-        let baseFromInput = parsedNumber.flatMap { number -> String? in
-            userBranch.lowercased().hasPrefix("pr-") ? "refs/pull/\(number)/head" : nil
-        }
-        let effectiveBase = baseFromInput ?? (trimmedBase.isEmpty ? nil : trimmedBase)
         do {
-            // Same as the task pickers: the worktree is built in the
-            // background. Doing it here blocked the sheet on `git fetch`, and
-            // now that preparations queue on the WorktreeManager actor it would
-            // also block behind every PR fetch already in flight.
-            guard let plannedPath = try services.plannedWorktreePath(
-                repo: repo, branch: finalBranch, host: host
-            ) else {
-                error = "Repo \(repo.fullName) has no local clone path on disk."
-                return
-            }
-            // Match the branch against PR/issue patterns ("pr-643", "#643") so the
-            // GitHub pane has a task to render. Falls back to nil (= no task link)
-            // for free-form branch names like "feat/foo".
-            let resolvedTaskID = Self.resolveTaskID(
-                forBranch: finalBranch,
-                repoID: repoID,
-                database: services.database
+            // The worktree is built in the background: doing it here blocked
+            // the sheet on `git fetch`, and behind every PR fetch in flight.
+            _ = try await TabActions.open(
+                .init(repo: repo, branchInput: branchName, baseBranch: baseBranch, host: host, agent: agent),
+                services: services
             )
-            let newTab = try services.tabStore.insert(
-                branchName: finalBranch,
-                worktreePath: plannedPath,
-                agentID: agent.id,
-                taskID: resolvedTaskID,
-                preparationState: .pending,
-                hostID: host?.id
-            )
-            services.tabs.reload()
-            if let tabID = newTab.id {
-                services.tabs.select(tabID)
-                await services.worktreePreparer.enqueue(
-                    tabID: tabID, repo: repo, host: host, branch: finalBranch, baseRef: effectiveBase
-                )
-            }
-            services.triggerSyncNow()
             dismiss()
         } catch {
-            self.error = String(describing: error)
+            self.error = error.actionMessage
         }
     }
 

@@ -27,6 +27,9 @@ struct DiffSubPane: NSViewRepresentable {
     /// this every diff pane would maintain its own stream).
     let isActive: Bool
 
+    /// Posted with the tab id when its scope is set from outside the pane.
+    static let scopeChangedNotification = Notification.Name("yggdrasil.diff.scopeChanged")
+
     func makeCoordinator() -> Coordinator {
         Coordinator(services: services, tab: tab)
     }
@@ -67,14 +70,25 @@ struct DiffSubPane: NSViewRepresentable {
         private var scope: DiffScope
         private var watcher: WorktreeWatcher?
 
+        private var scopeObserver: NSObjectProtocol?
+
         init(services: AppServices, tab: YggdrasilTab) {
             self.services = services
             self.tab = tab
             self.scope = Self.loadScope(for: tab)
+            super.init()
+            scopeObserver = NotificationCenter.default.addObserver(
+                forName: DiffSubPane.scopeChangedNotification, object: nil, queue: .main
+            ) { [weak self] note in
+                guard let self, note.object as? Int64 == tab.id else { return }
+                scope = Self.loadScope(for: tab)
+                Task { await self.applyThemeAndRender() }
+            }
         }
 
         deinit {
             watcher?.stop()
+            if let scopeObserver { NotificationCenter.default.removeObserver(scopeObserver) }
         }
 
         func webView(_: WKWebView, didFinish _: WKNavigation) {
@@ -257,13 +271,13 @@ struct DiffSubPane: NSViewRepresentable {
             "yggdrasil.diffScope.\(tab.id.map(String.init) ?? "unknown")"
         }
 
-        static func loadScope(for tab: YggdrasilTab) -> DiffScope {
-            let raw = UserDefaults.standard.string(forKey: scopeKey(tab))
+        static func loadScope(for tab: YggdrasilTab, defaults: UserDefaults = .standard) -> DiffScope {
+            let raw = defaults.string(forKey: scopeKey(tab))
             return raw.flatMap(parseScope) ?? .branchAndUncommitted
         }
 
-        static func persistScope(_ scope: DiffScope, for tab: YggdrasilTab) {
-            UserDefaults.standard.set(scopeRaw(scope), forKey: scopeKey(tab))
+        static func persistScope(_ scope: DiffScope, for tab: YggdrasilTab, defaults: UserDefaults = .standard) {
+            defaults.set(scopeRaw(scope), forKey: scopeKey(tab))
         }
 
         static func parseScope(_ raw: String) -> DiffScope? {
