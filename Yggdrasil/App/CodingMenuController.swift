@@ -122,50 +122,42 @@ final class CodingMenuController: NSObject {
             return
         }
         guard let (owner, name) = DebugMenu.promptForOwnerAndName() else { return }
-        Task {
-            let branch = await (try? services.restClient.defaultBranch(owner: owner, name: name)) ?? "main"
+        Task { @MainActor in
             do {
-                try await services.database.queue.write { db in
-                    var repo = Repo(
-                        id: nil, owner: owner, name: name, defaultBranch: branch,
-                        localMainPath: nil, addedAt: Date()
-                    )
-                    try repo.insert(db)
-                }
-                YggdrasilLog.ui.info("Added tracked repo \(owner)/\(name) (default branch: \(branch))")
+                let repo = try await RepoActions.add("\(owner)/\(name)", services: services)
+                YggdrasilLog.ui.info("Added tracked repo \(owner)/\(name) (default branch: \(repo.defaultBranch))")
             } catch {
                 DebugMenu.alert(title: "Add tracked repo failed",
-                                message: String(describing: error))
+                                message: error.actionMessage)
             }
         }
     }
 
     @objc private func removeTrackedRepo() {
         YggdrasilLog.ui.notice("Coding menu: Remove Tracked Repo clicked")
-        guard let database = services?.database else { return }
+        guard let services else { return }
         do {
-            let repos = try database.queue.read { db in try Repo.fetchAll(db) }
+            let repos = try services.database.queue.read { db in try Repo.fetchAll(db) }
             guard !repos.isEmpty else {
                 DebugMenu.alert(title: "No tracked repos",
                                 message: "Use “Add Tracked Repo…” first.")
                 return
             }
             guard let selected = DebugMenu.promptForRepoChoice(repos) else { return }
-            try database.queue.write { db in try selected.delete(db) }
+            try RepoActions.remove(id: selected.id ?? 0, services: services)
             YggdrasilLog.ui.info("Removed tracked repo \(selected.fullName)")
         } catch {
             DebugMenu.alert(title: "Remove tracked repo failed",
-                            message: String(describing: error))
+                            message: error.actionMessage)
         }
     }
 
     @objc private func forceSync() {
         YggdrasilLog.ui.notice("Coding menu: Force Sync clicked")
         guard let services else { return }
-        Task {
+        Task { @MainActor in
             do {
-                try await services.syncService.fullSync()
-                await MainActor.run { services.tabs.reload() }
+                try await SyncActions.syncNow(services: services)
             } catch {
                 YggdrasilLog.ui.error("Force sync failed: \(String(describing: error), privacy: .public)")
             }
@@ -193,47 +185,47 @@ final class CodingMenuController: NSObject {
 
     @objc private func addAgent() {
         YggdrasilLog.ui.notice("Coding menu: Add Agent clicked")
-        guard let store = services?.agentStore else { return }
+        guard let services else { return }
         guard let details = DebugMenu.promptForAgentDetails() else { return }
         do {
-            _ = try store.add(name: details.name, command: details.command, args: details.args)
+            try AgentActions.add(name: details.name, command: details.command, args: details.args, services: services)
             YggdrasilLog.ui.info("Added coding agent \(details.name, privacy: .public)")
         } catch {
-            DebugMenu.alert(title: "Add agent failed", message: String(describing: error))
+            DebugMenu.alert(title: "Add agent failed", message: error.actionMessage)
         }
     }
 
     @objc private func removeAgent() {
         YggdrasilLog.ui.notice("Coding menu: Remove Agent clicked")
-        guard let store = services?.agentStore else { return }
+        guard let services else { return }
         do {
-            let agents = try store.list()
+            let agents = try services.agentStore.list()
             guard !agents.isEmpty else {
                 DebugMenu.alert(title: "No agents", message: "Use “Add Agent…” first.")
                 return
             }
             guard let picked = DebugMenu.promptForAgentChoice(agents, title: "Remove Agent") else { return }
-            try store.remove(id: picked.id!)
+            try AgentActions.remove(id: picked.id ?? 0, services: services)
             YggdrasilLog.ui.info("Removed coding agent \(picked.name, privacy: .public)")
         } catch {
-            DebugMenu.alert(title: "Remove agent failed", message: String(describing: error))
+            DebugMenu.alert(title: "Remove agent failed", message: error.actionMessage)
         }
     }
 
     @objc private func setDefaultAgent() {
         YggdrasilLog.ui.notice("Coding menu: Set Default Agent clicked")
-        guard let store = services?.agentStore else { return }
+        guard let services else { return }
         do {
-            let agents = try store.list()
+            let agents = try services.agentStore.list()
             guard !agents.isEmpty else {
                 DebugMenu.alert(title: "No agents", message: "Use “Add Agent…” first.")
                 return
             }
             guard let picked = DebugMenu.promptForAgentChoice(agents, title: "Set Default Agent") else { return }
-            try store.setDefault(id: picked.id!)
+            try AgentActions.setDefault(id: picked.id ?? 0, services: services)
             YggdrasilLog.ui.info("Default coding agent is now \(picked.name, privacy: .public)")
         } catch {
-            DebugMenu.alert(title: "Set default failed", message: String(describing: error))
+            DebugMenu.alert(title: "Set default failed", message: error.actionMessage)
         }
     }
 

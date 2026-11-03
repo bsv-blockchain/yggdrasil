@@ -140,36 +140,32 @@ struct AgentPrefsPane: View {
     private func addAgent() {
         let args = newArgs.split(separator: " ").map(String.init)
         do {
-            let agent = try services.agentStore.add(
-                name: newName.trimmingCharacters(in: .whitespaces),
-                command: newCommand.trimmingCharacters(in: .whitespaces),
-                args: args
-            )
+            let agent = try AgentActions.add(name: newName, command: newCommand, args: args, services: services)
             reload()
             selectedID = agent.id
         } catch {
-            NSAlert.show("Couldn't add the agent", message: String(describing: error))
+            NSAlert.show("Couldn't add the agent", message: error.actionMessage)
         }
     }
 
     private func removeSelected() {
         guard let agent = selectedAgent, let id = agent.id, !agent.isDefault else { return }
         do {
-            try services.agentStore.remove(id: id)
+            try AgentActions.remove(id: id, services: services)
             selectedID = nil
             reload()
         } catch {
-            NSAlert.show("Couldn't remove \(agent.name)", message: String(describing: error))
+            NSAlert.show("Couldn't remove \(agent.name)", message: error.actionMessage)
         }
     }
 
     private func setDefault(_ agent: CodingAgent) {
         guard let id = agent.id else { return }
         do {
-            try services.agentStore.setDefault(id: id)
+            try AgentActions.setDefault(id: id, services: services)
             reload()
         } catch {
-            NSAlert.show("Couldn't change the default agent", message: String(describing: error))
+            NSAlert.show("Couldn't change the default agent", message: error.actionMessage)
         }
     }
 
@@ -180,11 +176,11 @@ struct AgentPrefsPane: View {
         guard let id = agent.id else { return false }
         guard name?.isEmpty != true, command?.isEmpty != true else { return false }
         do {
-            try services.agentStore.update(id: id, name: name, command: command, args: args, env: env)
+            try AgentActions.update(id: id, name: name, command: command, args: args, env: env, services: services)
             reload()
             return true
         } catch {
-            NSAlert.show("Couldn't save the agent", message: String(describing: error))
+            NSAlert.show("Couldn't save the agent", message: error.actionMessage)
             return false
         }
     }

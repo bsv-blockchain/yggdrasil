@@ -385,21 +385,15 @@ struct NewTabSheet: View {
             cloneTarget = pickedURL.appendingPathComponent(repo.name).path
         }
 
-        if RepoPrefsPane.isValidGitRepo(cloneTarget) {
-            await persistClonePath(cloneTarget, repoID: repo.id ?? 0)
-            return true
-        }
-        if FileManager.default.fileExists(atPath: cloneTarget) {
-            error = "\(cloneTarget) already exists but is not a git repository. Remove it or set the path manually in Settings > Repos."
-            return false
-        }
-
         cloning = true
         defer { cloning = false }
         do {
-            try await GitHubCloner().clone(owner: repo.owner, name: repo.name, to: cloneTarget)
-            await persistClonePath(cloneTarget, repoID: repo.id ?? 0)
+            try await RepoActions.clone(id: repo.id ?? 0, to: cloneTarget, services: services)
+            repos = await (try? services.database.queue.read { db in try Repo.fetchAll(db) }) ?? repos
             return true
+        } catch let error as ActionError {
+            self.error = error.actionMessage
+            return false
         } catch {
             YggdrasilLog.ui
                 .error(
@@ -408,17 +402,6 @@ struct NewTabSheet: View {
             self.error = "Could not clone \(repo.fullName). Check your network connection and that you're signed in with gh, then try again."
             return false
         }
-    }
-
-    /// Persist a repo's local clone path and refresh the in-memory `repos`.
-    private func persistClonePath(_ path: String, repoID: Int64) async {
-        try? await services.database.queue.write { db in
-            try db.execute(
-                sql: "UPDATE repo SET local_main_path = ? WHERE id = ?",
-                arguments: [path, repoID]
-            )
-        }
-        repos = await (try? services.database.queue.read { db in try Repo.fetchAll(db) }) ?? repos
     }
 
     /// Extracts a PR/issue number from a branch name like "pr-643" or "#643",

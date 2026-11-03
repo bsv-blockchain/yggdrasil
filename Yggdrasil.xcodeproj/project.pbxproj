@@ -51,6 +51,7 @@
 		27463D437F8C9A2CA8467894 /* TabStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 098B40BE8CE9BD06790CD888 /* TabStatus.swift */; };
 		2985E8F34154CD0C30C6036D /* IssueDetailsPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CFA54FB47300C73485DBCAD /* IssueDetailsPicker.swift */; };
 		2A3D1715B6605CFB5B046D45 /* TerminalInputClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D60F3201DA8337A58003B3 /* TerminalInputClock.swift */; };
+		2A801845752048849CCE03A6 /* AppActionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE40FEBFA15593621C97F6F5 /* AppActionsTests.swift */; };
 		2A8CA083BABEF333046B9E19 /* TabMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5387DA6DDBD122B66303A98B /* TabMigrator.swift */; };
 		2A9BF563775C60B6189BF698 /* AgentEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA10F84EF9B7C93585FE4C1 /* AgentEnvironmentTests.swift */; };
 		2DF66F978230DCD1B4EFB7EE /* HostPrefsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 397749DB6E25B1289D7A7E01 /* HostPrefsPane.swift */; };
@@ -223,6 +224,7 @@
 		DD600EB3CDDDAD528C5D2715 /* CommandKeyLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB16BECD3562B08F51359E15 /* CommandKeyLayer.swift */; };
 		DEEF67781B6F9FAD73BB4529 /* NewTabSheetParseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC196666CA9FF3A004ACC36C /* NewTabSheetParseTests.swift */; };
 		DF057374F1A5A643C1E32E4D /* BackoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8E73AFC818DB9C164D07FF /* BackoffTests.swift */; };
+		E1212DD427416AD577133718 /* AppActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12091F8B387DDE4BC57C74B9 /* AppActions.swift */; };
 		E4286CA80F3A5B2A3A199853 /* TerminalPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7ED4461BDBE347067823D7 /* TerminalPaletteTests.swift */; };
 		E473BAEAADA205EC37AB28A0 /* TabMigratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70AEE8224FDF1CE60F72EF3E /* TabMigratorTests.swift */; };
 		E659A6DC30E7B00850E55208 /* GHCLIAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A30B4717CB6A068A8F5793F /* GHCLIAuthTests.swift */; };
@@ -269,6 +271,7 @@
 		10951E377C5E493189492D79 /* GitHubURLResolutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubURLResolutionTests.swift; sourceTree = "<group>"; };
 		11536F50910D785658A357A9 /* AssignedTaskPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignedTaskPicker.swift; sourceTree = "<group>"; };
 		11FE1E8D3FE600712CB2A1DB /* ChildReaperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChildReaperTests.swift; sourceTree = "<group>"; };
+		12091F8B387DDE4BC57C74B9 /* AppActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppActions.swift; sourceTree = "<group>"; };
 		1319C448A5CB047913D8E864 /* index.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = index.js; sourceTree = "<group>"; };
 		141F0877020333E31C89524D /* BranchSlugTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchSlugTests.swift; sourceTree = "<group>"; };
 		143FF7040F1CB1E7D8C554BB /* APIResponses.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponses.swift; sourceTree = "<group>"; };
@@ -460,6 +463,7 @@
 		D718314D460678B26FD06C40 /* SubprocessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubprocessTests.swift; sourceTree = "<group>"; };
 		D97BAAB8ABEAADA789A31964 /* WindowChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowChrome.swift; sourceTree = "<group>"; };
 		DA3A8A4C744CA16D5C026BDD /* GitHubClonerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubClonerTests.swift; sourceTree = "<group>"; };
+		DE40FEBFA15593621C97F6F5 /* AppActionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppActionsTests.swift; sourceTree = "<group>"; };
 		DE6616FD3AC11226A29952B6 /* HTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPClient.swift; sourceTree = "<group>"; };
 		DEA57CACB3BC2B8317C73272 /* TabRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabRow.swift; sourceTree = "<group>"; };
 		DEC30EFE3FE078DC6168F0AD /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
@@ -822,6 +826,7 @@
 		96BAD947C22B7334A21940BF /* Actions */ = {
 			isa = PBXGroup;
 			children = (
+				DE40FEBFA15593621C97F6F5 /* AppActionsTests.swift */,
 				E2FC0E428195B120924D1070 /* TabActionsTests.swift */,
 				B3C1BC96B260180CDFFB355A /* TaskQueriesTests.swift */,
 			);
@@ -879,6 +884,7 @@
 			isa = PBXGroup;
 			children = (
 				835F9F601972F1DD7BF5C7E9 /* ActionError.swift */,
+				12091F8B387DDE4BC57C74B9 /* AppActions.swift */,
 				4F072759D00141F80466D684 /* TabActions.swift */,
 				9A2AECAA8C8FEB6EEAA69B1C /* TaskQueries.swift */,
 			);
@@ -1214,6 +1220,7 @@
 				477ABE5479F24DE5A6E36550 /* AgentResumeFlagTests.swift in Sources */,
 				949CAED2F11FD081D13BB33D /* AgentSessionProbeTests.swift in Sources */,
 				BE0D53BB8897EE995BB78963 /* AgentTranscriptParserTests.swift in Sources */,
+				2A801845752048849CCE03A6 /* AppActionsTests.swift in Sources */,
 				3BDF570DFEDFEAF401CF99D6 /* AppcastGenerationTests.swift in Sources */,
 				414B2386924FEE1622B24084 /* AttentionDismissalTests.swift in Sources */,
 				528F58BCEE60F9B3F1F7EFCD /* AuthServiceTests.swift in Sources */,
@@ -1321,6 +1328,7 @@
 				13D06C29FB360B1D434B536E /* AgentTerminalSurface+Resume.swift in Sources */,
 				48EFDBF853A861CA4F79DA7C /* AgentTerminalSurface.swift in Sources */,
 				0E19E4690B8FCF257EBC558E /* AgentTranscriptParser.swift in Sources */,
+				E1212DD427416AD577133718 /* AppActions.swift in Sources */,
 				8BF367B656CE845A4550D26D /* AppDelegate.swift in Sources */,
 				CEBFA4352983778AC0CDA368 /* AppServices.swift in Sources */,
 				DCDD88F40DBAAE0E74FC8362 /* AppearanceSettings.swift in Sources */,

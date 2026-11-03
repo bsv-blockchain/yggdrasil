@@ -130,7 +130,13 @@ struct WindowChromeBar: View {
 
             HStack(spacing: 4) {
                 chromeButton(systemImage: "arrow.clockwise", help: "Sync now") {
-                    Task { try? await services.syncService.fullSync() }
+                    Task { @MainActor in
+                        do {
+                            try await SyncActions.syncNow(services: services)
+                        } catch {
+                            YggdrasilLog.sync.warning("Sync now failed: \(String(describing: error), privacy: .public)")
+                        }
+                    }
                 }
                 chromeButton(
                     systemImage: scheme == .dark ? "sun.max" : "moon",
@@ -175,17 +181,12 @@ struct WindowChromeBar: View {
     }
 
     private func toggleTheme() {
-        // Cycle dark → light → auto. Persists via AppearanceSettings.
-        let currentRaw =
-            (try? SettingsStore(database: services.database)
-                    .get(forKey: AppearanceSettings.settingKey)) ?? ""
-        let next: AppearanceSettings.Mode = switch AppearanceSettings.Mode(rawValue: currentRaw) ?? .auto {
+        // Cycle auto → light → dark → auto.
+        let next: AppearanceSettings.Mode = switch AppearanceSettings.readMode(services: services) {
         case .auto: .light
         case .light: .dark
         case .dark: .auto
         }
-        NSApp.appearance = next.appearance
-        try? SettingsStore(database: services.database)
-            .set(next.rawValue, forKey: AppearanceSettings.settingKey)
+        SettingsActions.setTheme(next, services: services)
     }
 }

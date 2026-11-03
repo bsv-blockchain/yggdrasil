@@ -15,7 +15,7 @@ struct DiagnosticsCommands: Commands {
                 Diagnostics.copyToClipboard()
             }
             Button("Reveal Crash Logs") {
-                Diagnostics.openCrashFolder()
+                AppActions.revealCrashLogs()
             }
         }
     }
@@ -73,7 +73,7 @@ enum Diagnostics {
         NSWorkspace.shared.activateFileViewerSelecting([crashFolderURL])
     }
 
-    private static func composeReport() -> String {
+    static func composeReport() -> String {
         let home = NSHomeDirectory()
         let processInfo = ProcessInfo.processInfo
         let bundle = Bundle.main

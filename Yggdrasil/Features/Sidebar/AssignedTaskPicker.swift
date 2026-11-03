@@ -229,8 +229,7 @@ struct AssignedTaskPicker: View {
 
     private func syncNow() async {
         do {
-            try await services.syncService.fullSync()
-            services.tabs.reload()
+            try await SyncActions.syncNow(services: services)
             reload()
         } catch {
             self.error = "Sync failed: \(error.localizedDescription)"
