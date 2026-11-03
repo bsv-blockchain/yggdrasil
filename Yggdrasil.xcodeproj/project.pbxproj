@@ -24,12 +24,14 @@
 		0D1AF5398E1718A585ADF3FF /* APIKeyStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C61A37C04C41D18A19DBF74 /* APIKeyStoreTests.swift */; };
 		0E19067DBC863D2A0B1E8AD0 /* AgentEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ADB95B672D8657A0603B514 /* AgentEnvironment.swift */; };
 		0E19E4690B8FCF257EBC558E /* AgentTranscriptParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 506757E8CA7A9742C38DEDF1 /* AgentTranscriptParser.swift */; };
+		0E649623356878590A8EB230 /* YggctlIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F4111E1FA651506B97D56E /* YggctlIntegrationTests.swift */; };
 		0FA01B7188CFB130E8A7B062 /* SidebarGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219E731640E2F18B3E598F12 /* SidebarGroupingTests.swift */; };
 		0FE3242FD57BCD517B6789C8 /* TabActions+Agent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA6DB840B4FEF660B6E83F3C /* TabActions+Agent.swift */; };
 		1127A314ABE86CBA0EB815DA /* PRReviewRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6144C93179429F6F1C8272 /* PRReviewRequest.swift */; };
 		11B34E7AEAA136DAABFB885C /* WorktreeInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE934F8A52B03388BF2B0C33 /* WorktreeInfo.swift */; };
 		1283CBA3E3823C23B93F6525 /* ControlService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92E69D422C67D84A624B3A5D /* ControlService.swift */; };
 		12A91C1852BCB855AECA8E3B /* DiffSubPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = C786A66165F6A0748293063D /* DiffSubPane.swift */; };
+		12FF413A3F00A1736D52702B /* YggctlCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19B609A00B74BD82FF5EDFE2 /* YggctlCore.swift */; };
 		1325F1243EB3A5F41EAB0065 /* SettingsSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BFE07B6DA54871946E654FF /* SettingsSnapshotTests.swift */; };
 		13D06C29FB360B1D434B536E /* AgentTerminalSurface+Resume.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83D5174FD10C4F98E1736EF /* AgentTerminalSurface+Resume.swift */; };
 		14FBF3ED9C9E52E9ED8611AD /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC4D78DD45A5F9D613077301 /* Migrations.swift */; };
@@ -63,6 +65,7 @@
 		2F266EE41546255123E9AC40 /* RemoteHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E889CE444CA97BB645C614E /* RemoteHelperTests.swift */; };
 		2F40E67E7FC0A9E83D7D41C5 /* GitHubSubPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88AE2C7159A7E5623495819D /* GitHubSubPane.swift */; };
 		2FCBC32DD6A4EF32B64B77AF /* CodingAgentRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF1032E88424E7D79F33A26 /* CodingAgentRunner.swift */; };
+		2FFAE17FBD746F7331F14C44 /* YggctlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B3F2F20A94AC55F252A275B /* YggctlTests.swift */; };
 		301FCD7E9940E7DC7175F75C /* TaskSearchQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 601766CC9871FDB43D2642FF /* TaskSearchQuery.swift */; };
 		3090E61CE00C1E3598B7BFFE /* AgentPrefsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = C41030D4CF1BD20748F879DB /* AgentPrefsPane.swift */; };
 		30D84E4D1E15BF72113BB60A /* YggdrasilTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D87FE2B8D82A2E53D859AC1 /* YggdrasilTerminalView.swift */; };
@@ -97,6 +100,7 @@
 		4AFD450AE557FF2F85070776 /* GitRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2696119602D5B020469CE2E2 /* GitRunner.swift */; };
 		4B4F01292DF1B277280DB0D5 /* SessionsModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2005C40FEFC212573B9B63 /* SessionsModelTests.swift */; };
 		4CB2F9A750FAC4A8A329B1D7 /* AgentChooser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3076A23D9A2335312766A0B1 /* AgentChooser.swift */; };
+		4CCC65113B71224C93DBBEB3 /* yggctl in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = A041C93C3BFDAA610C3D1DA0 /* yggctl */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		4D107B08E6A9C5D0260B0D39 /* TranscriptTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B13EF1D4F10F0FFE5A9063E5 /* TranscriptTransfer.swift */; };
 		4D16117F325C78116DB36B0C /* YggdrasilButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B501D1E9394345FFA10742B2 /* YggdrasilButtonStyle.swift */; };
 		4EC6A8F7E934C8A3ED11496A /* GHCLIAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4592E29AC7752D741FA4F483 /* GHCLIAuth.swift */; };
@@ -184,6 +188,7 @@
 		A33A054379216EEAE42B34D3 /* CodingAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D56D44185226644B2CDBBAC5 /* CodingAgent.swift */; };
 		A3997180E23DA17E17C4087F /* DebugMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A21AE81239B21D83CAB04D /* DebugMenu.swift */; };
 		A3EFA9099348F685093AAF8F /* ReviewActionOutstandingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4C54E0D3EAE8D9F2B992E84 /* ReviewActionOutstandingTests.swift */; };
+		A3FF34B0FBB780E9BC55D369 /* YggctlCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19B609A00B74BD82FF5EDFE2 /* YggctlCore.swift */; };
 		A5F84F86044F5A57272B95CA /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05354BB03F5DF8D61B7BEA27 /* KeychainStore.swift */; };
 		ABD0DCC47126AB46272C8C85 /* GeneralPrefsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7D6A423E9B91F99509B5DE /* GeneralPrefsPane.swift */; };
 		AC4CA2F0852E2F980EB66B76 /* GitHubURLResolutionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10951E377C5E493189492D79 /* GitHubURLResolutionTests.swift */; };
@@ -260,6 +265,7 @@
 		F96DB36FC5B00B63E2B49345 /* TabActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F072759D00141F80466D684 /* TabActions.swift */; };
 		F99C5E4E259895C7A04C5396 /* CodingAgentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CA3559D5CBA6AAA76D09427 /* CodingAgentStoreTests.swift */; };
 		FBB257E152F5201089233150 /* TaskQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A2AECAA8C8FEB6EEAA69B1C /* TaskQueries.swift */; };
+		FBC9787C30E87541984C6E1E /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE1DDF90380F02096778E444 /* main.swift */; };
 		FE3EFDC412C327D16585A573 /* SessionStateStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8A112A91F42061FC56C62A /* SessionStateStoreTests.swift */; };
 		FF0DC7433E694D39125C6EA4 /* StatusPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFB4E230EABFF23158DF251C /* StatusPoller.swift */; };
 		FF7627C1C337D8AE3C48C8E6 /* GitHubClonerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3A8A4C744CA16D5C026BDD /* GitHubClonerTests.swift */; };
@@ -273,7 +279,28 @@
 			remoteGlobalIDString = 6DC7C1FE0E8A57CC647CAD98;
 			remoteInfo = Yggdrasil;
 		};
+		74A46BE7F3E2F4336D441C16 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9446A4E53E18B421EFE3B82D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3E6DFC5093A6CE50990E397B;
+			remoteInfo = yggctl;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B5FD00A4C14C527176F590F1 /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				4CCC65113B71224C93DBBEB3 /* yggctl in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		00C6CBADB62BA7E5F6D18FAF /* ActionCatalog+Tabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActionCatalog+Tabs.swift"; sourceTree = "<group>"; };
@@ -304,9 +331,11 @@
 		17B95A44765994725D851F56 /* SessionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionState.swift; sourceTree = "<group>"; };
 		1888936578F5B0A836FE6C9E /* YggdrasilDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilDatabase.swift; sourceTree = "<group>"; };
 		191EC5DA5DAE46A27B4DC52F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		19B609A00B74BD82FF5EDFE2 /* YggctlCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggctlCore.swift; sourceTree = "<group>"; };
 		19CC16F0457FC8C59EE63643 /* GitHubStatusActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubStatusActivityTests.swift; sourceTree = "<group>"; };
 		19CFB54A8612A50052ABCF48 /* TaskSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskSyncService.swift; sourceTree = "<group>"; };
 		1B258E487852090EBD0E38E5 /* GitHubWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubWebView.swift; sourceTree = "<group>"; };
+		1B3F2F20A94AC55F252A275B /* YggctlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggctlTests.swift; sourceTree = "<group>"; };
 		1BB21927E81827FA7853D693 /* HTTPClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPClientTests.swift; sourceTree = "<group>"; };
 		1BFE07B6DA54871946E654FF /* SettingsSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSnapshotTests.swift; sourceTree = "<group>"; };
 		1C4F793FA8907648E69D3562 /* MigrationV12Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationV12Tests.swift; sourceTree = "<group>"; };
@@ -348,6 +377,7 @@
 		3D39743809B1945013F42382 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		3DF70644BF4747122D3ADD6B /* ControlEncoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlEncoding.swift; sourceTree = "<group>"; };
 		3F61C5690D1BA51C291B7C8B /* AgentTerminalSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTerminalSurface.swift; sourceTree = "<group>"; };
+		41F4111E1FA651506B97D56E /* YggctlIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggctlIntegrationTests.swift; sourceTree = "<group>"; };
 		42AC4ECC1A08E5604A2057FC /* GitHubStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubStatus.swift; sourceTree = "<group>"; };
 		437807AE78F9DFFF5E52D9A7 /* TranscriptTransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptTransferTests.swift; sourceTree = "<group>"; };
 		4592E29AC7752D741FA4F483 /* GHCLIAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GHCLIAuth.swift; sourceTree = "<group>"; };
@@ -440,6 +470,7 @@
 		9F402C4B789EBF05316BFF0A /* CodingAgentRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingAgentRunnerTests.swift; sourceTree = "<group>"; };
 		9FBAF586200697B6C5E93A84 /* TabStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabStatusTests.swift; sourceTree = "<group>"; };
 		9FF1032E88424E7D79F33A26 /* CodingAgentRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingAgentRunner.swift; sourceTree = "<group>"; };
+		A041C93C3BFDAA610C3D1DA0 /* yggctl */ = {isa = PBXFileReference; includeInIndex = 0; path = yggctl; sourceTree = BUILT_PRODUCTS_DIR; };
 		A0B6047B65F17F43271FFAE3 /* TabRowViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabRowViewModelTests.swift; sourceTree = "<group>"; };
 		A41F3C0777183F226A6B9A1A /* ActionCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionCatalog.swift; sourceTree = "<group>"; };
 		A533FDEF88872851178693E0 /* ControlAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlAction.swift; sourceTree = "<group>"; };
@@ -491,6 +522,7 @@
 		CC196666CA9FF3A004ACC36C /* NewTabSheetParseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewTabSheetParseTests.swift; sourceTree = "<group>"; };
 		CC4D78DD45A5F9D613077301 /* Migrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Migrations.swift; sourceTree = "<group>"; };
 		CCA10F84EF9B7C93585FE4C1 /* AgentEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEnvironmentTests.swift; sourceTree = "<group>"; };
+		CE1DDF90380F02096778E444 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		CE4A8D8497EF59E2E426DF74 /* YggdrasilApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilApp.swift; sourceTree = "<group>"; };
 		CEC7E6D5CE1BD6E270E9644E /* YggdrasilTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YggdrasilTab.swift; sourceTree = "<group>"; };
 		CEF7ECA20BFD0B9110356C0C /* GitRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRunnerTests.swift; sourceTree = "<group>"; };
@@ -565,6 +597,14 @@
 				1888936578F5B0A836FE6C9E /* YggdrasilDatabase.swift */,
 			);
 			path = Storage;
+			sourceTree = "<group>";
+		};
+		04764042CB6A89C30AB84A73 /* Tools */ = {
+			isa = PBXGroup;
+			children = (
+				B33A68C09E55F70AF55000CF /* yggctl */,
+			);
+			path = Tools;
 			sourceTree = "<group>";
 		};
 		06A79799035EEC527EDF305A /* Onboarding */ = {
@@ -739,6 +779,7 @@
 			children = (
 				88B4183CCE7333AA2884F7B2 /* Packages */,
 				F5BC0B132C831162B8A5AC2C /* Tests */,
+				04764042CB6A89C30AB84A73 /* Tools */,
 				1C8B2D7F13C97280A14E367F /* Yggdrasil */,
 				757941D55BDCED70DBE4F955 /* Products */,
 			);
@@ -782,6 +823,15 @@
 			path = Control;
 			sourceTree = "<group>";
 		};
+		6432A4ADE3F5BD3693580A62 /* Yggctl */ = {
+			isa = PBXGroup;
+			children = (
+				41F4111E1FA651506B97D56E /* YggctlIntegrationTests.swift */,
+				1B3F2F20A94AC55F252A275B /* YggctlTests.swift */,
+			);
+			path = Yggctl;
+			sourceTree = "<group>";
+		};
 		695491CB1432EBB316367EFF /* Migration */ = {
 			isa = PBXGroup;
 			children = (
@@ -822,6 +872,7 @@
 				DA1A7112E5540CC4E4F53A48 /* Status */,
 				EB478E77BBF0817833D17616 /* Storage */,
 				56436F15D77406ECC25B7B3E /* Terminal */,
+				6432A4ADE3F5BD3693580A62 /* Yggctl */,
 			);
 			path = Unit;
 			sourceTree = "<group>";
@@ -829,6 +880,7 @@
 		757941D55BDCED70DBE4F955 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				A041C93C3BFDAA610C3D1DA0 /* yggctl */,
 				60795988F000AF0EB67441E4 /* Yggdrasil.app */,
 				64D8AA8C9F9260C45AC218CF /* YggdrasilTests.xctest */,
 			);
@@ -950,6 +1002,15 @@
 				9A2AECAA8C8FEB6EEAA69B1C /* TaskQueries.swift */,
 			);
 			path = Actions;
+			sourceTree = "<group>";
+		};
+		B33A68C09E55F70AF55000CF /* yggctl */ = {
+			isa = PBXGroup;
+			children = (
+				CE1DDF90380F02096778E444 /* main.swift */,
+				19B609A00B74BD82FF5EDFE2 /* YggctlCore.swift */,
+			);
+			path = yggctl;
 			sourceTree = "<group>";
 		};
 		B799C0C844E7F699B872956F /* Remote */ = {
@@ -1179,6 +1240,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		3E6DFC5093A6CE50990E397B /* yggctl */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3BEFA9D3DD97DB149AC3251B /* Build configuration list for PBXNativeTarget "yggctl" */;
+			buildPhases = (
+				001D1672DDE1647A33127C28 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = yggctl;
+			packageProductDependencies = (
+			);
+			productName = yggctl;
+			productReference = A041C93C3BFDAA610C3D1DA0 /* yggctl */;
+			productType = "com.apple.product-type.tool";
+		};
 		6DC7C1FE0E8A57CC647CAD98 /* Yggdrasil */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = CBB0EA300BCCBA15A56E73FD /* Build configuration list for PBXNativeTarget "Yggdrasil" */;
@@ -1186,10 +1264,12 @@
 				C5F559A766F99B1DC6C6C91A /* Sources */,
 				C022A6B5DD66287B7FD3AD9B /* Resources */,
 				FCF1AB8ABFCE7E9C904D59CE /* Frameworks */,
+				B5FD00A4C14C527176F590F1 /* Embed Dependencies */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A4A39A8D12AC9981EA4C88D9 /* PBXTargetDependency */,
 			);
 			name = Yggdrasil;
 			packageProductDependencies = (
@@ -1231,6 +1311,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					3E6DFC5093A6CE50990E397B = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
 					6DC7C1FE0E8A57CC647CAD98 = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
@@ -1260,6 +1344,7 @@
 			targets = (
 				6DC7C1FE0E8A57CC647CAD98 /* Yggdrasil */,
 				7989F23752C395E91A23CBA3 /* YggdrasilTests */,
+				3E6DFC5093A6CE50990E397B /* yggctl */,
 			);
 		};
 /* End PBXProject section */
@@ -1287,6 +1372,15 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		001D1672DDE1647A33127C28 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A3FF34B0FBB780E9BC55D369 /* YggctlCore.swift in Sources */,
+				FBC9787C30E87541984C6E1E /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BCE51C85E3579F858DB4000F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1394,6 +1488,9 @@
 				EE944CB796E9468E9392907A /* WindowFrameAutosaveTests.swift in Sources */,
 				4347B49F6CE3B2179629D8AD /* WorktreeManagerTests.swift in Sources */,
 				B4093CC4D49551080F2E36B0 /* WorktreePreparerTests.swift in Sources */,
+				12FF413A3F00A1736D52702B /* YggctlCore.swift in Sources */,
+				0E649623356878590A8EB230 /* YggctlIntegrationTests.swift in Sources */,
+				2FFAE17FBD746F7331F14C44 /* YggctlTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1555,6 +1652,11 @@
 			target = 6DC7C1FE0E8A57CC647CAD98 /* Yggdrasil */;
 			targetProxy = 3733FF403CDD60A6C8599BC3 /* PBXContainerItemProxy */;
 		};
+		A4A39A8D12AC9981EA4C88D9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3E6DFC5093A6CE50990E397B /* yggctl */;
+			targetProxy = 74A46BE7F3E2F4336D441C16 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -1636,6 +1738,26 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bsvassociation.yggdrasil;
 				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		4995779368A541F2FE5222AD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bsvassociation.yggdrasil.yggctl;
+				PRODUCT_NAME = yggctl;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
 			};
 			name = Release;
 		};
@@ -1723,6 +1845,26 @@
 			};
 			name = Debug;
 		};
+		B2E1174186A6F592524A286A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bsvassociation.yggdrasil.yggctl;
+				PRODUCT_NAME = yggctl;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
 		DB1B4399A9E4CB28C16739A7 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1766,6 +1908,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		3BEFA9D3DD97DB149AC3251B /* Build configuration list for PBXNativeTarget "yggctl" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B2E1174186A6F592524A286A /* Debug */,
+				4995779368A541F2FE5222AD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		5E020283EDD6B96FB4CFB396 /* Build configuration list for PBXProject "Yggdrasil" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

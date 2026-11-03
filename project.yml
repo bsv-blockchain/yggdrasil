@@ -106,6 +106,28 @@ targets:
         product: KeychainAccess
       - package: Sparkle
         product: Sparkle
+      # The command-line client, next to the app's own binary.
+      - target: yggctl
+        embed: true
+        codeSign: true
+        copy:
+          destination: executables
+
+  yggctl:
+    type: tool
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tools/yggctl
+    settings:
+      base:
+        PRODUCT_NAME: yggctl
+        PRODUCT_BUNDLE_IDENTIFIER: com.bsvassociation.yggdrasil.yggctl
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        ENABLE_HARDENED_RUNTIME: "YES"
+        SKIP_INSTALL: "YES"
 
   YggdrasilTests:
     type: bundle.unit-test
@@ -119,6 +141,8 @@ targets:
         type: folder
         buildPhase: resources
       - path: Tests/Integration
+      # yggctl's testable half; its main.swift stays out.
+      - path: Tools/yggctl/YggctlCore.swift
     dependencies:
       - target: Yggdrasil
     settings:
