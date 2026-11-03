@@ -33,6 +33,8 @@ final class AppServices {
     /// Builds worktrees off the click, one at a time per repo.
     let worktreePreparer: WorktreePreparer
     let diffEngine = DiffEngine()
+    /// The control API; set at launch, nil in tests.
+    var control: ControlService?
     /// Snapshot of the live intervals. Mutated by `applyIntervals(_:)`.
     private(set) var intervals: IntervalSettings
 

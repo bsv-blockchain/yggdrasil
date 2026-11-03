@@ -31,6 +31,10 @@ struct PreferencesRoot: View {
                     .tabItem { Label("Agents", systemImage: "terminal") }
                 HostPrefsPane(services: services)
                     .tabItem { Label("Hosts", systemImage: "server.rack") }
+                if let control = services.control {
+                    APIPrefsPane(services: services, control: control)
+                        .tabItem { Label("API", systemImage: "key") }
+                }
             }
         } else {
             Text("Settings are available once Yggdrasil has finished launching.")

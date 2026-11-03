@@ -69,6 +69,26 @@ extension AgentTerminalSurface {
         }
     }
 
+    /// Whether `plan` starts the new conversation `newSessionID` names, the
+    /// only one a tab's starting prompt is for.
+    static func takesPrompt(_ plan: ResumePlan, newSessionID: String) -> Bool {
+        plan.sessionID == newSessionID
+    }
+
+    /// Environment variable that carries a starting prompt to the agent.
+    static let promptVariable = "YGG_PROMPT"
+
+    /// The `-c` command the user's login shell runs. A starting prompt comes
+    /// in through `promptVariable`, never as text in this command: the login
+    /// shell may be fish or tcsh, which quote differently, and shell argv is
+    /// visible in `ps`. After `--`, so a variadic profile option
+    /// (`--add-dir a b`) can't take it as a value.
+    static func payload(colorfgbg: String, command: String, args: [String], withPrompt: Bool) -> String {
+        let quoted = ([command] + args).map(CodingAgentRunner.shellQuote).joined(separator: " ")
+        let prompt = withPrompt ? " -- \"$\(promptVariable)\"" : ""
+        return "export COLORFGBG='\(colorfgbg)'; exec \(quoted)\(prompt)"
+    }
+
     /// True when the app should manage the Claude conversation id: the agent
     /// is claude and its profile doesn't already pick a session itself.
     static func pinsClaudeSession(command: String, args: [String]) -> Bool {

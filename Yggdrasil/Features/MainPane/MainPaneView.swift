@@ -133,6 +133,7 @@ struct MainPaneView: View {
                     sessionStore: services.sessionStore,
                     sessions: services.sessions,
                     host: session.host,
+                    initialPrompt: session.initialPrompt,
                     isActive: services.tabs.selectedID == selectedTab.id
                 )
 
@@ -194,7 +195,8 @@ struct MainPaneView: View {
                     command: agent.command,
                     args: agent.args,
                     env: agent.env,
-                    host: services.host(for: selectedTab)
+                    host: services.host(for: selectedTab),
+                    initialPrompt: services.sessions.takePrompt(tabID: tabID)
                 )
             )
             services.sessions.selectedID = tabID
@@ -336,6 +338,13 @@ enum PaneLayout: Hashable {
         let defaults = UserDefaults.standard
         defaults.set(fraction, forKey: perTabDividerKey(tab))
         defaults.set(fraction, forKey: globalDividerKey)
+    }
+
+    func contains(_ segment: PaneSegment) -> Bool {
+        switch self {
+        case let .solo(only): only == segment
+        case let .split(first, second): first == segment || second == segment
+        }
     }
 
     func with(primary: PaneSegment) -> PaneLayout {

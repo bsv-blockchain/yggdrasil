@@ -10,8 +10,9 @@ public enum YggdrasilLog {
     public static let ui = Logger(subsystem: subsystem, category: "ui")
     public static let db = Logger(subsystem: subsystem, category: "db")
     public static let auth = Logger(subsystem: subsystem, category: "auth")
+    public static let control = Logger(subsystem: subsystem, category: "control")
 
     public static let allCategories: [String] = [
-        "sync", "pty", "git", "ui", "db", "auth"
+        "sync", "pty", "git", "ui", "db", "auth", "control"
     ]
 }

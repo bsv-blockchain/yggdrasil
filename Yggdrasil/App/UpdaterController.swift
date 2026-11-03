@@ -18,6 +18,9 @@ final class UpdaterController: ObservableObject {
     /// while a check is already in flight.
     @Published private(set) var canCheckForUpdates = false
 
+    /// The app's updater, for the control API's "check for updates".
+    weak static var current: UpdaterController?
+
     init() {
         controller = SPUStandardUpdaterController(
             startingUpdater: false,
@@ -27,6 +30,7 @@ final class UpdaterController: ObservableObject {
         controller.updater
             .publisher(for: \.canCheckForUpdates)
             .assign(to: &$canCheckForUpdates)
+        Self.current = self
     }
 
     /// Begin scheduled background checks (honouring `SUScheduledCheckInterval`).

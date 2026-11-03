@@ -100,6 +100,8 @@ struct SidebarSessionsLayout: View {
             }
         }
         .background(YggdrasilTheme.bg(scheme))
+        .onAppear { services.sessions.hasMainWindow = true }
+        .onDisappear { services.sessions.hasMainWindow = false }
     }
 
     @ViewBuilder

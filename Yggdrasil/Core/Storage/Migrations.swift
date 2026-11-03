@@ -23,7 +23,23 @@ enum Migrations {
         migrator.registerMigration("v16", migrate: v16)
         migrator.registerMigration("v17", migrate: v17)
         migrator.registerMigration("v18", migrate: v18)
+        migrator.registerMigration("v19", migrate: v19)
         return migrator
+    }
+
+    // MARK: - v19 — Control API keys
+
+    /// Keys other programs use to reach the control API. Only the SHA-256 of
+    /// a key is kept; the key itself is shown once, when it's made.
+    private static func v19(_ db: Database) throws {
+        try db.create(table: "api_key") { table in
+            table.autoIncrementedPrimaryKey("id")
+            table.column("name", .text).notNull()
+            table.column("scope", .text).notNull()
+            table.column("sha256", .text).notNull().unique()
+            table.column("created_at", .datetime).notNull()
+            table.column("last_used_at", .datetime)
+        }
     }
 
     // MARK: - v18 — One checkout per repo per host

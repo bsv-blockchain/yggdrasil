@@ -164,6 +164,19 @@ final class RemoteHelperTests: XCTestCase {
         XCTAssertEqual(try read("claude.args"), "--x --resume abc")
     }
 
+    func testAttachStartsANewConversationWithThePrompt() throws {
+        try sh(ygg("attach 7 \"$HOME\" --claude-session abc --prompt 'say hi' -- claude --x"))
+        XCTAssertEqual(try read("claude.args"), "--x --session-id abc -- say hi")
+    }
+
+    func testAttachLeavesThePromptOutWhenResuming() throws {
+        let project = home.appendingPathComponent(".claude/projects/-elsewhere")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try "".write(to: project.appendingPathComponent("abc.jsonl"), atomically: true, encoding: .utf8)
+        try sh(ygg("attach 7 \"$HOME\" --claude-session abc --prompt 'say hi' -- claude --x"))
+        XCTAssertEqual(try read("claude.args"), "--x --resume abc")
+    }
+
     func testAttachWithoutCommandRunsUsersLoginShell() throws {
         let result = try sh(ygg("attach 5 \"$HOME\" --"))
         XCTAssertEqual(result.exitCode, 0, result.stderr)

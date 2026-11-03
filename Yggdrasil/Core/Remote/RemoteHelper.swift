@@ -14,7 +14,7 @@ import Foundation
 /// tcsh login shell can't misparse it. The login shell is only asked for the
 /// PATH its rc files set, via `env; exit`, whose output doesn't depend on the shell.
 enum RemoteHelper {
-    static let version = 4
+    static let version = 5
     static let path = "~/.yggdrasil/bin/ygg"
     static let requiredTools = ["claude", "git", "gh", "dtach"]
 
@@ -96,7 +96,9 @@ enum RemoteHelper {
         tab=$2; cwd=$3; shift 3
         tab_ok "$tab"
         session=
+        prompt=
         if [ "$1" = --claude-session ]; then session=$2; shift 2; fi
+        if [ "$1" = --prompt ]; then prompt=$2; shift 2; fi
         [ "$1" = -- ] || usage
         shift
         sock="$STATE/$tab.sock"
@@ -114,6 +116,8 @@ enum RemoteHelper {
                 set -- "$@" --resume "$session"
             else
                 set -- "$@" --session-id "$session"
+                # A new conversation starts with the tab's prompt, if any.
+                if [ -n "$prompt" ]; then set -- "$@" -- "$prompt"; fi
             fi
         fi
         mkdir -p "$STATE"
