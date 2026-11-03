@@ -35,8 +35,11 @@ struct RepoPrefsPane: View {
                 .frame(minWidth: 280)
 
                 if let selected = repos.first(where: { $0.id == selectedID }) {
-                    repoDetail(selected)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    VStack(alignment: .leading, spacing: 10) {
+                        repoDetail(selected)
+                        prRepoSection(selected)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 } else {
                     placeholder
                         .frame(maxWidth: .infinity)
@@ -142,6 +145,28 @@ struct RepoPrefsPane: View {
         .padding(.leading, 8)
     }
 
+    /// Where this repo's PRs are opened — the default repo for "Link PR…".
+    private func prRepoSection(_ repo: Repo) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Pull requests live in").font(.system(size: 11, weight: .semibold))
+            Picker("Pull requests live in", selection: Binding(
+                get: { repo.prRepoID },
+                set: { updatePRRepo($0, for: repo) }
+            )) {
+                Text("Same repo").tag(Int64?.none)
+                ForEach(repos.filter { $0.id != repo.id }, id: \.id) { other in
+                    Text(other.fullName).tag(other.id)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+            Text("Default repo for Link PR… when you enter a bare PR number.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.leading, 8)
+    }
+
     static func isValidGitRepo(_ path: String) -> Bool {
         FileManager.default.fileExists(atPath: (path as NSString).appendingPathComponent(".git"))
     }
@@ -235,6 +260,20 @@ struct RepoPrefsPane: View {
             reload()
         } catch {
             NSAlert.show("Save path failed", message: String(describing: error))
+        }
+    }
+
+    private func updatePRRepo(_ prRepoID: Int64?, for repo: Repo) {
+        do {
+            try services.database.queue.write { db in
+                try db.execute(
+                    sql: "UPDATE repo SET pr_repo_id = ? WHERE id = ?",
+                    arguments: [prRepoID, repo.id ?? 0]
+                )
+            }
+            reload()
+        } catch {
+            NSAlert.show("Save PR repo failed", message: String(describing: error))
         }
     }
 
