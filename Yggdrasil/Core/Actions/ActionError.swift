@@ -19,6 +19,8 @@ enum ActionError: Error, Equatable, LocalizedError {
     /// `owner/name`
     case repoNotCloned(String)
     case notInTrackedRepo
+    /// `owner/name` of a repo the app doesn't track.
+    case repoNotTracked(String)
     /// Muting needs the first status poll: before it there's nothing to mute.
     case noStatusYet
     /// The tab's worktree isn't ready yet, or its setup failed.
@@ -56,6 +58,8 @@ enum ActionError: Error, Equatable, LocalizedError {
             "\(repo) isn't cloned on this Mac. Run it on a host, or set its location in Settings → Repositories."
         case .notInTrackedRepo:
             "This tab isn't inside a tracked repository."
+        case let .repoNotTracked(slug):
+            "\(slug) isn't tracked. Add it in Settings → Repositories."
         case .noStatusYet:
             "This tab has no status yet. Try again in a moment."
         case .tabNotReady:

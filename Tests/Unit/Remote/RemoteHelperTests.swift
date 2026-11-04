@@ -5,8 +5,8 @@ import XCTest
 /// stub `dtach`/`claude`/login-shell binaries, so the session logic is
 /// exercised end to end without a server or dtach installed.
 final class RemoteHelperTests: XCTestCase {
-    private var home: URL!
-    private var bin: URL!
+    var home: URL!
+    var bin: URL!
     private var loginBin: URL!
 
     override func setUpWithError() throws {
@@ -55,14 +55,14 @@ final class RemoteHelperTests: XCTestCase {
         try? FileManager.default.removeItem(at: home)
     }
 
-    private func writeExecutable(_ dir: URL, _ name: String, _ body: String) throws {
+    func writeExecutable(_ dir: URL, _ name: String, _ body: String) throws {
         let url = dir.appendingPathComponent(name)
         try body.write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
     }
 
     @discardableResult
-    private func sh(_ command: String, env extra: [String: String] = [:]) throws -> SubprocessResult {
+    func sh(_ command: String, env extra: [String: String] = [:]) throws -> SubprocessResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = ["-c", command]
@@ -92,7 +92,7 @@ final class RemoteHelperTests: XCTestCase {
         FileManager.default.fileExists(atPath: home.appendingPathComponent(relative).path)
     }
 
-    private func ygg(_ args: String) -> String {
+    func ygg(_ args: String) -> String {
         "sh \"$HOME/ygg\" \(args)"
     }
 

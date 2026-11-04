@@ -40,6 +40,10 @@ struct GitStateProbe {
                     remote: .ahead(parsed.ahead, behind: parsed.behind)
                 )
             }
+        } catch let error as CancellationError {
+            // Not "no upstream": the caller gave up, and a fabricated state
+            // would be published as if it were real.
+            throw error
         } catch {
             // fall through to .noRemote
         }

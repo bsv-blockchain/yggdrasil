@@ -23,7 +23,7 @@ final class ActionCatalogTests: XCTestCase {
         // Dragging rows; the pane header; the diff toolbar.
         "tab.reorder", "tab.setLayout", "tab.reloadGitHub", "tab.setDiffScope",
         // Settings → Repositories, Coding ▸ Add/Remove Tracked Repo, onboarding.
-        "repo.add", "repo.remove", "repo.setLocalPath", "repo.clone",
+        "repo.add", "repo.remove", "repo.setLocalPath", "repo.clone", "repo.setPRRepo",
         // Settings → Agents, Coding ▸ agent items.
         "agent.add", "agent.update", "agent.remove", "agent.setDefault",
         // Settings → Hosts.
@@ -41,6 +41,32 @@ final class ActionCatalogTests: XCTestCase {
     func testSendCanTypeKeystrokesInsteadOfPasting() throws {
         let send = try XCTUnwrap(ActionCatalog.all.first { $0.name == "tab.send" })
         XCTAssertNoThrow(try send.validate(["tab": .int(1), "text": .string("2"), "paste": .bool(false)]))
+    }
+
+    func testLinkPRTakesWhatTheDialogTakes() throws {
+        // A number in the tab's PR repo, a PR URL, or owner/repo#N.
+        let link = try XCTUnwrap(ActionCatalog.all.first { $0.name == "tab.linkPR" })
+        XCTAssertNoThrow(try link.validate(["tab": .int(1), "pr": .string("acme/code#3")]))
+        XCTAssertThrowsError(try link.validate(["tab": .int(1), "number": .int(3)]))
+        XCTAssertEqual(ActionError.repoNotTracked("a/b").reason, "repo_not_tracked")
+    }
+
+    func testThePRRepoCanBeSetAndCleared() async throws {
+        let services = try AppServices(database: YggdrasilDatabase.inMemory())
+        services.requestSync = {}
+        let issues = try await RepoActions.add("acme/issues", defaultBranch: "main", services: services)
+        let code = try await RepoActions.add("acme/code", defaultBranch: "main", services: services)
+        let action = try XCTUnwrap(ActionCatalog.all.first { $0.name == "repo.setPRRepo" })
+        let context = ControlAction.Context(services: services, key: nil)
+        _ = try await action.run(
+            action.validate(["repo": .string("acme/issues"), "prRepo": .string("acme/code")]),
+            context
+        )
+        let row = try await services.database.queue.read { db in try Repo.fetchOne(db, key: issues.id) }
+        XCTAssertEqual(row?.prRepoID, code.id)
+        _ = try await action.run(action.validate(["repo": .string("acme/issues")]), context)
+        let cleared = try await services.database.queue.read { db in try Repo.fetchOne(db, key: issues.id) }
+        XCTAssertNil(cleared?.prRepoID)
     }
 
     func testExitCodesAreTheProcessesOwn() {

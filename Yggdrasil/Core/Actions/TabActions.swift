@@ -306,43 +306,6 @@ enum TabActions {
         }
     }
 
-    /// The open PR whose head is this tab's branch, if GitHub knows one.
-    static func suggestedPRNumber(tabID: Int64, services: AppServices) async -> Int? {
-        guard let tab = try? tab(tabID, services), let repo = services.tabs.repoByTabID[tabID] else { return nil }
-        return try? await services.syncService.linkablePRNumber(
-            forBranch: tab.branchName, owner: repo.owner, name: repo.name
-        )
-    }
-
-    /// Links PR `number` of the tab's repo. On an issue tab the PR goes next
-    /// to the issue; otherwise it becomes the tab's task.
-    static func linkPR(tabID: Int64, number: Int, services: AppServices) async throws {
-        _ = try tab(tabID, services)
-        guard let repo = services.tabs.repoByTabID[tabID] else { throw ActionError.notInTrackedRepo }
-        let taskID = try await services.syncService.importPR(owner: repo.owner, name: repo.name, number: number)
-        if services.tabs.tasksByTabID[tabID]?.type == .issue {
-            try services.tabStore.setPRTaskID(id: tabID, prTaskID: taskID)
-        } else {
-            try services.tabStore.setTaskID(id: tabID, taskID: taskID)
-        }
-        services.tabs.reload()
-        services.triggerSyncNow()
-    }
-
-    /// Drops an issue tab's linked PR, keeping the issue; on any other tab
-    /// drops its task, leaving a plain terminal tab.
-    static func unlinkPR(tabID: Int64, services: AppServices) throws {
-        // The stored row, not the sidebar's copy: that one lags a link made
-        // since its last reload.
-        guard let tab = try services.tabStore.get(id: tabID) else { throw ActionError.unknownTab(tabID) }
-        if tab.prTaskID != nil {
-            try services.tabStore.setPRTaskID(id: tabID, prTaskID: nil)
-        } else {
-            try services.tabStore.setTaskID(id: tabID, taskID: nil)
-        }
-        services.tabs.reload()
-    }
-
     /// Moves the tab to `index` in the sidebar order (clamped to the ends).
     static func reorder(tabID: Int64, to index: Int, services: AppServices) throws {
         _ = try tab(tabID, services)
