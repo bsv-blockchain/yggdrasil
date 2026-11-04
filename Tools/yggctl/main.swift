@@ -5,9 +5,7 @@ import Foundation
 // running with Settings → API on; the key comes from YGGDRASIL_API_KEY.
 
 let environment = ProcessInfo.processInfo.environment
-let socketPath = environment["YGGDRASIL_SOCKET"] ?? FileManager.default
-    .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-    .appendingPathComponent("Yggdrasil/control.sock").path
+let socketPath = Yggctl.socketPath(environment: environment)
 
 func fail(_ message: String, _ code: Int32) -> Never {
     FileHandle.standardError.write(Data((message + "\n").utf8))

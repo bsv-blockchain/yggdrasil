@@ -110,6 +110,17 @@ enum Yggctl {
         return params
     }
 
+    /// `YGGDRASIL_SOCKET`, else `control.sock` in the app's data folder
+    /// (`YGGDRASIL_DATA_DIR` or Application Support), as the app picks it.
+    static func socketPath(environment: [String: String]) -> String {
+        if let socket = environment["YGGDRASIL_SOCKET"], !socket.isEmpty { return socket }
+        if let directory = environment["YGGDRASIL_DATA_DIR"], !directory.isEmpty {
+            return URL(fileURLWithPath: directory).appendingPathComponent("control.sock").path
+        }
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Yggdrasil/control.sock").path
+    }
+
     static func rpcBody(method: String, params: [String: Any]) -> Data {
         let message: [String: Any] = ["jsonrpc": "2.0", "id": 1, "method": method, "params": params]
         return (try? JSONSerialization.data(withJSONObject: message)) ?? Data()

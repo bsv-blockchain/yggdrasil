@@ -18,17 +18,12 @@ final class YggdrasilDatabase {
         return YggdrasilDatabase(queue: queue)
     }
 
-    /// Default on-disk database at `~/Library/Application Support/Yggdrasil/yggdrasil.sqlite`.
+    /// Default on-disk database, `yggdrasil.sqlite` in the `DataDirectory`.
     /// Creates the containing directory if it doesn't exist.
     static func openDefault(fileManager: FileManager = .default) throws -> YggdrasilDatabase {
-        let appSupport = try fileManager.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        ).appendingPathComponent("Yggdrasil", isDirectory: true)
-        try fileManager.createDirectory(at: appSupport, withIntermediateDirectories: true)
-        let url = appSupport.appendingPathComponent("yggdrasil.sqlite")
+        let directory = DataDirectory.url()
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("yggdrasil.sqlite")
         let queue = try DatabaseQueue(path: url.path)
         try Migrations.register().migrate(queue)
         return YggdrasilDatabase(queue: queue)

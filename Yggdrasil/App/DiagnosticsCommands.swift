@@ -98,11 +98,7 @@ enum Diagnostics {
     }
 
     private static func databasePath() -> String {
-        let appSupport = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first
-            .map { $0.appendingPathComponent("Yggdrasil").appendingPathComponent("yggdrasil.sqlite").path }
-        return appSupport ?? "(not yet created)"
+        DataDirectory.url().appendingPathComponent("yggdrasil.sqlite").path
     }
 
     private static func redact(home: String, path: String) -> String {

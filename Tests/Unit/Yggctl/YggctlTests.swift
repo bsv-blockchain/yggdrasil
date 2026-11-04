@@ -124,6 +124,16 @@ final class YggctlTests: XCTestCase {
         XCTAssertThrowsError(try Yggctl.params(pairs: ["args": "[1]"], json: nil, schema: schema))
     }
 
+    func testSocketPath() {
+        XCTAssertEqual(
+            Yggctl.socketPath(environment: ["YGGDRASIL_SOCKET": "/s.sock", "YGGDRASIL_DATA_DIR": "/d"]),
+            "/s.sock"
+        )
+        XCTAssertEqual(Yggctl.socketPath(environment: ["YGGDRASIL_DATA_DIR": "/d"]), "/d/control.sock")
+        XCTAssertTrue(Yggctl.socketPath(environment: [:])
+            .hasSuffix("/Library/Application Support/Yggdrasil/control.sock"))
+    }
+
     func testEmptyListsPrintOnOneLine() {
         XCTAssertEqual(Yggctl.render([Any]()), "[]")
         let output = Yggctl.render(["args": [Any](), "env": [String: Any](), "text": "[  ]"])
