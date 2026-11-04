@@ -180,6 +180,55 @@ there's a transcript at `~/.claude/projects/<encoded-cwd>/*.jsonl`, so the
 conversation history is restored (in-flight tool calls are not). Other
 agents start fresh.
 
+### Control from other apps
+
+Other programs on this Mac can do anything you can do in Yggdrasil: read
+tabs, their status and their agents' screens, open, start, move and close
+tabs, type into an agent, and manage repos, agents, hosts and settings. It's
+off until you turn it on in **Settings → API**, where you also create keys.
+A key is read-only or full; a full key can type into your agents, so give it
+only to programs you trust. Yggdrasil keeps only a hash of each key.
+
+The API listens on a Unix socket only your account can open
+(`~/Library/Application Support/Yggdrasil/control.sock`). For clients that
+can't use a socket it can also listen on `127.0.0.1:47610`; that's a separate
+switch, off by default, because other accounts on the Mac can reach that port.
+Requests from browsers are refused.
+
+**MCP** (Claude Code, Grok CLI, any client that runs a stdio server):
+`yggctl mcp` relays MCP to the socket.
+
+```sh
+claude mcp add yggdrasil -e YGGDRASIL_API_KEY=ygg_… \
+  -- /Applications/Yggdrasil.app/Contents/MacOS/yggctl mcp
+```
+
+With 127.0.0.1 turned on, HTTP MCP clients can use `http://127.0.0.1:47610/mcp`
+with an `Authorization: Bearer <key>` header instead.
+
+**Shell**: `yggctl` ships inside the app.
+
+```sh
+export YGGDRASIL_API_KEY=ygg_…
+alias yggctl=/Applications/Yggdrasil.app/Contents/MacOS/yggctl
+yggctl actions                                    # everything it can do
+yggctl tabs.list
+yggctl tab.open repo=bsv-blockchain/teranode branch=fix-reorg prompt="Find why the reorg test is flaky"
+yggctl tab.start tab=42
+yggctl tab.screen tab=42
+yggctl tab.send tab=42 text="Run the tests again"
+```
+
+Values are typed from the action's parameters. A list is `a,b`, or JSON
+(`args='["--allowedTools=Bash,Read"]'`) when an item has a comma; an object is
+JSON. `--json '{…}'` passes all parameters at once.
+
+`yggctl` exits 0 on success, 1 when the action failed, 2 on a usage error, 3
+when Yggdrasil isn't running or the API is off, and 4 when the key is wrong
+or can't do that. **JSON-RPC** directly: `POST /rpc` with
+`{"jsonrpc":"2.0","id":1,"method":"tabs.list"}` and the same bearer key;
+`actions.list` describes every method.
+
 ---
 
 ## Architecture

@@ -83,23 +83,18 @@ struct APIPrefsPane: View {
             }
 
             Section {
+                command("Claude Code", """
+                claude mcp add yggdrasil -e YGGDRASIL_API_KEY=<key> -- '\(yggctl)' mcp
+                """)
+                command("Grok CLI, or any MCP client", "Command '\(yggctl)' mcp, with YGGDRASIL_API_KEY set")
+                command("Shell", """
+                YGGDRASIL_API_KEY=<key> '\(yggctl)' tabs.list
+                """)
                 // Only while Yggdrasil holds the port: a key sent to it
                 // otherwise could reach whoever took it.
                 if loopback, let mcpURL {
-                    command("Claude Code", """
-                    claude mcp add --transport http yggdrasil \(
-                        mcpURL
-                    ) --header "Authorization: Bearer $YGGDRASIL_API_KEY"
-                    """)
-                    command("Grok CLI, or any MCP client", "URL \(mcpURL), header Authorization: Bearer <key>")
-                } else {
-                    Text("MCP clients connect over HTTP: turn on 127.0.0.1 above.")
-                        .foregroundStyle(.secondary)
+                    command("MCP over HTTP", "URL \(mcpURL), header Authorization: Bearer <key>")
                 }
-                command("Shell", """
-                curl -s --unix-socket '\(control.socketPath)' -H "Authorization: Bearer $YGGDRASIL_API_KEY" \
-                -d '{"jsonrpc":"2.0","id":1,"method":"tabs.list"}' http://localhost/rpc
-                """)
             } header: {
                 Text("Connect")
             }
@@ -136,6 +131,11 @@ struct APIPrefsPane: View {
         var id: String {
             value
         }
+    }
+
+    /// The command-line client inside this app bundle.
+    private var yggctl: String {
+        Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/yggctl").path
     }
 
     private var mcpURL: String? {

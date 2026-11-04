@@ -12,9 +12,11 @@ final class ControlService {
     static let defaultPort: UInt16 = 47610
 
     nonisolated static var defaultSocketPath: String {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-        return support.appendingPathComponent("Yggdrasil/control.sock").path
+        socketPath(environment: ProcessInfo.processInfo.environment)
+    }
+
+    nonisolated static func socketPath(environment: [String: String]) -> String {
+        DataDirectory.url(environment: environment).appendingPathComponent("control.sock").path
     }
 
     let keys: APIKeyStore
