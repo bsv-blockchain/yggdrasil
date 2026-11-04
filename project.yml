@@ -63,8 +63,8 @@ targets:
         CFBundleName: Yggdrasil
         CFBundleDisplayName: Yggdrasil
         CFBundleIdentifier: com.bsvassociation.yggdrasil
-        CFBundleShortVersionString: "0.6.8"
-        CFBundleVersion: "38"
+        CFBundleShortVersionString: "0.7.0"
+        CFBundleVersion: "39"
         LSMinimumSystemVersion: "14.0"
         NSHumanReadableCopyright: ""
         NSPrincipalClass: NSApplication
