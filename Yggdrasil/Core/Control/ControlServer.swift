@@ -73,7 +73,9 @@ final class ControlServer: @unchecked Sendable {
         case let .loopback(requested):
             (descriptor, port) = try Self.bindLoopback(requested)
         }
-        guard Darwin.listen(descriptor, 16) == 0 else {
+        // A deep backlog: connects that arrive faster than they're accepted
+        // wait instead of being refused; the cap below still applies.
+        guard Darwin.listen(descriptor, SOMAXCONN) == 0 else {
             let code = errno
             close(descriptor)
             throw Failure.socket(code)
