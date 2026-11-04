@@ -74,8 +74,10 @@ struct ProcessRunner: SubprocessRunner {
 
             process.terminationHandler = { proc in
                 if cancel?.isCancelled == true {
-                    _ = stdoutReader.finish()
-                    _ = stderrReader.finish()
+                    // Don't drain: ssh via a ControlMaster leaves its pipes
+                    // with the mux master, open until the remote command ends.
+                    stdoutReader.abandon()
+                    stderrReader.abandon()
                     continuation.resume(throwing: CancellationError())
                     return
                 }
@@ -160,6 +162,16 @@ private final class PipeReader: @unchecked Sendable {
                 buffer.append(chunk)
             }
         }
+    }
+
+    /// Stop reading without waiting for EOF, for a cancelled run whose output
+    /// is discarded anyway. Another process may still hold the write end.
+    func abandon() {
+        lock.lock()
+        defer { lock.unlock() }
+        finished = true
+        handle.readabilityHandler = nil
+        try? handle.close()
     }
 
     /// Called once from the terminationHandler. Waits out any in-flight

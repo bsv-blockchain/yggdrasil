@@ -183,6 +183,9 @@ actor StatusPoller {
             return try await withDeadline(Self.probeDeadline) {
                 try await gitProbe.probe(worktreePath: path)
             }
+        } catch is CancellationError {
+            // stop()/reload(): not a failure worth a line per tab.
+            return nil
         } catch {
             YggdrasilLog.sync.warning(
                 "StatusPoller git probe failed for tab \(input.tabID, privacy: .public): \(String(describing: error), privacy: .public)"
