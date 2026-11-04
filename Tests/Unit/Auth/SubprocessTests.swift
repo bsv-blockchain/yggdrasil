@@ -66,4 +66,48 @@ final class SubprocessTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - Cancellation
+
+    /// The status poller's deadline relies on this: without it a hung `ssh`
+    /// or `git` keeps the task group (and the whole sweep) waiting.
+    func testTerminatesChildOnCancelWhenAsked() async throws {
+        let start = Date()
+        let task = Task {
+            try await ProcessRunner(terminatesOnCancel: true).run(executable: "/bin/sleep", arguments: ["10"])
+        }
+        try await Task.sleep(for: .milliseconds(200))
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("expected CancellationError")
+        } catch is CancellationError {}
+        XCTAssertLessThan(Date().timeIntervalSince(start), 3)
+    }
+
+    func testAlreadyCancelledTaskDoesNotLaunch() async throws {
+        let marker = FileManager.default.temporaryDirectory.appendingPathComponent("ygg-cancel-\(UUID())").path
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await ProcessRunner(terminatesOnCancel: true)
+                .run(executable: "/usr/bin/touch", arguments: [marker])
+        }
+        do {
+            _ = try await task.value
+            XCTFail("expected CancellationError")
+        } catch is CancellationError {}
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker))
+    }
+
+    /// Opt-in only: other callers (worktree creation from a SwiftUI `.task`,
+    /// say) must not have a half-finished git command killed under them.
+    func testDefaultRunnerLetsChildFinishWhenCancelled() async throws {
+        let task = Task {
+            try await ProcessRunner().run(executable: "/bin/sh", arguments: ["-c", "sleep 0.5; echo done"])
+        }
+        try await Task.sleep(for: .milliseconds(100))
+        task.cancel()
+        let result = try await task.value
+        XCTAssertEqual(result.stdout, "done\n")
+    }
 }

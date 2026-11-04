@@ -37,7 +37,7 @@ actor StatusPoller {
         database: YggdrasilDatabase,
         tabsModel: TabsModel,
         model: TabStatusModel,
-        probe: GitStateProbe = GitStateProbe(),
+        probe: GitStateProbe = GitStateProbe(git: GitRunner(runner: ProcessRunner(terminatesOnCancel: true))),
         sessionProbe: AgentSessionProbe = AgentSessionProbe()
     ) {
         self.database = database
@@ -141,74 +141,87 @@ actor StatusPoller {
     /// `nonisolated` so a batch actually runs in parallel instead of queueing
     /// on the actor.
     private nonisolated func probeTab(_ input: ProbeInput) async -> Probed? {
-        let tab = input.tab
-        let tabID = input.tabID
-        let agent = input.agent
-        let previousSession = input.previousSession
-        let lastGitState = input.lastGitState
+        // Concurrent: for a remote tab both are ssh round trips, and an
+        // unreachable host would otherwise cost each one's stall in turn.
+        async let freshGit = probeGit(input)
+        async let session = probeSession(input)
         // A failed probe used to `continue`, leaving the tab with no status at
         // all — one transient failure hid it from the sidebar filters until a
         // later sweep happened to succeed. Reuse the last state that worked
         // instead; fabricating a clean tree would drop a dirty tab's icon and
         // flicker it back, which is a different kind of wrong.
-        var gitState = lastGitState ?? GitState(dirty: false, remote: .noRemote)
-        var gitSucceeded = lastGitState != nil
-        do {
-            // A remote worktree is probed with git on its host.
-            let gitProbe = input.host.map {
-                GitStateProbe(git: GitRunner(runner: SSHSubprocessRunner(host: $0), gitExecutable: "git"))
-            } ?? probe
-            let path = tab.worktreePath
-            gitState = try await withDeadline(Self.probeDeadline) {
-                try await gitProbe.probe(worktreePath: path)
-            }
-            gitSucceeded = true
-        } catch {
-            YggdrasilLog.sync.warning(
-                "StatusPoller git probe failed for tab \(tabID, privacy: .public): \(String(describing: error), privacy: .public)"
-            )
-        }
+        let gitState = await freshGit ?? input.lastGitState
+        let (sample, cache) = await session
 
         // Read once: a second read for the fingerprint could straddle a sync
         // write and describe state B while the amber it fingerprints came from
         // state A, making the mute lapse instantly or mute something unseen.
-        let row = readGitHubRow(taskID: tab.taskID)
+        let row = readGitHubRow(taskID: input.tab.taskID)
         let github = Self.aggregate(from: row)
-        // The agent's transcripts are on the host for a remote tab; reading
-        // this Mac's ~/.claude would describe some other session.
-        let sample: AgentActivitySample?
-        let cache: AgentSessionProbe.Cache?
-        if let host = input.host {
-            let probe = sessionProbe
-            let path = tab.worktreePath
-            let source = SSHTranscriptSource(runner: SSHSubprocessRunner(host: host))
-            // A hung ssh keeps the last state, as a failed fetch does.
-            (sample, cache) = await (try? withDeadline(Self.probeDeadline) {
-                await probe.probeRemote(worktreePath: path, agent: agent, previous: previousSession, source: source)
-            }) ?? (previousSession?.sample, previousSession)
-        } else {
-            (sample, cache) = sessionProbe.probe(
-                worktreePath: tab.worktreePath, agent: agent, previous: previousSession
-            )
-        }
         let claude = ClaudeStateDetector.evaluate(activity: sample, now: Date())
         let signature = AttentionSignature.make(row: row, session: sample)
 
         return Probed(
-            tabID: tabID,
+            tabID: input.tabID,
             status: TabStatus.aggregate(
-                claude: claude, git: gitState, github: github,
+                claude: claude, git: gitState ?? GitState(dirty: false, remote: .noRemote), github: github,
                 attentionSignature: signature
             ),
             sessionCache: cache,
-            gitState: gitSucceeded ? gitState : nil
+            gitState: gitState
         )
     }
 
-    /// Run `work`, giving up after `deadline`. `ProcessRunner` has no timeout
-    /// and ignores cancellation, so a `git` that never exits would otherwise
-    /// hang this tab's probe — and with it the batch, the tick, and every
-    /// tab's status until the app restarts.
+    /// This tick's git state, or nil when the probe failed or timed out.
+    private nonisolated func probeGit(_ input: ProbeInput) async -> GitState? {
+        // A remote worktree is probed with git on its host.
+        let gitProbe = input.host.map {
+            GitStateProbe(git: GitRunner(runner: Self.remoteRunner($0), gitExecutable: "git"))
+        } ?? probe
+        let path = input.tab.worktreePath
+        do {
+            return try await withDeadline(Self.probeDeadline) {
+                try await gitProbe.probe(worktreePath: path)
+            }
+        } catch {
+            YggdrasilLog.sync.warning(
+                "StatusPoller git probe failed for tab \(input.tabID, privacy: .public): \(String(describing: error), privacy: .public)"
+            )
+            return nil
+        }
+    }
+
+    /// The agent's latest activity. The transcripts are on the host for a
+    /// remote tab; reading this Mac's ~/.claude would describe some other
+    /// session.
+    private nonisolated func probeSession(
+        _ input: ProbeInput
+    ) async -> (sample: AgentActivitySample?, cache: AgentSessionProbe.Cache?) {
+        let previous = input.previousSession
+        guard let host = input.host else {
+            return sessionProbe.probe(worktreePath: input.tab.worktreePath, agent: input.agent, previous: previous)
+        }
+        let probe = sessionProbe
+        let path = input.tab.worktreePath
+        let agent = input.agent
+        let source = SSHTranscriptSource(runner: Self.remoteRunner(host))
+        // A hung ssh keeps the last state, as a failed fetch does.
+        return await (try? withDeadline(Self.probeDeadline) {
+            await probe.probeRemote(worktreePath: path, agent: agent, previous: previous, source: source)
+        }) ?? (previous?.sample, previous)
+    }
+
+    /// Probes run under `withDeadline`, which can only give up once the child
+    /// is gone — so their ssh gets killed on cancellation.
+    private static func remoteRunner(_ host: RemoteHost) -> SSHSubprocessRunner {
+        SSHSubprocessRunner(host: host, transport: ProcessRunner(terminatesOnCancel: true))
+    }
+
+    /// Run `work`, giving up after `deadline`. `ProcessRunner` has no timeout,
+    /// so a `git` that never exits would otherwise hang this tab's probe — and
+    /// with it the batch, the tick, and every tab's status until the app
+    /// restarts. The group still waits for `work` to finish once cancelled, so
+    /// this only holds when the work's runner terminates on cancellation.
     private nonisolated func withDeadline<T: Sendable>(
         _ deadline: Duration,
         _ work: @escaping @Sendable () async throws -> T

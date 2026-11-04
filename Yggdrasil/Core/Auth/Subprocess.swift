@@ -19,11 +19,37 @@ struct ProcessRunner: SubprocessRunner {
         case launchFailed(underlying: Swift.Error)
     }
 
+    /// Terminate the child and throw `CancellationError` when the calling task
+    /// is cancelled. Off by default: most callers (worktree creation from a
+    /// SwiftUI `.task`, say) must not have a git command killed halfway. The
+    /// status poller turns it on so its probe deadline actually holds.
+    var terminatesOnCancel = false
+
     func run(executable: String, arguments: [String]) async throws -> SubprocessResult {
+        guard terminatesOnCancel else {
+            return try await launch(executable: executable, arguments: arguments, cancel: nil)
+        }
+        let cancel = CancelHandle()
+        return try await withTaskCancellationHandler {
+            try await launch(executable: executable, arguments: arguments, cancel: cancel)
+        } onCancel: {
+            cancel.cancel()
+        }
+    }
+
+    private func launch(
+        executable: String, arguments: [String], cancel: CancelHandle?
+    ) async throws -> SubprocessResult {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<
             SubprocessResult,
             Swift.Error
         >) in
+            // Already cancelled: don't start anything (nor the pipe readers,
+            // whose final drain would wait on a write end nobody closes).
+            if cancel?.isCancelled == true {
+                continuation.resume(throwing: CancellationError())
+                return
+            }
             let process = Process()
             process.executableURL = URL(fileURLWithPath: executable)
             process.arguments = arguments
@@ -47,6 +73,12 @@ struct ProcessRunner: SubprocessRunner {
             let stderrReader = PipeReader(handle: stderrPipe.fileHandleForReading)
 
             process.terminationHandler = { proc in
+                if cancel?.isCancelled == true {
+                    _ = stdoutReader.finish()
+                    _ = stderrReader.finish()
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
                 let result = SubprocessResult(
                     stdout: String(data: stdoutReader.finish(), encoding: .utf8) ?? "",
                     stderr: String(data: stderrReader.finish(), encoding: .utf8) ?? "",
@@ -59,8 +91,45 @@ struct ProcessRunner: SubprocessRunner {
                 try process.run()
             } catch {
                 continuation.resume(throwing: Error.launchFailed(underlying: error))
+                return
+            }
+            // Cancelled between the check above and the launch.
+            if let cancel, !cancel.register(process) {
+                process.terminate()
             }
         }
+    }
+}
+
+/// Links a task's cancellation to the child it's waiting on. Cancellation can
+/// land before, during or after the launch; the lock orders it against
+/// `register`, so whichever side comes second does the terminate.
+private final class CancelHandle: @unchecked Sendable {
+    private let lock = NSLock()
+    private var process: Process?
+    private var cancelled = false
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let running = process
+        lock.unlock()
+        if let running, running.isRunning { running.terminate() }
+    }
+
+    /// Records the launched child. False when the task was already cancelled,
+    /// in which case the caller terminates it.
+    func register(_ launched: Process) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        process = launched
+        return !cancelled
     }
 }
 
