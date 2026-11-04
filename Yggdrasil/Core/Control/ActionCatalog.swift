@@ -72,6 +72,27 @@ enum ActionCatalog {
                 return ControlEncoding.screen(screen)
             },
             ControlAction(
+                name: "tab.subagents",
+                summary: "The subagents a tab's Claude is running, as the sidebar lists them under the tab.",
+                scope: .read,
+                params: [tabParam]
+            ) { params, context in
+                try .array(TabActions.runningSubagents(tabID: params.int("tab"), services: context.services)
+                    .map(ControlEncoding.subagent))
+            },
+            // Full scope: its tool results can hold anything a command printed
+            // or a file contained, unlike the one screen tab_screen shows.
+            ControlAction(
+                name: "tab.subagentTranscript",
+                summary: "What one of a tab's subagents has done so far: its task, text, tool calls and results.",
+                scope: .full,
+                params: [tabParam, Param("agent", .string, "A subagent id from tab_subagents.")]
+            ) { params, context in
+                try .array(TabActions.subagentTranscript(
+                    tabID: params.int("tab"), agentID: params.string("agent"), services: context.services
+                ).map(ControlEncoding.subagentEntry))
+            },
+            ControlAction(
                 name: "reviews.list",
                 summary: "PRs waiting for the user's review that have no tab yet (Review Requests).",
                 scope: .read, params: []

@@ -8,14 +8,14 @@ import XCTest
 final class ActionCatalogTests: XCTestCase {
     private static let userActions: Set<String> = [
         // Reading what the sidebar, badges, pickers and terminals show.
-        "state.get", "tabs.list", "tabs.get", "tab.screen",
+        "state.get", "tabs.list", "tabs.get", "tab.screen", "tab.subagents",
         "reviews.list", "tasks.list", "issues.list", "diagnostics.get",
         // New Session sheet, Assigned Tasks / Review Requests, My Issues, Coding ▸ New Session.
         "tab.open", "tab.openTask", "tab.openIssue", "tab.openAdHoc",
         // Selecting a tab, ⌘⇧[ ], and starting its agent the way selecting does.
         "tab.select", "tab.selectRelative", "tab.start",
-        // Typing into the agent.
-        "tab.send",
+        // Typing into the agent; clicking a subagent under a tab.
+        "tab.send", "tab.subagentTranscript",
         // Row context menu.
         "tab.restart", "tab.shell", "tab.terminate", "tab.close", "tab.move",
         "tab.linkPR", "tab.unlinkPR", "tab.mute", "tab.unmute", "tab.retrySetup",
@@ -80,8 +80,8 @@ final class ActionCatalogTests: XCTestCase {
     func testOnlyReadingIsAllowedToAReadKey() {
         let reading = Set(ActionCatalog.all.filter { $0.scope == .read }.map(\.name))
         XCTAssertEqual(reading, [
-            "state.get", "tabs.list", "tabs.get", "tab.screen", "reviews.list", "tasks.list", "issues.list",
-            "diagnostics.get"
+            "state.get", "tabs.list", "tabs.get", "tab.screen", "tab.subagents", "reviews.list", "tasks.list",
+            "issues.list", "diagnostics.get"
         ])
     }
 
@@ -114,6 +114,35 @@ final class ActionCatalogTests: XCTestCase {
         XCTAssertEqual(row["selected"], .bool(true), "the only tab is selected anyway")
         await services.worktreePreparer.drain()
         try? FileManager.default.removeItem(atPath: path)
+    }
+
+    func testARunningTabsSubagents() async throws {
+        let services = try AppServices(database: YggdrasilDatabase.inMemory())
+        services.requestSync = {}
+        let tab = try services.tabStore.insert(branchName: "b", worktreePath: "/w", agentID: nil, taskID: nil)
+        services.tabs.reload()
+        let tabID = try XCTUnwrap(tab.id)
+        let explore = SubagentInfo(
+            agentID: "a1", agentType: "Explore", description: "Find tests", spawnDepth: 1, background: true,
+            lastWrite: Date(timeIntervalSince1970: 0), transcriptPath: "/nowhere/agent-a1.jsonl"
+        )
+        services.subagents.set([explore], forTabID: tabID)
+
+        let idle = try await run("tab.subagents", ["tab": .int(tabID)], services)
+        XCTAssertEqual(idle, .array([]), "its agent isn't running, so neither are they")
+
+        let terminal = DroppableTerminalView(frame: .zero)
+        services.sessions.registerTerminal(terminal, tabID: tabID)
+        let listed = try await run("tab.subagents", ["tab": .int(tabID)], services)
+        guard case let .array(rows) = listed, let row = rows.first else { return XCTFail("\(listed)") }
+        XCTAssertEqual(row["id"], .string("a1"))
+        XCTAssertEqual(row["type"], .string("Explore"))
+        XCTAssertEqual(row["background"], .bool(true))
+        let tabRow = try await run("tabs.get", ["tab": .int(tabID)], services)
+        XCTAssertEqual(tabRow["runningSubagents"], .int(1))
+        // Its tool output can hold anything a command printed: full keys only.
+        let transcript = try XCTUnwrap(ActionCatalog.all.first { $0.name == "tab.subagentTranscript" })
+        XCTAssertEqual(transcript.scope, .full)
     }
 
     func testAgentArgumentsAreForFullKeysOnly() async throws {

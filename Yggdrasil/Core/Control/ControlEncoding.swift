@@ -30,12 +30,13 @@ enum ControlEncoding {
         fields["agent"] = .optional(agent?.name)
         fields["preparation"] = .string(tab.preparationState.rawValue)
         fields["preparationError"] = .optional(tab.preparationError)
-        fields["running"] = .bool(sessions.terminal(for: id) != nil && exitCode == nil)
+        fields["running"] = .bool(TabActions.agentIsRunning(tabID: id, services: services))
         fields["exitCode"] = exitCode.map { .int(exitStatus($0)) } ?? .null
         fields["reconnecting"] = .bool(sessions.reconnecting.contains(id))
         fields["moving"] = .bool(sessions.movingTabs.contains(id))
         fields["opened"] = .bool(sessions.isOpened(tabID: id))
         fields["selected"] = .bool(services.tabs.selectedID == id)
+        fields["runningSubagents"] = .int(TabActions.runningSubagents(id, services: services).count)
         fields["layout"] = .string(PaneLayout.load(for: tab).rawValue)
         fields["needsAttention"] = .bool(TabRowViewModel.needsAttention(
             branchName: tab.branchName, status: status, dismissedSignature: dismissed
@@ -74,6 +75,36 @@ enum ControlEncoding {
         ]
         if let repo { fields["repo"] = .string(repo.fullName) }
         return .object(fields)
+    }
+
+    static func subagent(_ info: SubagentInfo) -> JSONValue {
+        .object([
+            "id": .string(info.agentID),
+            "type": .string(info.agentType),
+            "description": .string(info.description),
+            "spawnDepth": .int(info.spawnDepth),
+            "background": .bool(info.background),
+            "lastWrite": info.lastWrite.map { .string(ISO8601DateFormatter().string(from: $0)) } ?? .null
+        ])
+    }
+
+    static func subagentEntry(_ entry: SubagentEntry) -> JSONValue {
+        switch entry {
+        case let .prompt(text): .object(["kind": .string("prompt"), "text": .string(text)])
+        case let .text(text): .object(["kind": .string("text"), "text": .string(text)])
+        case let .toolCall(id, name, summary):
+            .object([
+                "kind": .string("toolCall"),
+                "id": .string(id),
+                "name": .string(name),
+                "summary": .string(summary)
+            ])
+        case let .toolResult(toolUseID, preview, isError):
+            .object([
+                "kind": .string("toolResult"), "toolUseID": .string(toolUseID), "preview": .string(preview),
+                "isError": .bool(isError)
+            ])
+        }
     }
 
     static func repo(_ repo: Repo) -> JSONValue {

@@ -41,7 +41,16 @@ struct MainPaneView: View {
                 FindBar(state: find)
             }
         }
+        // Over the panes, not instead of them: unmounting the agent pane
+        // would end the very session the subagent belongs to.
+        .overlay {
+            if let id = selectedTab.id, let selection = services.subagents.selection(forTabID: id) {
+                SubagentTranscriptView(services: services, tab: selectedTab, selection: selection)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: FindCommand.show)) { _ in
+            // A subagent's transcript covers the terminal the find bar searches.
+            guard selectedTab.id.map({ services.subagents.selection(forTabID: $0) }) == nil else { return }
             find.show()
         }
         .onReceive(NotificationCenter.default.publisher(for: PaneLayout.changedNotification)) { note in

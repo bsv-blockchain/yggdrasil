@@ -352,11 +352,13 @@ struct SidebarView: View {
                         groupHeader(title: group.title)
                         ForEach(group.tabs, id: \.id) { tab in
                             rowView(for: tab, reorderEnabled: reorderEnabled)
+                            subagentRows(for: tab)
                         }
                     }
                 } else {
                     ForEach(filteredTabs, id: \.id) { tab in
                         rowView(for: tab, reorderEnabled: reorderEnabled)
+                        subagentRows(for: tab)
                     }
                 }
             }
@@ -386,6 +388,7 @@ struct SidebarView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             if let id = tab.id {
+                services.subagents.clearSelection()
                 tabsModel.select(id)
                 onSelect(id)
             }
@@ -440,6 +443,26 @@ struct SidebarView: View {
                 }
         } else {
             decorated
+        }
+    }
+
+    /// The tab's running subagents, nested under its row. Not drag sources or
+    /// drop targets, and not part of ⌘⇧[ / ⌘⇧] traversal.
+    @ViewBuilder
+    private func subagentRows(for tab: YggdrasilTab) -> some View {
+        if let id = tab.id {
+            ForEach(TabActions.runningSubagents(id, services: services), id: \.agentID) { info in
+                SubagentRow(
+                    info: info,
+                    isSelected: services.subagents.selection(forTabID: id)?.info.agentID == info.agentID
+                )
+                .onTapGesture {
+                    services.subagents.select(info, tabID: id)
+                    tabsModel.select(id)
+                    onSelect(id)
+                }
+                .padding(.vertical, 1)
+            }
         }
     }
 

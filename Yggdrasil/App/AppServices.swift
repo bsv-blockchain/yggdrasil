@@ -29,6 +29,7 @@ final class AppServices {
     let tabs: TabsModel
     let webViewPool: WebViewPool
     let tabStatus = TabStatusModel()
+    let subagents = SubagentsModel()
     let statusPoller: StatusPoller
     /// Builds worktrees off the click, one at a time per repo.
     let worktreePreparer: WorktreePreparer
@@ -77,7 +78,10 @@ final class AppServices {
         self.tabs = tabsModel
         self.webViewPool = WebViewPool(settingsStore: settingsStore)
         self.statusPoller = StatusPoller(
-            database: database, tabsModel: tabsModel, model: tabStatus
+            database: database, tabsModel: tabsModel, model: tabStatus, subagents: subagents,
+            runningAgents: { [sessions] in
+                Set(sessions.sessions.map(\.id)).subtracting(sessions.exitedTabs.keys)
+            }
         )
 
         // Built last: it captures the store and models above. Progress is
