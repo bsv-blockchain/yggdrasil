@@ -17,6 +17,8 @@ final class TabsModel {
     /// the GitHub pane synthesize a URL for tabs whose PR/issue hasn't been
     /// synced yet (so we don't gate the WebView on the next 60s sync tick).
     var repoByTabID: [Int64: Repo] = [:]
+    /// The ssh host each remote tab runs on, by name.
+    var hostNameByTabID: [Int64: String] = [:]
     /// Cache: tabID → resolved agent identity (Claude/Codex/Gemini/Copilot/Grok).
     var agentByTabID: [Int64: AgentIdentity] = [:]
     /// Number of review-requested PRs not yet shadowed by a tab. Drives the
@@ -66,6 +68,17 @@ final class TabsModel {
             pendingReviewCount = try fetchPendingReviewCount()
             pendingAssignedCount = try fetchPendingAssignedCount()
             agentByTabID = try resolveAgentIdentities()
+            let hostNames = try Dictionary(
+                HostStore(database: database).list().compactMap { host in host.id.map { ($0, host.name) } },
+                uniquingKeysWith: { first, _ in first }
+            )
+            hostNameByTabID = Dictionary(
+                tabs
+                    .compactMap { tab in tab.id.flatMap { id in
+                        tab.hostID.flatMap { hostNames[$0] }.map { (id, $0) }
+                    } },
+                uniquingKeysWith: { first, _ in first }
+            )
             // Drop selection if the row vanished.
             if let selected = selectedID, !tabs.contains(where: { $0.id == selected }) {
                 selectedID = tabs.first?.id
@@ -199,7 +212,7 @@ final class TabsModel {
         let prTask = tab.id.flatMap { prTasksByTabID[$0] }
         return TabRowViewModel(
             tab: tab, task: task, prTask: prTask,
-            repoName: repoName(for: tab), grouped: grouped
+            repoName: repoName(for: tab), grouped: grouped, hostName: tab.id.flatMap { hostNameByTabID[$0] }
         )
     }
 
@@ -211,7 +224,7 @@ final class TabsModel {
         let live = tab.id.flatMap { status.status(forTabID: $0) }
         return TabRowViewModel(
             tab: tab, task: task, prTask: prTask, liveStatus: live,
-            repoName: repoName(for: tab), grouped: grouped
+            repoName: repoName(for: tab), grouped: grouped, hostName: tab.id.flatMap { hostNameByTabID[$0] }
         )
     }
 
