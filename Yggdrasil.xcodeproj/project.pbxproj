@@ -54,6 +54,7 @@
 		261A4E67952D92CEB25FDA6C /* YggdrasilLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 862CFF5B72023650A938BD9B /* YggdrasilLogger.swift */; };
 		262E5BC5016830444B02E304 /* YggdrasilTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC15657DEAE85320ECEE3F22 /* YggdrasilTask.swift */; };
 		27463D437F8C9A2CA8467894 /* TabStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 098B40BE8CE9BD06790CD888 /* TabStatus.swift */; };
+		27AFA2B42E3C333B1171D400 /* TabActions+PR.swift in Sources */ = {isa = PBXBuildFile; fileRef = F102CA568217B13E6CEE8065 /* TabActions+PR.swift */; };
 		2985E8F34154CD0C30C6036D /* IssueDetailsPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CFA54FB47300C73485DBCAD /* IssueDetailsPicker.swift */; };
 		2A3D1715B6605CFB5B046D45 /* TerminalInputClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D60F3201DA8337A58003B3 /* TerminalInputClock.swift */; };
 		2A801845752048849CCE03A6 /* AppActionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE40FEBFA15593621C97F6F5 /* AppActionsTests.swift */; };
@@ -535,6 +536,7 @@
 		EB928EFBED62237C3233A2FA /* BackoffRetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffRetryTests.swift; sourceTree = "<group>"; };
 		EEEDDC0EA22C512E4F6C4D4E /* IntervalSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntervalSettingsTests.swift; sourceTree = "<group>"; };
 		EF224817FACE506642F5FA5C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F102CA568217B13E6CEE8065 /* TabActions+PR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TabActions+PR.swift"; sourceTree = "<group>"; };
 		F12E2487B6DEC8E66C33D0B3 /* index.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = index.css; sourceTree = "<group>"; };
 		F255851443755D5A45358E17 /* TabRowViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabRowViewModel.swift; sourceTree = "<group>"; };
 		F37F00A6891A62C98172B221 /* HostRepoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRepoStore.swift; sourceTree = "<group>"; };
@@ -961,6 +963,7 @@
 				12091F8B387DDE4BC57C74B9 /* AppActions.swift */,
 				4F072759D00141F80466D684 /* TabActions.swift */,
 				AA6DB840B4FEF660B6E83F3C /* TabActions+Agent.swift */,
+				F102CA568217B13E6CEE8065 /* TabActions+PR.swift */,
 				9A2AECAA8C8FEB6EEAA69B1C /* TaskQueries.swift */,
 			);
 			path = Actions;
@@ -1529,6 +1532,7 @@
 				7488BB4471858CAE7341486B /* Subprocess.swift in Sources */,
 				4622D3A2BE656132E3203B08 /* SyncScheduler.swift in Sources */,
 				0FE3242FD57BCD517B6789C8 /* TabActions+Agent.swift in Sources */,
+				27AFA2B42E3C333B1171D400 /* TabActions+PR.swift in Sources */,
 				F96DB36FC5B00B63E2B49345 /* TabActions.swift in Sources */,
 				33FFAFAF2539944B072CD799 /* TabCommands.swift in Sources */,
 				2A8CA083BABEF333046B9E19 /* TabMigrator.swift in Sources */,
