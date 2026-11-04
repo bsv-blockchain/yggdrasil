@@ -111,6 +111,48 @@ struct AgentSessionProbe {
         return (sample, Cache(path: file.path, modified: file.modified, size: file.size, sample: sample))
     }
 
+    /// `probe` for a tab on an ssh host, whose transcript lives there. Same
+    /// cache contract; the host compares the file and skips the body when it
+    /// hasn't changed. A failed fetch keeps the previous state rather than
+    /// blanking it — one dropped connection shouldn't clear "awaiting input".
+    func probeRemote(
+        worktreePath: String,
+        agent: AgentIdentity,
+        previous: Cache?,
+        source: RemoteTranscriptSource
+    ) async -> (sample: AgentActivitySample?, cache: Cache?) {
+        guard agent != .codex else { return (nil, nil) }
+        let directory = AgentSessionLocator.encode(cwd: worktreePath)
+        let unchangedFrom = previous.map { TranscriptFile(path: $0.path, modified: $0.modified, size: $0.size) }
+        do {
+            guard let reply = try await source.transcript(
+                projectDirectory: directory, maxBytes: Self.initialTailBytes, unchangedFrom: unchangedFrom
+            ) else {
+                return (nil, nil)
+            }
+            if let previous, reply.file == unchangedFrom {
+                return (previous.sample, previous)
+            }
+            // The host sends whole lines only, so the chunk never starts with
+            // a fragment; whether a bigger window could help is the file size.
+            var sample = AgentTranscriptParser.latestActivity(
+                inTail: reply.tail, agent: agent, chunkStartsAtFileStart: true
+            )
+            if sample == nil, reply.file.size > UInt64(Self.initialTailBytes),
+               let wider = try await source.transcript(
+                   projectDirectory: directory, maxBytes: Self.maxTailBytes, unchangedFrom: nil
+               ) {
+                sample = AgentTranscriptParser.latestActivity(
+                    inTail: wider.tail, agent: agent, chunkStartsAtFileStart: true
+                )
+            }
+            let file = reply.file
+            return (sample, Cache(path: file.path, modified: file.modified, size: file.size, sample: sample))
+        } catch {
+            return (previous?.sample, previous)
+        }
+    }
+
     private func read(file: TranscriptFile, agent: AgentIdentity) -> AgentActivitySample? {
         for limit in [Self.initialTailBytes, Self.maxTailBytes] {
             guard let (data, startsAtFileStart) = try? fileSystem.readTail(path: file.path, maxBytes: limit) else {
