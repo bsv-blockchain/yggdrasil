@@ -306,10 +306,11 @@ enum SidebarActions {
         services.tabs.reload()
     }
 
-    /// "Link PR…" — turn an ad-hoc tab into a PR tab. Resolves the owning
-    /// repo, auto-detects the PR matching this tab's branch, prompts for a
-    /// number (pre-filled), then imports + links. MainActor because it
-    /// drives an NSAlert.
+    /// "Link PR…" — turn an ad-hoc tab into a PR tab. Resolves the repo the
+    /// tab's PRs live in (the repo's configured PR repo, else the repo
+    /// itself), auto-detects the PR matching this tab's branch there, prompts
+    /// for a number / URL / `owner/repo#N` (pre-filled), then imports + links.
+    /// MainActor because it drives an NSAlert.
     @MainActor
     static func linkPR(tab: YggdrasilTab, services: AppServices) {
         guard let tabID = tab.id else { return }
@@ -318,27 +319,41 @@ enum SidebarActions {
                         text: "This tab isn't inside a tracked repository.")
             return
         }
-        let owner = repo.owner
-        let name = repo.name
 
         Task { @MainActor in
+            let repos: [Repo]
+            do {
+                repos = try await services.database.queue.read { db in try Repo.fetchAll(db) }
+            } catch {
+                presentInfo(title: "Can't link a PR", text: String(describing: error))
+                return
+            }
+            let prRepo = defaultPRRepo(
+                taskRepoID: services.tabs.tasksByTabID[tabID]?.repoID, pathRepo: repo, repos: repos
+            )
+
             // Auto-detect: best-effort, ignore errors (just means no prefill).
             let suggested = try? await services.syncService.linkablePRNumber(
-                forBranch: tab.branchName, owner: owner, name: name
+                forBranch: tab.branchName, owner: prRepo.owner, name: prRepo.name
             )
             let prefill = suggested.map(String.init) ?? ""
 
-            guard let entered = promptForPRNumber(prefill: prefill), !entered.isEmpty else { return }
-            let interpreted = NewTabSheet.interpretBranchInput(entered).branch
-            guard let number = NewTabSheet.parsePRNumber(interpreted) else {
-                presentInfo(title: "Enter a PR number",
-                            text: "Couldn't read a PR number from “\(entered)”.")
+            guard let entered = promptForPRNumber(prefill: prefill, defaultRepo: prRepo.fullName),
+                  !entered.isEmpty else { return }
+            guard let target = parseLinkPRInput(entered, defaultOwner: prRepo.owner, defaultName: prRepo.name) else {
+                presentInfo(title: "Enter a pull request",
+                            text: "Couldn't read a PR from “\(entered)”. Use a PR number, a PR URL, or owner/repo#123.")
+                return
+            }
+            guard let targetRepo = trackedRepo(for: target, in: repos) else {
+                presentInfo(title: "Couldn't link \(target.display)",
+                            text: "\(target.owner)/\(target.name) isn't tracked. Add it in Preferences → Repos.")
                 return
             }
 
             do {
                 let taskID = try await services.syncService.importPR(
-                    owner: owner, name: name, number: number
+                    owner: targetRepo.owner, name: targetRepo.name, number: target.number
                 )
                 if services.tabs.tasksByTabID[tabID]?.type == .issue {
                     // Issue tab: keep the issue as primary, attach the PR
@@ -351,7 +366,7 @@ enum SidebarActions {
                 services.tabs.reload()
                 services.triggerSyncNow()
             } catch {
-                presentInfo(title: "Couldn't link PR #\(number)",
+                presentInfo(title: "Couldn't link \(target.display)",
                             text: String(describing: error))
             }
         }
@@ -359,15 +374,15 @@ enum SidebarActions {
 
     /// NSAlert with a text field. Returns the trimmed entry, or nil on cancel.
     @MainActor
-    private static func promptForPRNumber(prefill: String) -> String? {
+    private static func promptForPRNumber(prefill: String, defaultRepo: String) -> String? {
         let alert = NSAlert()
         alert.messageText = "Link a Pull Request"
-        alert.informativeText = "Enter the PR number to link to this tab."
+        alert.informativeText = "Enter a PR number in \(defaultRepo), a PR URL, or owner/repo#123."
         alert.addButton(withTitle: "Link")
         alert.addButton(withTitle: "Cancel")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
         field.stringValue = prefill
-        field.placeholderString = "e.g. 828"
+        field.placeholderString = "e.g. 828 or owner/repo#828"
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         let response = alert.runModal()

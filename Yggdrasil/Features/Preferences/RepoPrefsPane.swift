@@ -102,6 +102,23 @@ struct RepoPrefsPane: View {
                 Text("Local tabs work in worktrees under this clone.")
                     .foregroundStyle(.secondary)
             }
+
+            Section {
+                Picker("Live in", selection: Binding(
+                    get: { repo.prRepoID },
+                    set: { updatePRRepo($0, for: repo) }
+                )) {
+                    Text("This repository").tag(Int64?.none)
+                    ForEach(repos.filter { $0.id != repo.id }, id: \.id) { other in
+                        Text(other.fullName).tag(other.id)
+                    }
+                }
+            } header: {
+                Text("Pull Requests")
+            } footer: {
+                Text("Link PR… looks up a bare PR number in this repository.")
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .id(repo.id)
@@ -220,6 +237,20 @@ struct RepoPrefsPane: View {
             reload()
         } catch {
             NSAlert.show("Couldn't save the location", message: String(describing: error))
+        }
+    }
+
+    private func updatePRRepo(_ prRepoID: Int64?, for repo: Repo) {
+        do {
+            try services.database.queue.write { db in
+                try db.execute(
+                    sql: "UPDATE repo SET pr_repo_id = ? WHERE id = ?",
+                    arguments: [prRepoID, repo.id ?? 0]
+                )
+            }
+            reload()
+        } catch {
+            NSAlert.show("Couldn't save the pull request repository", message: String(describing: error))
         }
     }
 
