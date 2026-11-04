@@ -221,16 +221,12 @@ struct RepoPrefsPane: View {
     }
 
     private func updatePRRepo(_ prRepoID: Int64?, for repo: Repo) {
+        guard let id = repo.id else { return }
         do {
-            try services.database.queue.write { db in
-                try db.execute(
-                    sql: "UPDATE repo SET pr_repo_id = ? WHERE id = ?",
-                    arguments: [prRepoID, repo.id ?? 0]
-                )
-            }
+            try RepoActions.setPRRepo(id: id, prRepoID: prRepoID, services: services)
             reload()
         } catch {
-            NSAlert.show("Couldn't save the pull request repository", message: String(describing: error))
+            NSAlert.show("Couldn't save the pull request repository", message: error.actionMessage)
         }
     }
 
