@@ -196,11 +196,7 @@ struct HostPrefsPane: View {
 
     private func addHost() {
         do {
-            let host = try services.hostStore.add(
-                name: newName.trimmingCharacters(in: .whitespaces),
-                sshTarget: newTarget.trimmingCharacters(in: .whitespaces),
-                reposRoot: newRoot.trimmingCharacters(in: .whitespaces)
-            )
+            let host = try HostActions.add(name: newName, sshTarget: newTarget, reposRoot: newRoot, services: services)
             reload()
             selectedID = host.id
             check(host)
@@ -212,8 +208,7 @@ struct HostPrefsPane: View {
     private func removeSelected() {
         guard let host = selectedHost, let id = host.id else { return }
         do {
-            try services.hostStore.remove(id: id)
-            if services.defaultHostID == id { services.defaultHostID = nil }
+            try HostActions.remove(id: id, services: services)
             selectedID = nil
             reload()
         } catch {
@@ -226,12 +221,7 @@ struct HostPrefsPane: View {
     ) -> Bool {
         guard let id = host.id else { return false }
         do {
-            try services.hostStore.update(
-                id: id,
-                name: name ?? host.name,
-                sshTarget: sshTarget ?? host.sshTarget,
-                reposRoot: reposRoot ?? host.reposRoot
-            )
+            try HostActions.update(id: id, name: name, sshTarget: sshTarget, reposRoot: reposRoot, services: services)
             // The last check was for the old settings.
             checks[id] = nil
             reload()
@@ -244,7 +234,7 @@ struct HostPrefsPane: View {
 
     private func setCheckout(_ host: RemoteHost, repo: Repo, path: String) -> Bool {
         do {
-            try services.hostRepoStore.setCheckoutPath(host: host, repo: repo, path: path)
+            try HostActions.setCheckoutPath(hostID: host.id ?? 0, repoID: repo.id ?? 0, path: path, services: services)
             reloadCheckouts()
             return true
         } catch {
@@ -258,14 +248,14 @@ struct HostPrefsPane: View {
         checks[id] = .checking
         Task { @MainActor in
             do {
-                let report = try await services.remoteControl.preflight(host: host)
+                let report = try await HostActions.check(id: id, services: services)
                 checks[id] = report.isReady
                     ? .ready(helperInstalled: report.helperInstalled)
                     : .missing(report.missingTools)
             } catch let RemoteSessionControl.Failure.ssh(_, stderr) {
                 checks[id] = .failed(stderr.isEmpty ? "Couldn't connect" : stderr)
             } catch {
-                checks[id] = .failed(String(describing: error))
+                checks[id] = .failed(error.actionMessage)
             }
         }
     }
@@ -284,7 +274,7 @@ struct HostPrefsPane: View {
         case let HostRepoStoreError.inUse(path):
             "Tabs still have worktrees under \(path). Remove them first."
         default:
-            String(describing: error)
+            error.actionMessage
         }
     }
 }

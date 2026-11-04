@@ -65,8 +65,16 @@ enum AppearanceSettings {
     }
 
     static var terminalTheme: TerminalTheme {
-        get { UserDefaults.standard.string(forKey: terminalThemeKey).flatMap(TerminalTheme.init) ?? .auto }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: terminalThemeKey) }
+        get { terminalTheme(defaults: .standard) }
+        set { setTerminalTheme(newValue, defaults: .standard) }
+    }
+
+    static func terminalTheme(defaults: UserDefaults) -> TerminalTheme {
+        defaults.string(forKey: terminalThemeKey).flatMap(TerminalTheme.init) ?? .auto
+    }
+
+    static func setTerminalTheme(_ theme: TerminalTheme, defaults: UserDefaults) {
+        defaults.set(theme.rawValue, forKey: terminalThemeKey)
     }
 
     static func persistGroupByRepo(_ value: Bool, services: AppServices) {

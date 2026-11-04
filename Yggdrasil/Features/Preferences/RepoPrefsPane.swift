@@ -155,24 +155,15 @@ struct RepoPrefsPane: View {
     }
 
     private func addRepo() {
-        guard let (owner, name) = Self.parseSlug(newRepoSlug) else { return }
-        Task {
-            let branch = await (try? services.restClient.defaultBranch(owner: owner, name: name)) ?? "main"
+        let slug = newRepoSlug
+        guard Self.parseSlug(slug) != nil else { return }
+        Task { @MainActor in
             do {
-                let repo = try await services.database.queue.write { db in
-                    var repo = Repo(
-                        id: nil, owner: owner, name: name,
-                        defaultBranch: branch, localMainPath: nil, addedAt: Date()
-                    )
-                    try repo.insert(db)
-                    return repo
-                }
-                await MainActor.run {
-                    reload()
-                    selectedID = repo.id
-                }
+                let repo = try await RepoActions.add(slug, services: services)
+                reload()
+                selectedID = repo.id
             } catch {
-                NSAlert.show("Couldn't add \(owner)/\(name)", message: String(describing: error))
+                NSAlert.show("Couldn't add \(slug)", message: error.actionMessage)
             }
         }
     }
@@ -181,11 +172,11 @@ struct RepoPrefsPane: View {
         guard let id = selectedID,
               let repo = repos.first(where: { $0.id == id }) else { return }
         do {
-            try services.database.queue.write { db in try repo.delete(db) }
+            try RepoActions.remove(id: id, services: services)
             selectedID = nil
             reload()
         } catch {
-            NSAlert.show("Couldn't remove \(repo.fullName)", message: String(describing: error))
+            NSAlert.show("Couldn't remove \(repo.fullName)", message: error.actionMessage)
         }
     }
 
@@ -201,56 +192,41 @@ struct RepoPrefsPane: View {
         guard panel.runModal() == .OK, let parentURL = panel.url else { return }
         let targetPath = parentURL.appendingPathComponent(repo.name).path
 
-        if FileManager.default.fileExists(atPath: targetPath) {
-            NSAlert.show("Folder already exists",
-                         message: "\(repo.name) already exists in this location. Choose a different folder or remove it first.")
-            return
-        }
-
         cloning = true
-        Task {
-            defer { Task { @MainActor in cloning = false } }
+        Task { @MainActor in
+            defer { cloning = false }
             do {
-                try await GitHubCloner().clone(owner: repo.owner, name: repo.name, to: targetPath)
-                await MainActor.run { updateLocalPath(targetPath, for: repo) }
+                try await RepoActions.clone(id: repo.id ?? 0, to: targetPath, services: services)
+                reload()
+            } catch let error as ActionError {
+                NSAlert.show("Couldn't clone \(repo.fullName)", message: error.actionMessage)
             } catch {
                 YggdrasilLog.ui
                     .error(
                         "Clone failed for \(repo.fullName, privacy: .public): \(String(describing: error), privacy: .public)"
                     )
-                await MainActor.run {
-                    NSAlert.show("Clone failed",
-                                 message: "Could not clone \(repo.fullName). Check your network connection and that you're signed in with gh, then try again.")
-                }
+                NSAlert.show("Clone failed",
+                             message: "Could not clone \(repo.fullName). Check your network connection and that you're signed in with gh, then try again.")
             }
         }
     }
 
     private func updateLocalPath(_ path: String, for repo: Repo) {
         do {
-            try services.database.queue.write { db in
-                try db.execute(
-                    sql: "UPDATE repo SET local_main_path = ? WHERE id = ?",
-                    arguments: [path, repo.id ?? 0]
-                )
-            }
+            try RepoActions.setLocalPath(id: repo.id ?? 0, path: path, services: services)
             reload()
         } catch {
-            NSAlert.show("Couldn't save the location", message: String(describing: error))
+            NSAlert.show("Couldn't save the location", message: error.actionMessage)
         }
     }
 
     private func updatePRRepo(_ prRepoID: Int64?, for repo: Repo) {
+        guard let id = repo.id else { return }
         do {
-            try services.database.queue.write { db in
-                try db.execute(
-                    sql: "UPDATE repo SET pr_repo_id = ? WHERE id = ?",
-                    arguments: [prRepoID, repo.id ?? 0]
-                )
-            }
+            try RepoActions.setPRRepo(id: id, prRepoID: prRepoID, services: services)
             reload()
         } catch {
-            NSAlert.show("Couldn't save the pull request repository", message: String(describing: error))
+            NSAlert.show("Couldn't save the pull request repository", message: error.actionMessage)
         }
     }
 

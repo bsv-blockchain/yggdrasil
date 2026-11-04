@@ -79,10 +79,10 @@ struct GeneralPrefsPane: View {
         }
         .formStyle(.grouped)
         .frame(width: 520, height: 560)
-        .onChange(of: theme) { _, mode in AppearanceSettings.apply(mode: mode, services: services) }
-        .onChange(of: terminalTheme) { _, mode in AppearanceSettings.terminalTheme = mode }
-        .onChange(of: groupByRepo) { _, value in AppearanceSettings.persistGroupByRepo(value, services: services) }
-        .onChange(of: defaultHostID) { _, id in services.defaultHostID = id }
+        .onChange(of: theme) { _, mode in SettingsActions.setTheme(mode, services: services) }
+        .onChange(of: terminalTheme) { _, mode in SettingsActions.setTerminalTheme(mode) }
+        .onChange(of: groupByRepo) { _, value in SettingsActions.setGroupByRepo(value, services: services) }
+        .onChange(of: defaultHostID) { _, id in try? SettingsActions.setDefaultHost(id: id, services: services) }
         .onChange(of: syncSeconds) { _, _ in applyIntervals() }
         .onChange(of: statusProbeSeconds) { _, _ in applyIntervals() }
         .onAppear {
@@ -109,11 +109,11 @@ struct GeneralPrefsPane: View {
     /// rebuilds the scheduler, which syncs GitHub immediately.
     private func applyIntervals() {
         pendingApply?.cancel()
-        let new = IntervalSettings(syncSeconds: syncSeconds, statusProbeSeconds: statusProbeSeconds)
+        let (sync, status) = (syncSeconds, statusProbeSeconds)
         pendingApply = Task {
             try? await Task.sleep(for: .milliseconds(600))
             guard !Task.isCancelled else { return }
-            await services.applyIntervals(new)
+            try? await SettingsActions.setIntervals(syncSeconds: sync, statusProbeSeconds: status, services: services)
         }
     }
 }

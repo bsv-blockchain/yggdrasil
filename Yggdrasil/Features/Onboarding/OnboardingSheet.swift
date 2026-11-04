@@ -201,30 +201,18 @@ struct OnboardingSheet: View {
     }
 
     private func addRepoAndFinish() {
-        let raw = repoOwnerName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parts = raw.split(separator: "/", maxSplits: 1).map(String.init)
-        guard parts.count == 2 else {
+        let slug = repoOwnerName
+        guard RepoPrefsPane.parseSlug(slug) != nil else {
             NSAlert.show("Bad repo name", message: "Use owner/name.")
             return
         }
-        let owner = parts[0]
-        let name = parts[1]
         let path = localPath.isEmpty ? nil : localPath
-        Task {
-            let branch = await (try? services.restClient.defaultBranch(owner: owner, name: name)) ?? "main"
+        Task { @MainActor in
             do {
-                try await services.database.queue.write { db in
-                    var repo = Repo(
-                        id: nil, owner: owner, name: name,
-                        defaultBranch: branch,
-                        localMainPath: path,
-                        addedAt: Date()
-                    )
-                    try repo.insert(db)
-                }
-                await MainActor.run { step = .done }
+                try await RepoActions.add(slug, localPath: path, services: services)
+                step = .done
             } catch {
-                NSAlert.show("Add repo failed", message: String(describing: error))
+                NSAlert.show("Add repo failed", message: error.actionMessage)
             }
         }
     }

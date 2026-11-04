@@ -13,6 +13,9 @@ extension Error {
 /// alert; other callers get the case.
 enum ActionError: Error, Equatable, LocalizedError {
     case unknownTab(Int64)
+    case unknownRepo(Int64)
+    case unknownAgent(Int64)
+    case unknownHost(Int64)
     /// `owner/name`
     case repoNotCloned(String)
     case notInTrackedRepo
@@ -22,6 +25,9 @@ enum ActionError: Error, Equatable, LocalizedError {
     case noStatusYet
     /// The tab's worktree isn't ready yet, or its setup failed.
     case tabNotReady
+    case cannotRemoveDefaultAgent
+    /// Something other than a git repository is already at this path.
+    case folderExists(String)
     case moveInProgress
     /// The named parameter has a value the action doesn't accept.
     case invalidArgument(String)
@@ -30,6 +36,16 @@ enum ActionError: Error, Equatable, LocalizedError {
         switch self {
         case let .unknownTab(id):
             "There's no tab \(id)."
+        case let .unknownRepo(id):
+            "There's no tracked repository \(id)."
+        case let .unknownAgent(id):
+            "There's no coding agent \(id)."
+        case let .unknownHost(id):
+            "There's no host \(id)."
+        case .cannotRemoveDefaultAgent:
+            "The default agent can't be removed. Make another agent the default first."
+        case let .folderExists(path):
+            "\(path) already exists but isn't a git repository. Remove it or choose another folder."
         case let .repoNotCloned(repo):
             "\(repo) isn't cloned on this Mac. Run it on a host, or set its location in Settings → Repositories."
         case .notInTrackedRepo:
