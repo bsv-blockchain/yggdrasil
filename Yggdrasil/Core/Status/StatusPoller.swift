@@ -176,9 +176,21 @@ actor StatusPoller {
         let github = Self.aggregate(from: row)
         // The agent's transcripts are on the host for a remote tab; reading
         // this Mac's ~/.claude would describe some other session.
-        let (sample, cache) = input.host == nil
-            ? sessionProbe.probe(worktreePath: tab.worktreePath, agent: agent, previous: previousSession)
-            : (nil, nil)
+        let sample: AgentActivitySample?
+        let cache: AgentSessionProbe.Cache?
+        if let host = input.host {
+            let probe = sessionProbe
+            let path = tab.worktreePath
+            let source = SSHTranscriptSource(runner: SSHSubprocessRunner(host: host))
+            // A hung ssh keeps the last state, as a failed fetch does.
+            (sample, cache) = await (try? withDeadline(Self.probeDeadline) {
+                await probe.probeRemote(worktreePath: path, agent: agent, previous: previousSession, source: source)
+            }) ?? (previousSession?.sample, previousSession)
+        } else {
+            (sample, cache) = sessionProbe.probe(
+                worktreePath: tab.worktreePath, agent: agent, previous: previousSession
+            )
+        }
         let claude = ClaudeStateDetector.evaluate(activity: sample, now: Date())
         let signature = AttentionSignature.make(row: row, session: sample)
 

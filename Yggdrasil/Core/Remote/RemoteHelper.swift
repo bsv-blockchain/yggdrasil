@@ -14,7 +14,7 @@ import Foundation
 /// tcsh login shell can't misparse it. The login shell is only asked for the
 /// PATH its rc files set, via `env; exit`, whose output doesn't depend on the shell.
 enum RemoteHelper {
-    static let version = 4
+    static let version = 5
     static let path = "~/.yggdrasil/bin/ygg"
     static let requiredTools = ["claude", "git", "gh", "dtach"]
 
@@ -25,13 +25,14 @@ enum RemoteHelper {
     #   ygg attach <tab> <cwd> [--claude-session <id>] -- [<cmd> [args...]]
     #   ygg kill <tab> | ygg alive <tab> | ygg list
     #   ygg run -- <cmd> [args...]
+    #   ygg transcript <project-dir> <max-bytes> [<mtime> <size> <path>]
     set -eu
     YGG_VERSION=\(version)
     TOOLS="\(requiredTools.joined(separator: " "))"
     STATE="$HOME/.yggdrasil/sessions"
     PATH_CACHE="$HOME/.yggdrasil/login-path"
 
-    usage() { echo "usage: ygg version|check|attach|kill|alive|list|run" >&2; exit 2; }
+    usage() { echo "usage: ygg version|check|attach|kill|alive|list|run|transcript" >&2; exit 2; }
     tab_ok() { case "$1" in ''|*[!0-9]*) usage ;; esac; }
     # Live = dtach still holds the tab's socket and the recorded agent pid
     # runs. dtach removes the socket when the agent exits, so a pid that's
@@ -149,6 +150,28 @@ enum RemoteHelper {
             t=$(basename "$f" .pid)
             if alive "$t"; then echo "$t"; fi
         done ;;
+    transcript)
+        # Newest Claude transcript in ~/.claude/projects/<project-dir>: a
+        # "<mtime> <size> <path>" header, then its last <max-bytes> as whole
+        # lines (the leading fragment dropped, so the reply stays valid UTF-8),
+        # unless the header matches the one the app already has. Polled every
+        # few seconds per tab, so no login shell here.
+        [ $# -ge 3 ] || usage
+        case "$2" in ''|.*|*/*) usage ;; esac
+        case "$3" in ''|*[!0-9]*) usage ;; esac
+        newest=$(ls -t "$HOME/.claude/projects/$2"/*.jsonl 2>/dev/null | head -n 1)
+        # Said explicitly: an empty reply is what the app gets back for one
+        # that isn't valid UTF-8, and that must not read as "no transcript".
+        if [ -z "$newest" ]; then echo none; exit 0; fi
+        # GNU first: on Linux `stat -f` succeeds too, reporting the filesystem.
+        meta=$(stat -c '%Y %s' "$newest" 2>/dev/null || stat -f '%m %z' "$newest")
+        printf '%s %s\\n' "$meta" "$newest"
+        [ "${4:-} ${5:-} ${6:-}" = "$meta $newest" ] && exit 0
+        if [ "${meta#* }" -le "$3" ]; then
+            cat "$newest"
+        else
+            tail -c "$3" "$newest" | tail -n +2
+        fi ;;
     run)
         shift
         if [ "${1:-}" = -- ]; then shift; fi
