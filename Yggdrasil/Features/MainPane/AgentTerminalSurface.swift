@@ -24,6 +24,8 @@ struct AgentTerminalSurface: NSViewRepresentable {
     let sessions: SessionsModel?
     /// ssh host to run on; nil runs the agent on this Mac.
     let host: RemoteHost?
+    /// Starts a new Claude conversation; see `OpenSession.initialPrompt`.
+    let initialPrompt: String?
     /// True when this surface belongs to the currently-selected tab.
     /// Drives auto-focus of the terminal on activation so a tab switch
     /// goes straight from sidebar click → typing into the agent.
@@ -48,6 +50,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
         sessionStore: SessionStateStore,
         sessions: SessionsModel? = nil,
         host: RemoteHost? = nil,
+        initialPrompt: String? = nil,
         isActive: Bool = false
     ) {
         self.tabID = tabID
@@ -58,13 +61,14 @@ struct AgentTerminalSurface: NSViewRepresentable {
         self.sessionStore = sessionStore
         self.sessions = sessions
         self.host = host
+        self.initialPrompt = initialPrompt
         self.isActive = isActive
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             tabID: tabID, cwd: cwd, command: command, args: args, env: env,
-            sessionStore: sessionStore, sessions: sessions, host: host
+            sessionStore: sessionStore, sessions: sessions, host: host, initialPrompt: initialPrompt
         )
     }
 
@@ -146,7 +150,8 @@ struct AgentTerminalSurface: NSViewRepresentable {
         context.coordinator.setActive(isActive, on: view)
     }
 
-    static func dismantleNSView(_: LocalProcessTerminalView, coordinator: Coordinator) {
+    static func dismantleNSView(_ view: LocalProcessTerminalView, coordinator: Coordinator) {
+        coordinator.sessions?.unregisterTerminal(view, tabID: coordinator.tabID)
         coordinator.terminate()
     }
 
@@ -160,7 +165,8 @@ struct AgentTerminalSurface: NSViewRepresentable {
         let env: [String: String]
         let sessionStore: SessionStateStore
         let host: RemoteHost?
-        private weak var sessions: SessionsModel?
+        let initialPrompt: String?
+        private(set) weak var sessions: SessionsModel?
         private weak var attachedView: LocalProcessTerminalView?
         private let lock = NSLock()
         private var ring = OutputRingBuffer.makeAgentOutputRing()
@@ -176,7 +182,8 @@ struct AgentTerminalSurface: NSViewRepresentable {
         init(
             tabID: Int64, cwd: String, command: String, args: [String],
             env: [String: String],
-            sessionStore: SessionStateStore, sessions: SessionsModel?, host: RemoteHost?
+            sessionStore: SessionStateStore, sessions: SessionsModel?, host: RemoteHost?,
+            initialPrompt: String? = nil
         ) {
             self.tabID = tabID
             self.cwd = cwd
@@ -186,6 +193,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
             self.sessionStore = sessionStore
             self.sessions = sessions
             self.host = host
+            self.initialPrompt = initialPrompt
             super.init()
         }
 
@@ -216,6 +224,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
 
         func attach(view: LocalProcessTerminalView, scheme: ColorScheme) {
             attachedView = view
+            sessions?.registerTerminal(view, tabID: tabID)
             initialScheme = scheme
             startIfNeeded(in: view)
         }
@@ -237,14 +246,16 @@ struct AgentTerminalSurface: NSViewRepresentable {
             } catch {
                 stored = .unknown
             }
+            let newSessionID = UUID().uuidString.lowercased()
             let plan = AgentTerminalSurface.resolveResume(
                 command: command, args: args, cwd: cwd,
-                stored: stored, newSessionID: UUID().uuidString.lowercased()
+                stored: stored, newSessionID: newSessionID
             )
-            let resolvedArgs = plan.args
+            // The prompt isn't stored: a later spawn resumes, without it.
+            let prompt = AgentTerminalSurface.takesPrompt(plan, newSessionID: newSessionID) ? initialPrompt : nil
             do {
                 _ = try sessionStore.start(
-                    tabID: tabID, cwd: cwd, command: command, args: resolvedArgs,
+                    tabID: tabID, cwd: cwd, command: command, args: plan.args,
                     claudeSessionID: plan.sessionID
                 )
             } catch {
@@ -259,17 +270,17 @@ struct AgentTerminalSurface: NSViewRepresentable {
             // shell out of the agent's signal path while still sourcing the
             // user's rc files.
             let userShell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-            let quotedCmd = CodingAgentRunner.shellQuote(command)
-            let quotedArgs = resolvedArgs.map(CodingAgentRunner.shellQuote).joined(separator: " ")
-            let colorfgbg = initialScheme == .light ? "0;15" : "15;0"
-            let payload = "export COLORFGBG='\(colorfgbg)'; exec \(quotedCmd) \(quotedArgs)"
+            let payload = AgentTerminalSurface.payload(
+                colorfgbg: initialScheme == .light ? "0;15" : "15;0",
+                command: command, args: plan.args, withPrompt: prompt != nil
+            )
             // Profile environment goes through the PTY's envp, not the `-c`
             // payload: shell argv is readable by any local process via `ps`,
             // and these values are typically account tokens. nil keeps
             // SwiftTerm's own defaults for profiles with no overrides.
             let environment = AgentEnvironment.merged(
                 defaults: Terminal.getEnvironmentVariables(termName: "xterm-256color"),
-                overrides: env
+                overrides: prompt.map { env.merging([AgentTerminalSurface.promptVariable: $0]) { $1 } } ?? env
             )
             view.startProcess(
                 executable: userShell,
@@ -376,7 +387,9 @@ extension AgentTerminalSurface.Coordinator {
         }
         let spawn = RemoteSpawn.make(
             host: host,
-            session: OpenSession(id: tabID, displayName: "", cwd: cwd, command: command, args: args),
+            session: OpenSession(
+                id: tabID, displayName: "", cwd: cwd, command: command, args: args, initialPrompt: initialPrompt
+            ),
             storedSessionID: storedID,
             newSessionID: newID,
             colorfgbg: initialScheme == .light ? "0;15" : "15;0"

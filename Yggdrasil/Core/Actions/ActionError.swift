@@ -29,6 +29,14 @@ enum ActionError: Error, Equatable, LocalizedError {
     /// Something other than a git repository is already at this path.
     case folderExists(String)
     case moveInProgress
+    /// The tab's agent isn't running, or its terminal isn't mounted.
+    case notRunning
+    /// The tab is open with its agent pane closed; starting the agent there
+    /// would undo the user's layout.
+    case agentPaneHidden
+    case noMainWindow
+    /// Only a Claude profile starts with a prompt.
+    case promptNeedsClaude
     /// The named parameter has a value the action doesn't accept.
     case invalidArgument(String)
 
@@ -58,6 +66,14 @@ enum ActionError: Error, Equatable, LocalizedError {
             "This tab's worktree isn't ready."
         case .moveInProgress:
             "This tab is already moving."
+        case .notRunning:
+            "This tab's agent isn't running. Start it first."
+        case .agentPaneHidden:
+            "This tab's agent pane is closed. Open it to start the agent."
+        case .noMainWindow:
+            "Yggdrasil's main window is closed."
+        case .promptNeedsClaude:
+            "Only a Claude agent can start with a prompt."
         case let .invalidArgument(name):
             "Invalid \(name)."
         }

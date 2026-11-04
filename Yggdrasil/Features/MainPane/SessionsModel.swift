@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import Observation
+import SwiftTerm
 
 /// One open session in Phase 3's debug UI. Phase 4+ will replace this with proper
 /// `YggdrasilTab` rows driven by the sidebar.
@@ -15,11 +16,14 @@ struct OpenSession: Identifiable, Hashable {
     let env: [String: String]
     /// ssh host the agent runs on; nil for a local agent.
     let host: RemoteHost?
+    /// What a brand-new Claude conversation starts with. Never sent to one
+    /// that resumes.
+    let initialPrompt: String?
 
     init(
         id: Int64, displayName: String, cwd: String,
         command: String, args: [String], env: [String: String] = [:],
-        host: RemoteHost? = nil
+        host: RemoteHost? = nil, initialPrompt: String? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -28,6 +32,7 @@ struct OpenSession: Identifiable, Hashable {
         self.args = args
         self.env = env
         self.host = host
+        self.initialPrompt = initialPrompt
     }
 }
 
@@ -51,6 +56,56 @@ final class SessionsModel {
     /// their agent are off until the move ends.
     private(set) var movingTabs: Set<Int64> = []
 
+    /// Each mounted agent terminal, for the control API to type into and
+    /// read. Weak: SwiftUI owns the views.
+    @ObservationIgnored private var terminals: [Int64: WeakTerminal] = [:]
+
+    private final class WeakTerminal {
+        weak var view: TerminalView?
+        init(_ view: TerminalView) {
+            self.view = view
+        }
+    }
+
+    func registerTerminal(_ view: TerminalView, tabID: Int64) {
+        terminals[tabID] = WeakTerminal(view)
+    }
+
+    /// Only drops the entry if it's still `view`: a restart mounts the new
+    /// terminal before SwiftUI dismantles the old one.
+    func unregisterTerminal(_ view: TerminalView, tabID: Int64) {
+        if terminals[tabID]?.view === view { terminals[tabID] = nil }
+    }
+
+    func terminal(for tabID: Int64) -> TerminalView? {
+        terminals[tabID]?.view
+    }
+
+    /// Whether the main window (and with it the tab panes) is on screen.
+    /// A tab's agent only runs inside its pane.
+    var hasMainWindow = false
+
+    /// Opened tabs whose agent `tab.terminate` stopped. Until it's started
+    /// again the pane shows no agent, so `tab.start` restarts it; a tab
+    /// that has no session yet because its pane hasn't appeared isn't one.
+    private(set) var stoppedTabs: Set<Int64> = []
+
+    func markStopped(tabID: Int64) {
+        stoppedTabs.insert(tabID)
+    }
+
+    /// Prompts for tabs whose agent hasn't started yet, taken by its first
+    /// spawn. Memory only: a quit before then drops it.
+    private var pendingPrompts: [Int64: String] = [:]
+
+    func setPrompt(_ prompt: String, tabID: Int64) {
+        pendingPrompts[tabID] = prompt
+    }
+
+    func takePrompt(tabID: Int64) -> String? {
+        pendingPrompts.removeValue(forKey: tabID)
+    }
+
     /// `AgentTerminalSurface.Coordinator` registers its PID here so app-quit
     /// can iterate and SIGTERM every live agent. YggdrasilTab id → PID.
     private var livePIDs: [Int64: pid_t] = [:]
@@ -60,6 +115,7 @@ final class SessionsModel {
         // after an agent exit) swaps the row in place rather than creating a
         // duplicate, so `restartAgent` doesn't depend on `terminate` having
         // already removed the old row.
+        stoppedTabs.remove(session.id)
         if let idx = sessions.firstIndex(where: { $0.id == session.id }) {
             sessions[idx] = session
         } else {

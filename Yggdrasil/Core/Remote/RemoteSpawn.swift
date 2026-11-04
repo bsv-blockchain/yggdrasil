@@ -27,6 +27,8 @@ struct RemoteSpawn: Equatable {
         ]
         if let sessionID {
             parts += ["--claude-session", quote(sessionID)]
+            // The helper adds it only if the conversation is new there.
+            if let prompt = session.initialPrompt { parts += ["--prompt", quote(prompt)] }
         }
         // An empty command asks the helper for the user's login shell.
         let argv = session.command.isEmpty ? [] : [session.command] + session.args

@@ -49,6 +49,8 @@ enum TabActions {
         var host: RemoteHost?
         var agent: CodingAgent
         var select = true
+        /// What a new Claude conversation starts with.
+        var prompt: String?
     }
 
     /// The New Session sheet's Start. The worktree is built in the background,
@@ -56,6 +58,7 @@ enum TabActions {
     /// cloned already; on a host it's cloned with the worktree.
     static func open(_ request: OpenRequest, services: AppServices) async throws -> Int64 {
         let repo = request.repo
+        try checkPrompt(request.prompt, agent: request.agent)
         let plan = plan(branchInput: request.branchInput, agentName: request.agent.name, baseBranch: request.baseBranch)
         guard request.host != nil || repo.localMainPath != nil,
               let path = try services.plannedWorktreePath(repo: repo, branch: plan.branch, host: request.host)
@@ -66,8 +69,16 @@ enum TabActions {
         }
         return try await insertAndPrepare(
             branch: plan.branch, path: path, taskID: taskID, baseRef: plan.baseRef,
-            repo: repo, host: request.host, agent: request.agent, select: request.select, services: services
+            repo: repo, host: request.host, agent: request.agent, select: request.select,
+            prompt: request.prompt, services: services
         )
+    }
+
+    private static func checkPrompt(_ prompt: String?, agent: CodingAgent) throws {
+        guard prompt != nil else { return }
+        guard AgentTerminalSurface.pinsClaudeSession(command: agent.command, args: agent.args) else {
+            throw ActionError.promptNeedsClaude
+        }
     }
 
     // The open paths take what the New Session sheet and pickers collect.
@@ -75,8 +86,9 @@ enum TabActions {
     /// Opens a row of Assigned Tasks or Review Requests, linked to its task.
     static func openTask(
         _ task: YggdrasilTask, repo: Repo, mode: TaskPickerMode, host: RemoteHost?, agent: CodingAgent,
-        select: Bool = true, services: AppServices
+        select: Bool = true, prompt: String? = nil, services: AppServices
     ) async throws -> Int64 {
+        try checkPrompt(prompt, agent: agent)
         let branch = mode.branchName(for: task, agentName: agent.name)
         guard host != nil || repo.localMainPath != nil,
               let path = try services.plannedWorktreePath(repo: repo, branch: branch, host: host)
@@ -90,7 +102,7 @@ enum TabActions {
         return try await insertAndPrepare(
             branch: branch, path: path, taskID: taskID,
             baseRef: task.type == .pullRequest ? "refs/pull/\(task.number)/head" : nil,
-            repo: repo, host: host, agent: agent, select: select, services: services
+            repo: repo, host: host, agent: agent, select: select, prompt: prompt, services: services
         )
     }
 
@@ -138,7 +150,8 @@ enum TabActions {
 
     private static func insertAndPrepare(
         branch: String, path: String, taskID: Int64?, baseRef: String?,
-        repo: Repo, host: RemoteHost?, agent: CodingAgent, select: Bool, services: AppServices
+        repo: Repo, host: RemoteHost?, agent: CodingAgent, select: Bool, prompt: String? = nil,
+        services: AppServices
     ) async throws -> Int64 {
         let tab = try services.tabStore.insert(
             branchName: branch, worktreePath: path, agentID: agent.id, taskID: taskID,
@@ -146,6 +159,7 @@ enum TabActions {
         )
         services.tabs.reload()
         guard let tabID = tab.id else { throw ActionError.unknownTab(0) }
+        if let prompt { services.sessions.setPrompt(prompt, tabID: tabID) }
         if select { services.tabs.select(tabID) }
         await services.worktreePreparer.enqueue(tabID: tabID, repo: repo, host: host, branch: branch, baseRef: baseRef)
         services.triggerSyncNow()

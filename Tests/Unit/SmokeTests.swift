@@ -24,7 +24,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(YggdrasilLog.subsystem, "com.bsvassociation.yggdrasil")
         XCTAssertEqual(
             YggdrasilLog.allCategories.sorted(),
-            ["auth", "db", "git", "pty", "sync", "ui"]
+            ["auth", "control", "db", "git", "pty", "sync", "ui"]
         )
     }
 
