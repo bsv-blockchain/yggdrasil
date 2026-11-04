@@ -19,6 +19,11 @@ actor StatusPoller {
     private let probe: GitStateProbe
     private let sessionProbe: AgentSessionProbe
     private let model: TabStatusModel
+    /// Each local tab's unfinished subagents; nil where nothing shows them.
+    private let subagents: SubagentsModel?
+    private let subagentProbe: SubagentProbe
+    /// The tabs whose agent runs right now; read on the main actor each tick.
+    private let runningAgents: @MainActor () -> Set<Int64>
     private let tabsModel: TabsModel
     private var task: Task<Void, Never>?
     /// A git probe that never returns would otherwise wedge the whole poller:
@@ -38,11 +43,17 @@ actor StatusPoller {
         tabsModel: TabsModel,
         model: TabStatusModel,
         probe: GitStateProbe = GitStateProbe(git: GitRunner(runner: ProcessRunner(terminatesOnCancel: true))),
-        sessionProbe: AgentSessionProbe = AgentSessionProbe()
+        sessionProbe: AgentSessionProbe = AgentSessionProbe(),
+        subagents: SubagentsModel? = nil,
+        subagentProbe: SubagentProbe = SubagentProbe(),
+        runningAgents: @escaping @MainActor () -> Set<Int64> = { [] }
     ) {
         self.database = database
         self.tabsModel = tabsModel
         self.model = model
+        self.subagents = subagents
+        self.subagentProbe = subagentProbe
+        self.runningAgents = runningAgents
         self.probe = probe
         self.sessionProbe = sessionProbe
     }
@@ -74,6 +85,10 @@ actor StatusPoller {
         let lastGitState: GitState?
         /// The tab's ssh host; nil for a local tab.
         let host: RemoteHost?
+        /// When the tab's agent last started; nil when it hasn't since launch.
+        let agentStartedAt: Date?
+        /// The tab's agent runs: only then does it have running subagents.
+        let agentRunning: Bool
     }
 
     private struct Probed {
@@ -82,6 +97,7 @@ actor StatusPoller {
         let sessionCache: AgentSessionProbe.Cache?
         /// Carried forward so the next tick can reuse it if git fails then.
         let gitState: GitState?
+        let subagents: [SubagentInfo]
     }
 
     private func tick() async {
@@ -90,6 +106,12 @@ actor StatusPoller {
         }
         let hosts = Dictionary(
             ((try? HostStore(database: database).list()) ?? []).compactMap { host in host.id.map { ($0, host) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let running = await MainActor.run { runningAgents() }
+        let agentStarts: [Int64: Date] = await Dictionary(
+            ((try? database.queue.read { db in try SessionState.fetchAll(db) }) ?? [])
+                .map { ($0.tabID, $0.ptyStartedAt) },
             uniquingKeysWith: { first, _ in first }
         )
         var freshCaches: [Int64: AgentSessionProbe.Cache] = [:]
@@ -118,7 +140,8 @@ actor StatusPoller {
                     let lastGit = lastGitStates[tabID]
                     let input = ProbeInput(
                         tab: tab, tabID: tabID, agent: agent,
-                        previousSession: previous, lastGitState: lastGit, host: host
+                        previousSession: previous, lastGitState: lastGit, host: host,
+                        agentStartedAt: agentStarts[tabID], agentRunning: running.contains(tabID)
                     )
                     group.addTask { [self] in await probeTab(input) }
                 }
@@ -134,9 +157,14 @@ actor StatusPoller {
             for result in probed {
                 freshCaches[result.tabID] = result.sessionCache
                 freshGitStates[result.tabID] = result.gitState
-                await MainActor.run { model.set(result.status, forTabID: result.tabID) }
+                await MainActor.run {
+                    model.set(result.status, forTabID: result.tabID)
+                    subagents?.set(result.subagents, forTabID: result.tabID)
+                }
             }
         }
+        let liveTabIDs = Set(snapshot.tabs.compactMap(\.id))
+        await MainActor.run { subagents?.retain(tabIDs: liveTabIDs) }
         sessionCaches = freshCaches
         lastGitStates = freshGitStates
     }
@@ -171,7 +199,12 @@ actor StatusPoller {
                 attentionSignature: signature
             ),
             sessionCache: cache,
-            gitState: gitState
+            gitState: gitState,
+            // Only a running claude on this Mac has subagents to read here;
+            // every other tab publishes none, so a moved or stopped tab loses its rows.
+            subagents: input.host == nil && input.agent == .claude && input.agentRunning
+                ? subagentProbe.unfinished(worktreePath: input.tab.worktreePath, since: input.agentStartedAt)
+                : []
         )
     }
 
