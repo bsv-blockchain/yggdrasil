@@ -221,10 +221,11 @@ enum SidebarActions {
         }
     }
 
-    /// "Link PR…" — turn an ad-hoc tab into a PR tab. Resolves the owning
-    /// repo, auto-detects the PR matching this tab's branch, prompts for a
-    /// number (pre-filled), then imports + links. MainActor because it
-    /// drives an NSAlert.
+    /// "Link PR…" — turn an ad-hoc tab into a PR tab. Resolves the repo the
+    /// tab's PRs live in (the repo's configured PR repo, else the repo
+    /// itself), auto-detects the PR matching this tab's branch there, prompts
+    /// for a number / URL / `owner/repo#N` (pre-filled), then imports + links.
+    /// MainActor because it drives an NSAlert.
     @MainActor
     static func linkPR(tab: YggdrasilTab, services: AppServices) {
         guard let tabID = tab.id else { return }
@@ -234,36 +235,54 @@ enum SidebarActions {
             return
         }
         Task { @MainActor in
+            let prRepo: Repo
+            do {
+                prRepo = try TabActions.defaultPRRepo(tabID: tabID, services: services)
+            } catch {
+                presentInfo(title: "Can't link a PR", text: error.actionMessage)
+                return
+            }
             // Auto-detect: best-effort (no match just means no prefill).
             let suggested = await TabActions.suggestedPRNumber(tabID: tabID, services: services)
-            guard let entered = promptForPRNumber(prefill: suggested.map(String.init) ?? ""),
-                  !entered.isEmpty else { return }
-            let interpreted = NewTabSheet.interpretBranchInput(entered).branch
-            guard let number = NewTabSheet.parsePRNumber(interpreted) else {
-                presentInfo(title: "Enter a PR number",
-                            text: "Couldn't read a PR number from “\(entered)”.")
+            guard let entered = promptForPRNumber(
+                prefill: suggested.map(String.init) ?? "", defaultRepo: prRepo.fullName
+            ), !entered.isEmpty else { return }
+            let resolved: (target: LinkPRTarget, repo: Repo)
+            do {
+                resolved = try TabActions.resolvePR(entered, tabID: tabID, services: services)
+            } catch ActionError.invalidArgument {
+                presentInfo(title: "Enter a pull request",
+                            text: "Couldn't read a PR from “\(entered)”. Use a PR number, a PR URL, or owner/repo#123.")
+                return
+            } catch let ActionError.repoNotTracked(slug) {
+                presentInfo(title: "Couldn't link \(entered)",
+                            text: "\(slug) isn't tracked. Add it in Preferences → Repos.")
+                return
+            } catch {
+                presentInfo(title: "Can't link a PR", text: error.actionMessage)
                 return
             }
             do {
-                try await TabActions.linkPR(tabID: tabID, number: number, services: services)
+                try await TabActions.linkPR(
+                    tabID: tabID, repo: resolved.repo, number: resolved.target.number, services: services
+                )
             } catch {
-                presentInfo(title: "Couldn't link PR #\(number)",
-                            text: error.actionMessage)
+                presentInfo(title: "Couldn't link \(resolved.target.display)", text: error.actionMessage)
             }
         }
     }
 
     /// NSAlert with a text field. Returns the trimmed entry, or nil on cancel.
     @MainActor
-    private static func promptForPRNumber(prefill: String) -> String? {
+    private static func promptForPRNumber(prefill: String, defaultRepo: String) -> String? {
         let alert = NSAlert()
         alert.messageText = "Link a Pull Request"
-        alert.informativeText = "Enter the PR number to link to this tab."
+        alert.informativeText = "Enter a PR number in \(defaultRepo), a PR URL, or owner/repo#123."
         alert.addButton(withTitle: "Link")
         alert.addButton(withTitle: "Cancel")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
         field.stringValue = prefill
-        field.placeholderString = "e.g. 828"
+        field.placeholderString = "e.g. 828 or owner/repo#828"
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         let response = alert.runModal()

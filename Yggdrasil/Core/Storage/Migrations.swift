@@ -23,7 +23,22 @@ enum Migrations {
         migrator.registerMigration("v16", migrate: v16)
         migrator.registerMigration("v17", migrate: v17)
         migrator.registerMigration("v18", migrate: v18)
+        migrator.registerMigration("v19", migrate: v19)
         return migrator
+    }
+
+    // MARK: - v19 — Per-repo PR target repo
+
+    ///
+    /// Some repos keep issues in one GitHub repo and PRs in another (e.g. a
+    /// private issue tracker with a public code repo). `pr_repo_id` points at
+    /// the tracked repo whose PRs "Link PR…" should default to. Nullable;
+    /// ON DELETE SET NULL so untracking the PR repo just drops the setting.
+    private static func v19(_ db: Database) throws {
+        try db.alter(table: "repo") { table in
+            table.add(column: "pr_repo_id", .integer)
+                .references("repo", onDelete: .setNull)
+        }
     }
 
     // MARK: - v18 — One checkout per repo per host

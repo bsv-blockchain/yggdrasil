@@ -16,6 +16,10 @@ struct Repo: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
     var upstreamOwner: String?
     var upstreamName: String?
     var upstreamCheckedAt: Date?
+    /// Tracked repo where this repo's PRs are opened, when that differs from
+    /// the repo itself (e.g. a private issue repo whose PRs go to a public
+    /// one). Nil = same repo. Default target for "Link PR…".
+    var prRepoID: Int64?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -27,6 +31,7 @@ struct Repo: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
         case upstreamOwner = "upstream_owner"
         case upstreamName = "upstream_name"
         case upstreamCheckedAt = "upstream_checked_at"
+        case prRepoID = "pr_repo_id"
     }
 
     mutating func didInsert(_ inserted: InsertionSuccess) {
@@ -36,6 +41,13 @@ struct Repo: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
     /// `owner/name` (e.g. `bsv-blockchain/teranode`). Convenience for log lines and UI.
     var fullName: String {
         "\(owner)/\(name)"
+    }
+
+    /// The repo PRs for this repo live in: the configured `prRepoID` when it
+    /// is still among `repos`, else this repo itself.
+    func prRepo(among repos: [Repo]) -> Repo {
+        guard let prRepoID, let target = repos.first(where: { $0.id == prRepoID }) else { return self }
+        return target
     }
 
     /// GitHub repos whose issues + PRs feed this tracked row: always the repo
