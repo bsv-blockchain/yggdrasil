@@ -128,6 +128,9 @@ actor StatusPoller {
                 }
                 return results
             }
+            // stop()/reload() landed mid-batch: the probes gave up, so their
+            // results aren't real, and a new sweep may already be publishing.
+            if Task.isCancelled { return }
             for result in probed {
                 freshCaches[result.tabID] = result.sessionCache
                 freshGitStates[result.tabID] = result.gitState
