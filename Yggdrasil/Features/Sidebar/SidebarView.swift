@@ -77,6 +77,10 @@ struct SidebarView: View {
     var body: some View {
         VStack(spacing: 0) {
             workspaceHeader
+            ManagerRow(isSelected: tabsModel.managerTab.map { $0.id == tabsModel.selectedID } ?? false)
+                .onTapGesture(perform: openManager)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 4)
             searchField
             filterPills
             Divider()
@@ -424,6 +428,19 @@ struct SidebarView: View {
                 }
         } else {
             decorated
+        }
+    }
+
+    /// Shows the pinned Yggdrasil session, making its row the first time.
+    private func openManager() {
+        do {
+            guard let id = try ManagerSession.ensureTab(services: services).id else { return }
+            services.subagents.clearSelection()
+            tabsModel.select(id)
+            services.sessions.markOpened(tabID: id)
+            onSelect(id)
+        } catch {
+            NSAlert.show("Couldn't open the Yggdrasil session", message: error.actionMessage)
         }
     }
 

@@ -27,7 +27,26 @@ struct TabStore {
     /// `preparationState` defaults to `.ready` so every existing call site
     /// keeps its behaviour; the task pickers pass `.pending` because they now
     /// insert the tab before its worktree exists.
+    /// The pinned Yggdrasil session's row, made the first time it's asked for.
     @discardableResult
+    func ensureManager(worktreePath: String, agentID: Int64?) throws -> YggdrasilTab {
+        try database.queue.write { db in
+            if let existing = try YggdrasilTab.filter(Column("kind") == YggdrasilTab.Kind.manager.rawValue)
+                .fetchOne(db) {
+                return existing
+            }
+            let now = Date()
+            var tab = YggdrasilTab(
+                id: nil, taskID: nil, codingAgentID: agentID, position: -1,
+                branchName: "Yggdrasil", worktreePath: worktreePath,
+                lastMainView: .agent, createdAt: now, lastActiveAt: now
+            )
+            tab.kind = .manager
+            try tab.insert(db)
+            return tab
+        }
+    }
+
     func insert(
         branchName: String,
         worktreePath: String,
@@ -120,7 +139,7 @@ struct TabStore {
     /// row ids (no duplicates, no missing, no extra). Atomic.
     func reorder(ids: [Int64]) throws {
         try database.queue.write { db in
-            let actual = try Set(Int64.fetchAll(db, sql: "SELECT id FROM tab"))
+            let actual = try Set(Int64.fetchAll(db, sql: "SELECT id FROM tab WHERE kind = 'tab'"))
             let requested = Set(ids)
             guard actual == requested, ids.count == actual.count else {
                 throw TabStoreError.reorderIDMismatch

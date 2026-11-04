@@ -145,6 +145,26 @@ final class ActionCatalogTests: XCTestCase {
         XCTAssertEqual(transcript.scope, .full)
     }
 
+    func testThePinnedSessionIsNotATabToTheAPI() async throws {
+        let services = try AppServices(database: YggdrasilDatabase.inMemory())
+        services.requestSync = {}
+        let dataDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("catalogue-\(UUID().uuidString)")
+        let manager = try ManagerSession.ensureTab(services: services, dataDirectory: dataDirectory)
+        try services.tabs.select(XCTUnwrap(manager.id))
+
+        let tabs = try await run("tabs.list", [:], services)
+        XCTAssertEqual(tabs, .array([]))
+        let state = try await run("state.get", [:], services)
+        XCTAssertEqual(state["selectedTab"], .null)
+        do {
+            _ = try await run("tab.close", ["tab": .int(XCTUnwrap(manager.id))], services)
+            XCTFail("closed the pinned session")
+        } catch {
+            XCTAssertEqual(error as? ActionError, try .unknownTab(XCTUnwrap(manager.id)))
+        }
+    }
+
     func testAgentArgumentsAreForFullKeysOnly() async throws {
         // A profile's arguments can hold a token, like its environment can.
         let services = try AppServices(database: YggdrasilDatabase.inMemory())

@@ -145,6 +145,17 @@ final class TabStoreTests: XCTestCase {
         XCTAssertGreaterThan(updated.lastActiveAt, before)
     }
 
+    func testTheManagerRowIsMadeOnceAndLeftOutOfReordering() throws {
+        let first = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
+        let manager = try store.ensureManager(worktreePath: "/data/manager", agentID: nil)
+        XCTAssertEqual(manager.kind, .manager)
+        XCTAssertEqual(try store.ensureManager(worktreePath: "/data/manager", agentID: nil).id, manager.id)
+        let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)
+        // The sidebar reorders only the tabs it shows.
+        try store.reorder(ids: [XCTUnwrap(second.id), XCTUnwrap(first.id)])
+        XCTAssertEqual(try store.list().filter { $0.kind == .tab }.map(\.id), [second.id, first.id])
+    }
+
     func testMoveRepointsHostAndWorktree() throws {
         let host = try HostStore(database: db).add(name: "dev", sshTarget: "dev", reposRoot: "/srv")
         let tab = try store.insert(branchName: "b", worktreePath: "/Users/me/w/.worktrees/b", agentID: nil, taskID: nil)

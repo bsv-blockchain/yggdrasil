@@ -106,7 +106,8 @@ struct SidebarSessionsLayout: View {
 
     @ViewBuilder
     private var mainPane: some View {
-        if services.tabs.tabs.isEmpty {
+        let manager = services.tabs.managerTab
+        if services.tabs.tabs.isEmpty, manager == nil || services.tabs.selectedID != manager?.id {
             emptyMainPane
         } else {
             // Stack one MainPaneView per *opened* tab and toggle visibility via
@@ -120,6 +121,11 @@ struct SidebarSessionsLayout: View {
                     MainPaneView(services: services, selectedTab: tab)
                         .opacity(tab.id == services.tabs.selectedID ? 1 : 0)
                         .allowsHitTesting(tab.id == services.tabs.selectedID)
+                }
+                if let manager, services.sessions.isOpened(tabID: manager.id) {
+                    ManagerPaneView(services: services, tab: manager)
+                        .opacity(manager.id == services.tabs.selectedID ? 1 : 0)
+                        .allowsHitTesting(manager.id == services.tabs.selectedID)
                 }
                 if services.tabs.selectedID == nil {
                     selectedTabHasNoSession

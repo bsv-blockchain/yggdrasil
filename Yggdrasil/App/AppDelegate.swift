@@ -63,6 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             // Off unless turned on in Settings → API.
             let control = ControlService(services: services)
             services.control = control
+            // A run that crashed left the Yggdrasil session's key behind.
+            ManagerSession.revokeKeys(services: services)
             control.apply()
         } catch {
             YggdrasilLog.ui.error("Failed to build AppServices: \(String(describing: error), privacy: .public)")
@@ -101,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     func applicationWillTerminate(_: Notification) {
         YggdrasilLog.ui.info("Yggdrasil will terminate")
         services?.control?.stop()
+        if let services { ManagerSession.revokeKeys(services: services) }
         if let scheduler = services?.scheduler {
             Task { await scheduler.stop() }
         }

@@ -11,6 +11,11 @@ final class ControlService {
     static let portKey = "control.port"
     static let defaultPort: UInt16 = 47610
 
+    /// The command-line client inside this app bundle.
+    nonisolated static var yggctlPath: String {
+        Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/yggctl").path
+    }
+
     nonisolated static var defaultSocketPath: String {
         socketPath(environment: ProcessInfo.processInfo.environment)
     }

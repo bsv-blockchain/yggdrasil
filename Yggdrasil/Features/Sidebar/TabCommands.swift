@@ -78,7 +78,8 @@ struct TabCommands: Commands {
             .keyboardShortcut("k", modifiers: .command)
 
             item("Close Tab…") { services in
-                guard let id = services.tabs.selectedID else {
+                // Not the pinned Yggdrasil session: it isn't a tab to close.
+                guard let id = services.tabs.selectedTabID else {
                     YggdrasilLog.ui.notice("Close Tab…: no tab selected; nothing to close")
                     return
                 }
