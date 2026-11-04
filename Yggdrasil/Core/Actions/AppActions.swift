@@ -47,6 +47,17 @@ enum RepoActions {
         services.tabs.reload()
     }
 
+    /// Where the repo's PRs live, for Link PR…: another tracked repo, or
+    /// nil for the repo itself.
+    static func setPRRepo(id: Int64, prRepoID: Int64?, services: AppServices) throws {
+        if prRepoID == id { throw ActionError.invalidArgument("prRepo") }
+        try services.database.queue.write { db in
+            if let prRepoID, try Repo.fetchOne(db, key: prRepoID) == nil { throw ActionError.unknownRepo(prRepoID) }
+            try db.execute(sql: "UPDATE repo SET pr_repo_id = ? WHERE id = ?", arguments: [prRepoID, id])
+            guard db.changesCount == 1 else { throw ActionError.unknownRepo(id) }
+        }
+    }
+
     private static func requireFolder(_ path: String) throws {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {

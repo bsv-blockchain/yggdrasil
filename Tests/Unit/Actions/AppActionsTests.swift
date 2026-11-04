@@ -71,6 +71,25 @@ final class AppActionsTests: XCTestCase {
         XCTAssertEqual(try allRepos().first?.localMainPath, root.path)
     }
 
+    func testSetPRRepoPointsAtAnotherTrackedRepoOrBack() async throws {
+        let issues = try await RepoActions.add("acme/issues", defaultBranch: "main", services: services)
+        let code = try await RepoActions.add("acme/code", defaultBranch: "main", services: services)
+        let id = try XCTUnwrap(issues.id)
+        try RepoActions.setPRRepo(id: id, prRepoID: code.id, services: services)
+        XCTAssertEqual(try allRepos().first { $0.id == id }?.prRepoID, code.id)
+        try RepoActions.setPRRepo(id: id, prRepoID: nil, services: services)
+        XCTAssertNil(try allRepos().first { $0.id == id }?.prRepoID)
+        XCTAssertThrowsError(try RepoActions.setPRRepo(id: id, prRepoID: id, services: services)) { error in
+            XCTAssertEqual(error as? ActionError, .invalidArgument("prRepo"), "itself is nil, not its own id")
+        }
+        XCTAssertThrowsError(try RepoActions.setPRRepo(id: id, prRepoID: 999, services: services)) { error in
+            XCTAssertEqual(error as? ActionError, .unknownRepo(999))
+        }
+        XCTAssertThrowsError(try RepoActions.setPRRepo(id: 999, prRepoID: nil, services: services)) { error in
+            XCTAssertEqual(error as? ActionError, .unknownRepo(999))
+        }
+    }
+
     func testCloningOntoAnExistingCloneJustUsesIt() async throws {
         let repo = try await RepoActions.add("acme/widget", defaultBranch: "main", services: services)
         let existing = try makeGitRepo("widget")

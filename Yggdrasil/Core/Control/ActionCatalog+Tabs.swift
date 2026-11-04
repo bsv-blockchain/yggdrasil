@@ -253,13 +253,17 @@ extension ActionCatalog {
                 ))])
             },
             ControlAction(
-                name: "tab.linkPR", summary: "Link a PR of the tab's repository to the tab.", scope: .full,
-                params: [tab, Param("number", .integer, "The PR number.")]
+                name: "tab.linkPR",
+                summary: "Link a PR to the tab, as Link PR… does. Returns it as owner/repo#N.",
+                scope: .full,
+                params: [tab, Param(
+                    "pr", .string,
+                    "A PR number (12, #12) in the repository the tab's PRs live in, a PR URL, or owner/repo#12."
+                )]
             ) { params, context in
-                try await TabActions.linkPR(
-                    tabID: params.int("tab"), number: Int(params.int("number")), services: context.services
-                )
-                return .bool(true)
+                try await .string(TabActions.linkPR(
+                    tabID: params.int("tab"), pr: params.string("pr"), services: context.services
+                ))
             },
             ControlAction(
                 name: "tab.unlinkPR", summary: "Unlink the tab's PR (an issue tab keeps its issue).", scope: .full,

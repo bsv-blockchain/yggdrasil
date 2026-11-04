@@ -60,4 +60,23 @@ final class GitStateProbeTests: XCTestCase {
         let state = try await probe.probe(worktreePath: fixture.repoURL.path)
         XCTAssertTrue(state.dirty)
     }
+
+    /// A cancelled probe (the poller's stop/reload) must not read as "no
+    /// upstream": that fabricated state would be published to the tab.
+    func testProbeRethrowsCancellationFromRevList() async {
+        let probe = GitStateProbe(git: GitRunner(runner: CancelOnRevListRunner()))
+        do {
+            _ = try await probe.probe(worktreePath: "/tmp")
+            XCTFail("expected CancellationError")
+        } catch is CancellationError {} catch {
+            XCTFail("unexpected \(error)")
+        }
+    }
+}
+
+private struct CancelOnRevListRunner: SubprocessRunner {
+    func run(executable _: String, arguments: [String]) async throws -> SubprocessResult {
+        if arguments.contains("rev-list") { throw CancellationError() }
+        return SubprocessResult(stdout: "", stderr: "", exitCode: 0)
+    }
 }

@@ -81,7 +81,8 @@ enum ControlEncoding {
             "id": .optional(repo.id),
             "repo": .string(repo.fullName),
             "defaultBranch": .string(repo.defaultBranch),
-            "localPath": .optional(repo.localMainPath)
+            "localPath": .optional(repo.localMainPath),
+            "prRepoID": .optional(repo.prRepoID)
         ])
     }
 

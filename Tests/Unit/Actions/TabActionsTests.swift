@@ -243,10 +243,43 @@ final class TabActionsTests: XCTestCase {
     func testLinkingAPROutsideATrackedRepoIsRefused() async throws {
         let tabID = try addTab(branch: "x", path: "/nowhere/x")
         do {
-            try await TabActions.linkPR(tabID: tabID, number: 3, services: services)
+            _ = try await TabActions.linkPR(tabID: tabID, pr: "3", services: services)
             XCTFail("expected notInTrackedRepo")
         } catch {
             XCTAssertEqual(error as? ActionError, .notInTrackedRepo)
+        }
+    }
+
+    func testABarePRNumberIsInTheReposPRRepo() throws {
+        let repo = try addRepo()
+        let prs = try addRepo(name: "widget-prs", localPath: nil)
+        try services.database.queue.write { db in
+            try db.execute(sql: "UPDATE repo SET pr_repo_id = ? WHERE id = ?", arguments: [prs.id, repo.id])
+        }
+        let tabID = try addTab(branch: "x", path: "\(repo.localMainPath!)/.worktrees/x")
+        let resolved = try TabActions.resolvePR("#12", tabID: tabID, services: services)
+        XCTAssertEqual(resolved.target.display, "acme/widget-prs#12")
+        XCTAssertEqual(resolved.repo.id, prs.id)
+    }
+
+    func testAPRCanNameAnotherTrackedRepo() throws {
+        let repo = try addRepo()
+        let other = try addRepo(name: "gadget", localPath: nil)
+        let tabID = try addTab(branch: "x", path: "\(repo.localMainPath!)/.worktrees/x")
+        let byURL = try TabActions.resolvePR("https://github.com/ACME/Gadget/pull/9", tabID: tabID, services: services)
+        XCTAssertEqual(byURL.repo.id, other.id, "names are case-insensitive")
+        XCTAssertEqual(byURL.target.number, 9)
+        XCTAssertEqual(try TabActions.resolvePR("acme/gadget#4", tabID: tabID, services: services).repo.id, other.id)
+    }
+
+    func testAPRInAnUntrackedRepoOrJunkIsRefused() throws {
+        let repo = try addRepo()
+        let tabID = try addTab(branch: "x", path: "\(repo.localMainPath!)/.worktrees/x")
+        XCTAssertThrowsError(try TabActions.resolvePR("other/thing#4", tabID: tabID, services: services)) { error in
+            XCTAssertEqual(error as? ActionError, .repoNotTracked("other/thing"))
+        }
+        XCTAssertThrowsError(try TabActions.resolvePR("nope", tabID: tabID, services: services)) { error in
+            XCTAssertEqual(error as? ActionError, .invalidArgument("pr"))
         }
     }
 
@@ -328,11 +361,11 @@ final class TabActionsTests: XCTestCase {
         try XCTUnwrap(services.agentStore.getDefault())
     }
 
-    private func addRepo(localPath: String? = "<root>") throws -> Repo {
-        let path = localPath.map { $0 == "<root>" ? root.appendingPathComponent("widget").path : $0 }
+    private func addRepo(name: String = "widget", localPath: String? = "<root>") throws -> Repo {
+        let path = localPath.map { $0 == "<root>" ? root.appendingPathComponent(name).path : $0 }
         let repo = try services.database.queue.write { db -> Repo in
             var repo = Repo(
-                id: nil, owner: "acme", name: "widget", defaultBranch: "main", localMainPath: path, addedAt: Date()
+                id: nil, owner: "acme", name: name, defaultBranch: "main", localMainPath: path, addedAt: Date()
             )
             try repo.insert(db)
             return repo

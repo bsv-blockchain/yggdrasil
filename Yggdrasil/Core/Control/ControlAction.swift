@@ -143,6 +143,7 @@ extension ActionError {
         case .unknownHost: "unknown_host"
         case .repoNotCloned: "repo_not_cloned"
         case .notInTrackedRepo: "not_in_tracked_repo"
+        case .repoNotTracked: "repo_not_tracked"
         case .noStatusYet: "no_status_yet"
         case .tabNotReady: "tab_not_ready"
         case .cannotRemoveDefaultAgent: "cannot_remove_default_agent"

@@ -15,7 +15,12 @@ struct SSHSubprocessRunner: SubprocessRunner {
 
     func run(executable: String, arguments: [String]) async throws -> SubprocessResult {
         let argv = ([executable] + arguments).map(CodingAgentRunner.shellQuote).joined(separator: " ")
-        let command = "\(RemoteHelper.path) run -- \(argv)"
+        return try await runHelper("run -- \(argv)")
+    }
+
+    /// `ygg <arguments>` on the host. `arguments` is already shell-quoted.
+    func runHelper(_ arguments: String) async throws -> SubprocessResult {
+        let command = "\(RemoteHelper.path) \(arguments)"
         let result = try await send(command)
         // A host set up before `run` existed (or never set up) gets the
         // current helper installed, then one retry. Everything remote goes

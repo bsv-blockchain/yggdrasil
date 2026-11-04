@@ -166,6 +166,22 @@ enum ActionCatalog {
                 return .bool(true)
             },
             ControlAction(
+                name: "repo.setPRRepo",
+                summary: "Set the tracked repository a repository's PRs live in, for tab_linkPR. Leave prRepo out for itself.",
+                scope: .full,
+                params: [
+                    repoParam,
+                    Param("prRepo", .string, "owner/name of another tracked repository.", required: false)
+                ]
+            ) { params, context in
+                let repo = try ControlEncoding.repo(named: params.string("repo"), services: context.services)
+                let target = try params.optionalString("prRepo").map {
+                    try ControlEncoding.repo(named: $0, services: context.services)
+                }
+                try RepoActions.setPRRepo(id: repo.id ?? 0, prRepoID: target?.id, services: context.services)
+                return .bool(true)
+            },
+            ControlAction(
                 name: "repo.clone", summary: "Clone a repository with gh and use the clone for its tabs.",
                 scope: .full,
                 params: [
