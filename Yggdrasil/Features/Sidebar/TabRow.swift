@@ -15,8 +15,17 @@ struct TabRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            AgentBadge(agent: agent, statusIcon: model.liveStatus?.icon, size: 26)
-                .padding(.top, 1)
+            VStack(spacing: 5) {
+                AgentBadge(agent: agent, statusIcon: model.liveStatus?.icon, size: 26)
+                if let host = model.hostName {
+                    Image(systemName: "server.rack")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(YggdrasilTheme.textDim(scheme))
+                        .help("Runs on \(host)")
+                        .accessibilityLabel("Runs on \(host)")
+                }
+            }
+            .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 4) {
                 if let repoLine = model.repoLine {

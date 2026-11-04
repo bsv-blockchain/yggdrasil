@@ -32,6 +32,25 @@ final class TabsModelTests: XCTestCase {
         XCTAssertEqual(model.selectedID, first.id)
     }
 
+    func testATabOnAHostCarriesTheHostsName() throws {
+        let host = try HostStore(database: db).add(name: "developers-env", sshTarget: "dev", reposRoot: "/srv")
+        let remote = try store.insert(
+            branchName: "r",
+            worktreePath: "/srv/r",
+            agentID: nil,
+            taskID: nil,
+            hostID: host.id
+        )
+        let local = try store.insert(branchName: "l", worktreePath: "/l", agentID: nil, taskID: nil)
+        model.reload()
+        XCTAssertEqual(try model.hostNameByTabID[XCTUnwrap(remote.id)], "developers-env")
+        XCTAssertNil(try model.hostNameByTabID[XCTUnwrap(local.id)])
+        XCTAssertEqual(
+            try model.model(for: XCTUnwrap(model.tabs.first { $0.id == remote.id })).hostName,
+            "developers-env"
+        )
+    }
+
     func testReloadPreservesSelectionIfStillPresent() throws {
         _ = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
         let second = try store.insert(branchName: "b", worktreePath: "/b", agentID: nil, taskID: nil)

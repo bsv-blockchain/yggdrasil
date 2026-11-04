@@ -144,6 +144,8 @@ enum HostActions {
             id: id, name: trim(name) ?? host.name, sshTarget: trim(sshTarget) ?? host.sshTarget,
             reposRoot: trim(reposRoot) ?? host.reposRoot
         )
+        // The sidebar shows the host's name on its tabs.
+        services.tabs.reload()
     }
 
     /// Refused while tabs still run on the host. Clears it as the default.

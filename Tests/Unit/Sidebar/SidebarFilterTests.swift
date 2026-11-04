@@ -33,4 +33,13 @@ final class SidebarFilterTests: XCTestCase {
         XCTAssertTrue(SidebarView.Filter.issues.keeps(task: task(.issue, 1835), prTask: task(.pullRequest, 1889)))
         XCTAssertFalse(SidebarView.Filter.issues.keeps(task: task(.pullRequest, 1938), prTask: nil))
     }
+
+    func testWorkingKeepsTabsWhoseClaudeIsMidTurn() {
+        let busy = TabStatus(icon: .dirty, showsUnreadBadgeDot: false, tooltipLines: [], claudeBusy: true)
+        let idle = TabStatus(icon: .idle, showsUnreadBadgeDot: false, tooltipLines: [])
+        XCTAssertTrue(SidebarView.Filter.working.keeps(status: busy))
+        XCTAssertFalse(SidebarView.Filter.working.keeps(status: idle))
+        XCTAssertFalse(SidebarView.Filter.working.keeps(status: nil), "no status yet")
+        XCTAssertTrue(SidebarView.Filter.all.keeps(status: nil))
+    }
 }

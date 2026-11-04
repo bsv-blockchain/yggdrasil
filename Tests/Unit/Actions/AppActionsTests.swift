@@ -169,6 +169,21 @@ final class AppActionsTests: XCTestCase {
         XCTAssertEqual(updated.sshTarget, "me@dev")
     }
 
+    func testRenamingAHostRenamesItOnItsTabs() throws {
+        let host = try HostActions.add(name: "dev", sshTarget: "me@dev", reposRoot: "/srv", services: services)
+        let id = try XCTUnwrap(host.id)
+        let tab = try services.tabStore.insert(
+            branchName: "b",
+            worktreePath: "/srv/b",
+            agentID: nil,
+            taskID: nil,
+            hostID: id
+        )
+        services.tabs.reload()
+        try HostActions.update(id: id, name: "devbox", services: services)
+        XCTAssertEqual(try services.tabs.hostNameByTabID[XCTUnwrap(tab.id)], "devbox")
+    }
+
     func testDefaultHostMustExist() {
         XCTAssertThrowsError(try SettingsActions.setDefaultHost(id: 42, services: services)) { error in
             XCTAssertEqual(error as? ActionError, .unknownHost(42))

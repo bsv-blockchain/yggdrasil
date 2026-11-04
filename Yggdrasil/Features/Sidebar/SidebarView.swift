@@ -31,6 +31,7 @@ struct SidebarView: View {
         case needsMe = "Needs me"
         case prs = "PRs"
         case issues = "Issues"
+        case working = "Working"
         var id: String {
             rawValue
         }
@@ -43,8 +44,14 @@ struct SidebarView: View {
             switch self {
             case .prs: task?.type == .pullRequest || prTask != nil
             case .issues: task?.type == .issue
-            case .all, .needsMe: true
+            case .all, .needsMe, .working: true
             }
+        }
+
+        /// Whether the Working pill keeps a tab with this status: its Claude
+        /// is mid-turn. The other pills don't look at it.
+        func keeps(status: TabStatus?) -> Bool {
+            self == .working ? status?.claudeBusy == true : true
         }
     }
 
@@ -66,6 +73,10 @@ struct SidebarView: View {
         case .all: return bySearch
         case .needsMe:
             return bySearch.filter(needsAttention)
+        case .working:
+            return bySearch.filter { tab in
+                tab.id.map { activeFilter.keeps(status: services.tabStatus.status(forTabID: $0)) } ?? false
+            }
         case .prs, .issues:
             return bySearch.filter { tab in
                 guard let id = tab.id else { return false }
@@ -89,7 +100,7 @@ struct SidebarView: View {
                 tabList
             }
         }
-        .frame(minWidth: 280, idealWidth: 320, maxWidth: 380)
+        .frame(maxWidth: .infinity)
         .background(YggdrasilTheme.bgPane(scheme))
         .onChange(of: rawSearchQuery) { _, newValue in
             scheduleDebouncedQueryUpdate(to: newValue)
@@ -224,27 +235,35 @@ struct SidebarView: View {
 
     private var filterPills: some View {
         HStack(spacing: 4) {
-            ForEach(Filter.allCases) { filter in
-                Button {
-                    activeFilter = filter
-                } label: {
-                    Text(pillLabel(filter))
-                        .font(.system(size: 11, weight: activeFilter == filter ? .semibold : .medium))
-                        .foregroundStyle(
-                            activeFilter == filter ? YggdrasilTheme.text(scheme) : YggdrasilTheme.textMute(scheme)
-                        )
-                        .padding(.horizontal, 8)
-                        .frame(height: 22)
-                        .background(
-                            RoundedRectangle(cornerRadius: 11)
-                                .fill(activeFilter == filter
-                                    ? YggdrasilTheme.bgActive(scheme)
-                                    : Color.clear)
-                        )
+            // Scrolls rather than truncating in a narrow sidebar: five pills
+            // and three buttons don't fit the narrowest widths.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(Filter.allCases) { filter in
+                        Button {
+                            activeFilter = filter
+                        } label: {
+                            Text(pillLabel(filter))
+                                .lineLimit(1)
+                                .fixedSize()
+                                .font(.system(size: 11, weight: activeFilter == filter ? .semibold : .medium))
+                                .foregroundStyle(
+                                    activeFilter == filter ? YggdrasilTheme.text(scheme) : YggdrasilTheme
+                                        .textMute(scheme)
+                                )
+                                .padding(.horizontal, 8)
+                                .frame(height: 22)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 11)
+                                        .fill(activeFilter == filter
+                                            ? YggdrasilTheme.bgActive(scheme)
+                                            : Color.clear)
+                                )
+                        }
+                        .buttonStyle(.yggdrasilIcon)
+                    }
                 }
-                .buttonStyle(.yggdrasilIcon)
             }
-            Spacer()
             Button {
                 openWindow(id: AuxiliaryWindowID.issueDetails)
             } label: {
@@ -575,16 +594,22 @@ struct SidebarView: View {
         .frame(maxHeight: .infinity)
     }
 
+    /// What an empty pill says when nothing was searched for.
+    private var emptyFilterMessage: String? {
+        guard debouncedQuery.isEmpty else { return nil }
+        switch activeFilter {
+        case .needsMe: return "Nothing waiting on you"
+        case .working: return "No Claude is working right now"
+        case .all, .prs, .issues: return nil
+        }
+    }
+
     private var noMatchesState: some View {
         VStack(spacing: 8) {
-            Image(systemName: activeFilter == .needsMe && debouncedQuery.isEmpty
-                ? "checkmark.circle"
-                : "magnifyingglass")
+            Image(systemName: emptyFilterMessage == nil ? "magnifyingglass" : "checkmark.circle")
                 .font(.system(size: 24))
                 .foregroundStyle(YggdrasilTheme.textFaint(scheme))
-            Text(activeFilter == .needsMe && debouncedQuery.isEmpty
-                ? "Nothing waiting on you"
-                : "No matches")
+            Text(emptyFilterMessage ?? "No matches")
                 .font(.callout)
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
         }
