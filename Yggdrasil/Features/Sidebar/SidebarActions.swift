@@ -121,110 +121,44 @@ enum SidebarActions {
     @MainActor
     static func removeTab(id: Int64, services: AppServices) {
         guard let tab = services.tabs.tabs.first(where: { $0.id == id }) else { return }
-        if let host = services.host(for: tab) {
-            removeRemoteTab(id: id, tab: tab, host: host, services: services)
-            return
-        }
+        let host = services.host(for: tab)
         let alert = NSAlert()
         alert.messageText = "Remove this tab?"
-        alert.informativeText = """
-        Branch: \(tab.branchName)
-        Worktree: \(tab.worktreePath)
+        if let host {
+            alert.informativeText = """
+            Branch: \(tab.branchName)
+            Worktree: \(tab.worktreePath) on \(host.name)
 
-        Choose whether to keep the worktree on disk or delete it too. \
-        Deleting the worktree runs `git worktree remove --force`, which \
-        discards any uncommitted work inside it.
-        """
+            The agent running on \(host.name) is stopped. Deleting the worktree runs \
+            `git worktree remove --force` on the host, which discards any uncommitted work in it.
+            """
+        } else {
+            alert.informativeText = """
+            Branch: \(tab.branchName)
+            Worktree: \(tab.worktreePath)
+
+            Choose whether to keep the worktree on disk or delete it too. \
+            Deleting the worktree runs `git worktree remove --force`, which \
+            discards any uncommitted work inside it.
+            """
+        }
         alert.alertStyle = .warning
         for choice in RemoveTabChoice.allCases {
             alert.addButton(withTitle: choice.title).hasDestructiveAction = choice.isDestructive
         }
-
-        switch RemoveTabChoice.from(response: alert.runModal()) {
-        case .tabOnly:
-            performRemoval(id: id, tab: tab, deleteWorktree: false, services: services)
-        case .tabAndWorktree:
-            performRemoval(id: id, tab: tab, deleteWorktree: true, services: services)
-        case .cancel:
-            return
-        }
-    }
-
-    private static func performRemoval(
-        id: Int64, tab: YggdrasilTab, deleteWorktree: Bool, services: AppServices
-    ) {
-        // Tear down the running agent first so its files aren't held open
-        // by the time `git worktree remove` runs. (Dismantling its surface
-        // stops and collects the process.)
-        services.sessions.remove(id: id)
-        services.sessions.forgetOpened(tabID: id)
-
-        if deleteWorktree {
-            // Resolve the owning repo from the worktree's grandparent dir
-            // (WorktreeManager places worktrees at <repoParent>/.worktrees/<slug>).
-            let repo = services.tabs.repoByTabID[id]
-            if let repo {
-                let worktreeURL = URL(fileURLWithPath: tab.worktreePath, isDirectory: true)
-                Task {
-                    do {
-                        try await services.worktreeManager.remove(
-                            repo: repo, path: worktreeURL, force: true
-                        )
-                        YggdrasilLog.ui.info(
-                            "Removed worktree \(tab.worktreePath, privacy: .public) for tab \(id, privacy: .public)"
-                        )
-                    } catch {
-                        YggdrasilLog.ui.error(
-                            "git worktree remove failed for \(tab.worktreePath, privacy: .public): \(String(describing: error), privacy: .public)"
-                        )
-                    }
-                }
-            } else {
-                YggdrasilLog.ui.warning(
-                    "Could not resolve repo for tab \(id, privacy: .public); skipping worktree removal"
-                )
-            }
-        }
-
-        // Optimistic dismissal: if this tab's task was in pr_review_request
-        // (a "PR to review" the user just finished with), drop the
-        // membership locally BEFORE we reload. Without this the count
-        // briefly bounces up to 2 — the tab no longer hides the row, but
-        // the next scheduled sync hasn't yet learned the user submitted
-        // a review — and only settles back to 1 after the sync round-
-        // trip. The next sync will restore the row in the rare case
-        // the user closed without actually approving.
-        if let taskID = services.tabs.tasksByTabID[id]?.id {
-            try? services.database.queue.write { db in
-                try db.execute(
-                    sql: "DELETE FROM pr_review_request WHERE task_id = ?",
-                    arguments: [taskID]
-                )
-            }
-        }
-
-        // Drop the mute with the tab; a key left behind would silently muffle
-        // a future tab that reused the id.
-        AttentionDismissal.restore(tabID: id)
-        // Call off any queued preparation first: otherwise closing a tab you
-        // just opened still creates the worktree and branch afterwards, with
-        // nothing referencing them — and for "Remove Tab + Worktree" it
-        // recreates exactly what the user asked to delete.
-        Task { await services.worktreePreparer.cancel(tabID: id) }
-
-        do {
-            try services.tabStore.delete(id: id)
-        } catch {
-            YggdrasilLog.ui.error(
-                "Failed to delete tab \(id, privacy: .public): \(String(describing: error), privacy: .public)"
+        let choice = RemoveTabChoice.from(response: alert.runModal())
+        guard choice != .cancel else { return }
+        Task { @MainActor in
+            let problems = await (try? TabActions.close(
+                id: id, deleteWorktree: choice == .tabAndWorktree, services: services
+            )) ?? []
+            guard !problems.isEmpty else { return }
+            presentInfo(
+                title: host.map { "Removed the tab, but not everything on \($0.name)" }
+                    ?? "Removed the tab, but not its worktree",
+                text: problems.joined(separator: "\n\n") + "\n\nWorktree: \(tab.worktreePath)"
             )
         }
-        services.tabs.reload()
-        // GitHub-side state (pr_review_request, CI status) may have changed
-        // while this tab was open (user approved, status flipped). Sync
-        // now so the review pill + per-tab status catch up immediately
-        // instead of waiting for the next scheduled tick.
-        Task { @MainActor in services.triggerSyncNow() }
     }
 
     /// Move sidebar tab selection by `delta` (wrapping at both ends) and mirror
@@ -243,24 +177,16 @@ enum SidebarActions {
     /// thread, review request or agent record changes it.
     @MainActor
     static func dismissAttention(tabID: Int64, services: AppServices) {
-        let signature = services.tabStatus.status(forTabID: tabID).attentionSignature
-        // Before the first poll tick a tab has only the placeholder status,
-        // whose signature is empty. Storing that would be a silent no-op: the
-        // next tick overwrites it with a real signature and the mute lapses
-        // with nothing having visibly happened.
-        guard !signature.isEmpty else {
-            presentInfo(title: "Not ready yet",
-                        text: "This tab has no status yet. Try again in a moment.")
-            return
-        }
-        AttentionDismissal.dismiss(tabID: tabID, signature: signature)
-        services.tabs.reload()
+        do {
+            try TabActions.mute(tabID: tabID, services: services)
+        } catch ActionError.noStatusYet {
+            presentInfo(title: "Not ready yet", text: "This tab has no status yet. Try again in a moment.")
+        } catch {}
     }
 
     @MainActor
     static func restoreAttention(tabID: Int64, services: AppServices) {
-        AttentionDismissal.restore(tabID: tabID)
-        services.tabs.reload()
+        try? TabActions.unmute(tabID: tabID, services: services)
     }
 
     /// Re-run a worktree preparation that failed. Without this a failed tab is
@@ -269,20 +195,15 @@ enum SidebarActions {
     @MainActor
     static func retryPreparation(tab: YggdrasilTab, services: AppServices) {
         guard let tabID = tab.id else { return }
-        guard let repo = services.tabs.repoByTabID[tabID] else {
-            presentInfo(title: "Can't prepare this tab",
-                        text: "This tab isn't inside a tracked repository.")
-            return
-        }
-        let baseRef: String? = services.tabs.tasksByTabID[tabID].flatMap { task in
-            task.type == .pullRequest ? "refs/pull/\(task.number)/head" : nil
-        }
-        try? services.tabStore.setPreparation(id: tabID, state: .pending, error: nil)
-        services.tabs.reload()
-        Task {
-            await services.worktreePreparer.enqueue(
-                tabID: tabID, repo: repo, host: services.host(for: tab), branch: tab.branchName, baseRef: baseRef
-            )
+        do {
+            try TabActions.retrySetup(tabID: tabID, services: services)
+        } catch ActionError.notInTrackedRepo {
+            presentInfo(title: "Can't prepare this tab", text: "This tab isn't inside a tracked repository.")
+        } catch {
+            YggdrasilLog.ui
+                .error(
+                    "Retry setup failed for tab \(tabID, privacy: .public): \(String(describing: error), privacy: .public)"
+                )
         }
     }
 
@@ -292,18 +213,12 @@ enum SidebarActions {
     @MainActor
     static func unlinkPR(id: Int64, services: AppServices) {
         do {
-            let tab = services.tabs.tabs.first { $0.id == id }
-            if tab?.prTaskID != nil {
-                try services.tabStore.setPRTaskID(id: id, prTaskID: nil)
-            } else {
-                try services.tabStore.setTaskID(id: id, taskID: nil)
-            }
+            try TabActions.unlinkPR(tabID: id, services: services)
         } catch {
             YggdrasilLog.ui.error(
                 "unlinkPR failed for tab \(id, privacy: .public): \(String(describing: error), privacy: .public)"
             )
         }
-        services.tabs.reload()
     }
 
     /// "Link PR…" — turn an ad-hoc tab into a PR tab. Resolves the repo the
@@ -314,60 +229,45 @@ enum SidebarActions {
     @MainActor
     static func linkPR(tab: YggdrasilTab, services: AppServices) {
         guard let tabID = tab.id else { return }
-        guard let repo = services.tabs.repoByTabID[tabID] else {
+        guard services.tabs.repoByTabID[tabID] != nil else {
             presentInfo(title: "Can't link a PR",
                         text: "This tab isn't inside a tracked repository.")
             return
         }
-
         Task { @MainActor in
-            let repos: [Repo]
+            let prRepo: Repo
             do {
-                repos = try await services.database.queue.read { db in try Repo.fetchAll(db) }
+                prRepo = try TabActions.defaultPRRepo(tabID: tabID, services: services)
             } catch {
-                presentInfo(title: "Can't link a PR", text: String(describing: error))
+                presentInfo(title: "Can't link a PR", text: error.actionMessage)
                 return
             }
-            let prRepo = defaultPRRepo(
-                taskRepoID: services.tabs.tasksByTabID[tabID]?.repoID, pathRepo: repo, repos: repos
-            )
-
-            // Auto-detect: best-effort, ignore errors (just means no prefill).
-            let suggested = try? await services.syncService.linkablePRNumber(
-                forBranch: tab.branchName, owner: prRepo.owner, name: prRepo.name
-            )
-            let prefill = suggested.map(String.init) ?? ""
-
-            guard let entered = promptForPRNumber(prefill: prefill, defaultRepo: prRepo.fullName),
-                  !entered.isEmpty else { return }
-            guard let target = parseLinkPRInput(entered, defaultOwner: prRepo.owner, defaultName: prRepo.name) else {
+            // Auto-detect: best-effort (no match just means no prefill).
+            let suggested = await TabActions.suggestedPRNumber(tabID: tabID, services: services)
+            guard let entered = promptForPRNumber(
+                prefill: suggested.map(String.init) ?? "", defaultRepo: prRepo.fullName
+            ), !entered.isEmpty else { return }
+            let resolved: (target: LinkPRTarget, repo: Repo)
+            do {
+                resolved = try TabActions.resolvePR(entered, tabID: tabID, services: services)
+            } catch ActionError.invalidArgument {
                 presentInfo(title: "Enter a pull request",
                             text: "Couldn't read a PR from “\(entered)”. Use a PR number, a PR URL, or owner/repo#123.")
                 return
-            }
-            guard let targetRepo = trackedRepo(for: target, in: repos) else {
-                presentInfo(title: "Couldn't link \(target.display)",
-                            text: "\(target.owner)/\(target.name) isn't tracked. Add it in Preferences → Repos.")
+            } catch let ActionError.repoNotTracked(slug) {
+                presentInfo(title: "Couldn't link \(entered)",
+                            text: "\(slug) isn't tracked. Add it in Preferences → Repos.")
+                return
+            } catch {
+                presentInfo(title: "Can't link a PR", text: error.actionMessage)
                 return
             }
-
             do {
-                let taskID = try await services.syncService.importPR(
-                    owner: targetRepo.owner, name: targetRepo.name, number: target.number
+                try await TabActions.linkPR(
+                    tabID: tabID, repo: resolved.repo, number: resolved.target.number, services: services
                 )
-                if services.tabs.tasksByTabID[tabID]?.type == .issue {
-                    // Issue tab: keep the issue as primary, attach the PR
-                    // alongside it so the row shows both.
-                    try services.tabStore.setPRTaskID(id: tabID, prTaskID: taskID)
-                } else {
-                    // Ad-hoc / PR-only tab: the PR becomes the primary task.
-                    try services.tabStore.setTaskID(id: tabID, taskID: taskID)
-                }
-                services.tabs.reload()
-                services.triggerSyncNow()
             } catch {
-                presentInfo(title: "Couldn't link \(target.display)",
-                            text: String(describing: error))
+                presentInfo(title: "Couldn't link \(resolved.target.display)", text: error.actionMessage)
             }
         }
     }
@@ -427,58 +327,5 @@ extension SidebarActions {
             }
             services.sessions.add(session)
         }
-    }
-
-    /// Same choice as for a local tab. Either way the agent is stopped on the
-    /// host first; the worktree is removed with git on the host, and the repo's
-    /// checkout there stays.
-    @MainActor
-    private static func removeRemoteTab(id: Int64, tab: YggdrasilTab, host: RemoteHost, services: AppServices) {
-        let alert = NSAlert()
-        alert.messageText = "Remove this tab?"
-        alert.informativeText = """
-        Branch: \(tab.branchName)
-        Worktree: \(tab.worktreePath) on \(host.name)
-
-        The agent running on \(host.name) is stopped. Deleting the worktree runs \
-        `git worktree remove --force` on the host, which discards any uncommitted work in it.
-        """
-        alert.alertStyle = .warning
-        for choice in RemoveTabChoice.allCases {
-            alert.addButton(withTitle: choice.title).hasDestructiveAction = choice.isDestructive
-        }
-        let choice = RemoveTabChoice.from(response: alert.runModal())
-        guard choice != .cancel else { return }
-        let repo = services.tabs.repoByTabID[id]
-        Task { @MainActor in
-            var problems: [String] = []
-            do {
-                try await services.remoteControl.kill(host: host, tabID: id)
-            } catch {
-                problems.append("The agent couldn't be stopped: \(error)")
-            }
-            // Independent of the kill: a dead agent is no reason to leave the
-            // worktree behind for the next tab on this branch to pick up.
-            if choice == .tabAndWorktree {
-                if let repo {
-                    do {
-                        try await services.existingWorktreeManager(on: host, repo: repo).remove(
-                            repo: repo, path: URL(fileURLWithPath: tab.worktreePath, isDirectory: true), force: true
-                        )
-                    } catch {
-                        problems.append("The worktree couldn't be removed: \(error)")
-                    }
-                } else {
-                    problems
-                        .append("The worktree isn't under a tracked repository's checkout, so it was left in place.")
-                }
-            }
-            guard !problems.isEmpty else { return }
-            presentInfo(
-                title: "Removed the tab, but not everything on \(host.name)",
-                text: problems.joined(separator: "\n\n") + "\n\nWorktree: \(tab.worktreePath)"
-            )
-        }
-        performRemoval(id: id, tab: tab, deleteWorktree: false, services: services)
     }
 }

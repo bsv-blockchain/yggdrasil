@@ -208,42 +208,9 @@ struct AssignedTaskPicker: View {
         do {
             agents = try services.agentStore.list()
             rows = try services.database.queue.read { db -> [Row] in
-                // Tasks not currently shadowed by any tab — as a tab's primary
-                // task OR as an issue tab's linked PR (pr_task_id), so a PR
-                // linked to an open issue tab doesn't show as still-available.
-                let openedTaskIDs = try Int64.fetchSet(db, sql: TabsModel.openedTaskIDsSQL)
                 let candidateTasks: [YggdrasilTask] = switch mode {
-                case .assigned:
-                    // Issues assigned to me + PRs I authored. The task table
-                    // holds all assigned issues (from /issues?filter=assigned)
-                    // plus the PRs we mirror in pr_authored.
-                    try YggdrasilTask.fetchAll(
-                        db,
-                        sql: """
-                        SELECT task.* FROM task
-                        WHERE task.type = 'issue'
-                           OR task.id IN (SELECT task_id FROM pr_authored)
-                        ORDER BY task.updated_at DESC
-                        """
-                    )
-                case .review:
-                    // PRs to review = review-requested ∪ assigned-but-not-authored.
-                    // A PR I both authored and was review-requested on lands
-                    // here too (rare but possible); the picker still excludes
-                    // it once a tab shadows it.
-                    try YggdrasilTask.fetchAll(
-                        db,
-                        sql: """
-                        SELECT task.* FROM task
-                        WHERE task.type = 'pr'
-                          AND (
-                            task.id IN (SELECT task_id FROM pr_review_request)
-                         OR (task.id IN (SELECT task_id FROM pr_assigned)
-                             AND task.id NOT IN (SELECT task_id FROM pr_authored))
-                          )
-                        ORDER BY task.updated_at DESC
-                        """
-                    )
+                case .assigned: try TaskQueries.assigned(db)
+                case .review: try TaskQueries.toReview(db)
                 }
                 let repos = try Repo.fetchAll(db)
                 let repoByID = Dictionary(uniqueKeysWithValues: repos.compactMap { repo -> (Int64, Repo)? in
@@ -251,7 +218,6 @@ struct AssignedTaskPicker: View {
                     return (id, repo)
                 })
                 return candidateTasks.compactMap { task -> Row? in
-                    guard let taskID = task.id, !openedTaskIDs.contains(taskID) else { return nil }
                     guard let repo = repoByID[task.repoID] else { return nil }
                     return Row(task: task, repo: repo)
                 }
@@ -278,11 +244,6 @@ struct AssignedTaskPicker: View {
         error = nil
         defer { openingTaskIDs.remove(taskID) }
         do {
-            let host = chosenHost
-            guard host != nil || row.repo.localMainPath != nil else {
-                error = "\(row.repo.fullName) isn't cloned on this Mac — run it on a host, or set its location in Settings → Repositories."
-                return
-            }
             guard let agent = try AgentChooser.resolveAgent(
                 selectedID: selectedAgentID,
                 agents: agents,
@@ -291,46 +252,9 @@ struct AssignedTaskPicker: View {
                 error = "No coding agent configured."
                 return
             }
-            let branch = mode.branchName(for: row.task, agentName: agent.name)
-            let baseRef: String? = row.task.type == .pullRequest
-                ? "refs/pull/\(row.task.number)/head"
-                : nil
-            // The worktree is NOT created here. Building it runs `git fetch` of
-            // the PR head while holding the repo's worktree lock, which is slow
-            // on a large repo — doing it on the click meant opening several PRs
-            // left the later ones queued on that lock until they timed out. The
-            // path is deterministic, so the tab can be inserted against it now
-            // and the git work can happen in the background.
-            guard let plannedPath = try services.plannedWorktreePath(
-                repo: row.repo, branch: branch, host: host
-            ) else {
-                error = "\(row.repo.fullName) isn't cloned on this Mac — run it on a host, or set its location in Settings → Repositories."
-                return
-            }
-
-            // Re-resolve the task id inside the write: the row this picker
-            // snapshotted may have been pruned since (closing a tab unprotects
-            // its task, and the sync that fires on close then deletes it),
-            // which made this insert fail the foreign key outright.
-            let liveTaskID = try await services.database.queue.write { db in
-                try TaskSyncWrites.resolveOrReviveTask(db: db, snapshot: row.task)
-            }
-            let newTab = try services.tabStore.insert(
-                branchName: branch,
-                worktreePath: plannedPath,
-                agentID: agent.id,
-                taskID: liveTaskID,
-                preparationState: .pending,
-                hostID: host?.id
+            _ = try await TabActions.openTask(
+                row.task, repo: row.repo, mode: mode, host: chosenHost, agent: agent, services: services
             )
-            services.tabs.reload()
-            if let tabID = newTab.id {
-                services.tabs.select(tabID)
-                await services.worktreePreparer.enqueue(
-                    tabID: tabID, repo: row.repo, host: host, branch: branch, baseRef: baseRef
-                )
-            }
-            services.triggerSyncNow()
             // Deliberately no `dismiss()`. Opening one task usually means
             // opening several — a window that closes itself after each row
             // has to be reopened to start the next one. `reload()` drops the
@@ -339,7 +263,7 @@ struct AssignedTaskPicker: View {
             // user closes the window when they're done.
             reload()
         } catch {
-            self.error = String(describing: error)
+            self.error = error.actionMessage
         }
     }
 }

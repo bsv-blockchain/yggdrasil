@@ -135,42 +135,12 @@ final class TabsModel {
         }
     }
 
-    /// Task ids already shadowed by a tab — as the tab's primary task OR as an
-    /// issue tab's linked PR (`pr_task_id`). Picker/count exclusions use this so
-    /// a PR linked to an open issue tab doesn't also show as "to review" or
-    /// "assigned".
-    static let openedTaskIDsSQL = """
-    SELECT task_id FROM tab WHERE task_id IS NOT NULL
-    UNION SELECT pr_task_id FROM tab WHERE pr_task_id IS NOT NULL
-    """
-
     private func fetchPendingReviewCount() throws -> Int {
-        try database.queue.read { db in
-            // Match AssignedTaskPicker(.review) — review-requested ∪
-            // assigned-but-not-authored — minus what's already a tab.
-            try Int.fetchOne(db, sql: """
-            SELECT COUNT(*) FROM task
-            WHERE task.type = 'pr'
-              AND (
-                task.id IN (SELECT task_id FROM pr_review_request)
-             OR (task.id IN (SELECT task_id FROM pr_assigned)
-                 AND task.id NOT IN (SELECT task_id FROM pr_authored))
-              )
-              AND task.id NOT IN (\(Self.openedTaskIDsSQL))
-            """) ?? 0
-        }
+        try database.queue.read { db in try TaskQueries.toReviewCount(db) }
     }
 
     private func fetchPendingAssignedCount() throws -> Int {
-        try database.queue.read { db in
-            // Match AssignedTaskPicker(.assigned) — issues assigned to me + PRs
-            // I authored — minus what's already a tab (primary or linked PR).
-            try Int.fetchOne(db, sql: """
-            SELECT COUNT(*) FROM task
-            WHERE (task.type = 'issue' OR task.id IN (SELECT task_id FROM pr_authored))
-              AND task.id NOT IN (\(Self.openedTaskIDsSQL))
-            """) ?? 0
-        }
+        try database.queue.read { db in try TaskQueries.assignedCount(db) }
     }
 
     /// Per-tab agent identity (claude/codex/gemini/copilot/grok) resolved

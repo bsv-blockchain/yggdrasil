@@ -120,6 +120,7 @@ final class AppServices {
         // After every successful sync, refresh `tabsModel` so the chrome pill's
         // pending-review count and the lazy task-link map (tasksByTabID) pick up
         // anything new — review-requests added or dismissed since the last tick.
+        self.requestSync = Self.backgroundSync(syncService: syncService, tabs: tabsModel)
         self.scheduler = Self.makeScheduler(
             intervalSeconds: intervals.syncSeconds,
             syncService: syncService,
@@ -239,15 +240,24 @@ final class AppServices {
     /// just "the pill takes a moment longer to settle". Safe to call
     /// repeatedly; concurrent syncs are bounded by the API and tolerated.
     func triggerSyncNow() {
-        Task { [syncService, tabs] in
-            do {
-                try await syncService.fullSync()
-            } catch {
-                YggdrasilLog.sync.warning(
-                    "triggerSyncNow fullSync failed: \(String(describing: error), privacy: .public)"
-                )
+        requestSync()
+    }
+
+    /// What `triggerSyncNow` runs. Tests replace it to keep GitHub out.
+    var requestSync: @MainActor () -> Void = {}
+
+    private static func backgroundSync(syncService: TaskSyncService, tabs: TabsModel) -> @MainActor () -> Void {
+        {
+            Task {
+                do {
+                    try await syncService.fullSync()
+                } catch {
+                    YggdrasilLog.sync.warning(
+                        "triggerSyncNow fullSync failed: \(String(describing: error), privacy: .public)"
+                    )
+                }
+                await MainActor.run { tabs.reload() }
             }
-            await MainActor.run { tabs.reload() }
         }
     }
 
