@@ -13,7 +13,7 @@ struct YggdrasilApp: App {
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .newItem) {}
-            TabCommands()
+            TabCommands(appDelegate: appDelegate)
             DiagnosticsCommands()
             FindCommands()
             UpdaterCommands(updater: updater)
@@ -60,7 +60,7 @@ struct RootView: View {
         }
         .frame(minWidth: 900, minHeight: 600)
         .accessibilityIdentifier("yggdrasil.root")
-        .background(WindowFrameAutosaver(autosaveName: "YggdrasilMainWindow"))
+        .background(WindowFrameAutosaver(autosaveName: WindowFrameAutosave.mainWindowName))
         .task {
             // Start Sparkle's scheduled update checks once, in production only.
             // The test bundle is hosted in the real app, so this view runs
@@ -100,18 +100,6 @@ struct SidebarSessionsLayout: View {
             }
         }
         .background(YggdrasilTheme.bg(scheme))
-        .background {
-            // Keep ⌥↑ / ⌥↓ tab navigation alive now that the visible View-menu
-            // items carry ⌘⇧[ / ⌘⇧]. Zero-size and hidden, but present in the
-            // responder chain while the window is open; same action as the menu
-            // commands (SidebarActions.selectTab).
-            Button("") { SidebarActions.selectTab(by: -1, services: services) }
-                .keyboardShortcut(.upArrow, modifiers: [.option])
-                .hidden()
-            Button("") { SidebarActions.selectTab(by: 1, services: services) }
-                .keyboardShortcut(.downArrow, modifiers: [.option])
-                .hidden()
-        }
     }
 
     @ViewBuilder
@@ -119,13 +107,14 @@ struct SidebarSessionsLayout: View {
         if services.tabs.tabs.isEmpty {
             emptyMainPane
         } else {
-            // Stack one MainPaneView per tab and toggle visibility via opacity.
-            // This keeps every tab's agent PTY, GitHub WebView, and diff view
-            // mounted across selection, so switching tabs is instant — nothing
-            // is torn down + respawned. Costs more RAM (one terminal +
-            // WebKit per tab) but per user direction that's the trade.
+            // Stack one MainPaneView per *opened* tab and toggle visibility via
+            // opacity. An opened tab keeps its agent PTY, GitHub WebView and
+            // diff view mounted across selection, so switching back is instant.
+            // Tabs not opened this run aren't mounted at all: mounting every
+            // tab started an agent and a WebKit process per tab at launch —
+            // 44 idle agents (~11 GB) and 37 WebKit processes on a real setup.
             ZStack {
-                ForEach(services.tabs.tabs, id: \.id) { tab in
+                ForEach(services.tabs.tabs.filter { services.sessions.isOpened(tabID: $0.id) }, id: \.id) { tab in
                     MainPaneView(services: services, selectedTab: tab)
                         .opacity(tab.id == services.tabs.selectedID ? 1 : 0)
                         .allowsHitTesting(tab.id == services.tabs.selectedID)
@@ -133,6 +122,9 @@ struct SidebarSessionsLayout: View {
                 if services.tabs.selectedID == nil {
                     selectedTabHasNoSession
                 }
+            }
+            .onChange(of: services.tabs.selectedID, initial: true) { _, id in
+                services.sessions.markOpened(tabID: id)
             }
         }
     }

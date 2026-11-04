@@ -24,7 +24,16 @@ struct IssueDetailsPicker: View {
     ]
     @State private var error: String?
     @State private var loading: Bool = false
-    @State private var openingIssueID: String?
+    /// Issues currently being opened. A set, not a single id, so setting one
+    /// up (worktree creation, possibly a fetch) doesn't freeze the others.
+    @State private var openingIssueIDs: Set<String> = []
+    @State private var agents: [CodingAgent] = []
+    /// nil until the user picks one, which means "use the default".
+    @State private var selectedAgentID: Int64?
+    @State private var hosts: [RemoteHost] = []
+    /// nil = this Mac. Starts on the default host; see `HostChooser`.
+    @State private var selectedHostID: Int64?
+    @State private var hostsLoaded = false
     @State private var selection: Row.ID?
 
     /// Local-DB snapshot needed to compute linked-PR + repo metadata.
@@ -229,7 +238,7 @@ struct IssueDetailsPicker: View {
                     }
                 }
                 Button("Open as Tab") { Task { await open(row) } }
-                    .disabled(!canOpen(row))
+                    .disabled(openBlocker(row) != nil)
             }
         }
     }
@@ -244,14 +253,18 @@ struct IssueDetailsPicker: View {
             Spacer()
             if let id = selection,
                let row = rows.first(where: { $0.id == id }) {
-                if canOpen(row) {
-                    Button("Open as Tab") { Task { await open(row) } }
-                        .keyboardShortcut(.return, modifiers: [])
-                        .disabled(openingIssueID != nil)
-                } else {
-                    Text("Repo not tracked — add it in Preferences → Repos to open as a tab.")
+                // Always shown: whether the row can open depends on this choice,
+                // so hiding it with the button would leave no way back.
+                HostChooser(hosts: hosts, selectedHostID: $selectedHostID, scheme: scheme)
+                if let blocker = openBlocker(row) {
+                    Text(blocker)
                         .font(.callout)
                         .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                } else {
+                    AgentChooser(agents: agents, selectedAgentID: $selectedAgentID, scheme: scheme)
+                    Button("Open as Tab") { Task { await open(row) } }
+                        .keyboardShortcut(.return, modifiers: [])
+                        .disabled(openingIssueIDs.contains(row.id))
                 }
                 Button("Open on GitHub") {
                     if let url = URL(string: row.htmlURL) {
@@ -273,31 +286,31 @@ struct IssueDetailsPicker: View {
         )
     }
 
-    /// Pure helper exposed for unit testing. The view body just renders the
-    /// result, so all filter logic lives here in one place.
-    static func filter(
-        rows: [Row], search: String, trackedRepoKeys: Set<String>, trackedOnly: Bool
-    ) -> [Row] {
-        var result = rows
-        if trackedOnly {
-            result = result.filter { trackedRepoKeys.contains($0.repoFull) }
-        }
-        let trimmed = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !trimmed.isEmpty else { return result }
-        return result.filter { row in
-            row.title.lowercased().contains(trimmed)
-                || row.repoFull.lowercased().contains(trimmed)
-                || "#\(row.number)".contains(trimmed)
-                || row.labels.contains { $0.name.lowercased().contains(trimmed) }
-                || row.milestone.lowercased().contains(trimmed)
+    /// Re-read every reload, so hosts added, edited or removed in Settings
+    /// while the window is open are what gets used. Only the starting
+    /// selection is set once; later reloads keep the user's pick unless that
+    /// host is gone, which falls back to this Mac.
+    private func loadHosts() {
+        hosts = (try? services.hostStore.list()) ?? []
+        if !hostsLoaded {
+            hostsLoaded = true
+            selectedHostID = HostChooser.initialSelection(defaultHostID: services.defaultHostID, hosts: hosts)
+        } else if let id = selectedHostID, !hosts.contains(where: { $0.id == id }) {
+            selectedHostID = nil
         }
     }
 
+    private var chosenHost: RemoteHost? {
+        HostChooser.resolveHost(selectedID: selectedHostID, hosts: hosts)
+    }
+
     private func reload() async {
+        loadHosts()
         loading = true
         error = nil
         defer { loading = false }
         do {
+            agents = (try? services.agentStore.list()) ?? []
             // GitHub-side fetch — every assigned issue across the user's
             // entire GitHub account, not limited by our tracked-repo set.
             let raws = try await services.restClient.allAssignedIssues()
@@ -348,42 +361,26 @@ struct IssueDetailsPicker: View {
         }
     }
 
-    /// Local-DB-driven heuristic. We only know about PRs in tracked repos,
-    /// so untracked-repo issues never get a linked PR — that's a known
-    /// limitation, documented in the footer when the user selects one.
-    static func linkedPR(
-        forIssueNumber issueNumber: Int,
-        repoKey: String,
-        candidatePRs: [YggdrasilTask],
-        repos: [String: Repo]
-    ) -> YggdrasilTask? {
-        guard let repoID = repos[repoKey]?.id else { return nil }
-        let needle = "#\(issueNumber)"
-        let pattern = try? NSRegularExpression(
-            pattern: "(?<![0-9])\(NSRegularExpression.escapedPattern(for: needle))(?![0-9])"
-        )
-        return candidatePRs.first { pull in
-            guard pull.repoID == repoID else { return false }
-            let haystack = pull.title + " " + (pull.body ?? "")
-            guard let pattern else { return haystack.contains(needle) }
-            return pattern.firstMatch(in: haystack, range: NSRange(haystack.startIndex..., in: haystack)) != nil
-        }
-    }
-
     /// Open as a tab — only works for tracked repos (we need a localMainPath
     /// to create a worktree). For others, the footer surfaces a hint.
     private func open(_ row: Row) async {
-        guard openingIssueID == nil else { return }
-        openingIssueID = row.id
-        defer { openingIssueID = nil }
+        // Only guards against double-firing the same issue; others stay live.
+        guard !openingIssueIDs.contains(row.id) else { return }
+        openingIssueIDs.insert(row.id)
+        defer { openingIssueIDs.remove(row.id) }
         do {
             let repos = try await services.database.queue.read { db in try Repo.fetchAll(db) }
+            let host = chosenHost
             guard let repo = repos.first(where: { $0.owner == row.owner && $0.name == row.repoName }),
-                  repo.localMainPath != nil else {
-                error = "\(row.repoFull) isn't tracked locally. Add it in Preferences → Repos."
+                  host != nil || repo.localMainPath != nil else {
+                error = openBlocker(row)
                 return
             }
-            guard let agent = try (services.agentStore.getDefault() ?? services.agentStore.list().first) else {
+            guard let agent = try AgentChooser.resolveAgent(
+                selectedID: selectedAgentID,
+                agents: agents,
+                defaultAgent: services.agentStore.getDefault()
+            ) else {
                 error = "No coding agent configured."
                 return
             }
@@ -396,41 +393,47 @@ struct IssueDetailsPicker: View {
                 etag: nil, labelsJSON: "[]", milestoneTitle: nil
             )
             let branch = TaskPickerMode.assigned.branchName(for: dummyTask, agentName: agent.name)
-            let worktreeURL = try await services.worktreeManager.ensure(
-                repo: repo, branch: branch, baseRef: nil
-            )
+            // Prepared in the background, like the other two open paths.
+            guard let plannedPath = try services.plannedWorktreePath(
+                repo: repo, branch: branch, host: host
+            ) else {
+                error = "\(row.repoFull) isn't cloned on this Mac — run it on a host, or set its location in Settings → Repositories."
+                return
+            }
             let newTab = try services.tabStore.insert(
                 branchName: branch,
-                worktreePath: worktreeURL.path,
+                worktreePath: plannedPath,
                 agentID: agent.id,
-                taskID: nil
+                taskID: nil,
+                preparationState: .pending,
+                hostID: host?.id
             )
             services.tabs.reload()
             if let tabID = newTab.id {
                 services.tabs.select(tabID)
-                services.sessions.add(
-                    OpenSession(
-                        id: tabID,
-                        displayName: "\(agent.name) · \(branch)",
-                        cwd: worktreeURL.path,
-                        command: agent.command,
-                        args: agent.args
-                    )
+                await services.worktreePreparer.enqueue(
+                    tabID: tabID, repo: repo, host: host, branch: branch, baseRef: nil
                 )
             }
             services.triggerSyncNow()
-            dismiss()
+            // No `dismiss()` — same reasoning as AssignedTaskPicker: opening
+            // one issue usually means opening several, and a window that
+            // closes itself has to be reopened for each one.
         } catch {
             self.error = String(describing: error)
         }
     }
 
-    private func canOpen(_ row: Row) -> Bool {
-        guard let repos = try? services.database.queue.read({ db in try Repo.fetchAll(db) }) else {
-            return false
+    /// Why the row can't open as a tab where it's set to run, or nil if it can.
+    private func openBlocker(_ row: Row) -> String? {
+        let repos = (try? services.database.queue.read { db in try Repo.fetchAll(db) }) ?? []
+        guard let repo = repos.first(where: { $0.owner == row.owner && $0.name == row.repoName }) else {
+            return "Repo not tracked — add it in Settings → Repositories to open as a tab."
         }
-        return repos.first(where: { $0.owner == row.owner && $0.name == row.repoName })?
-            .localMainPath != nil
+        guard chosenHost != nil || repo.localMainPath != nil else {
+            return "Not cloned on this Mac — run it on a host, or set its location in Settings → Repositories."
+        }
+        return nil
     }
 
     private func tone(for state: String) -> StatusChip.Tone {
@@ -459,42 +462,3 @@ struct IssueDetailsPicker: View {
 }
 
 // swiftlint:enable type_body_length
-
-/// Coloured chip for a single GitHub label. Background uses the label's hex
-/// color at low alpha so dark + light themes both read.
-struct LabelChip: View {
-    let data: Data
-    let scheme: ColorScheme
-
-    struct Data: Hashable {
-        let name: String
-        let color: String
-    }
-
-    var body: some View {
-        Text(data.name)
-            .font(.system(size: 9.5, weight: .semibold))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .foregroundStyle(textColor)
-            .background(
-                Capsule().fill(parsedColor.opacity(0.22))
-            )
-            .overlay(
-                Capsule().stroke(parsedColor.opacity(0.45), lineWidth: 0.5)
-            )
-    }
-
-    private var parsedColor: Color {
-        var hex: UInt64 = 0
-        Scanner(string: data.color).scanHexInt64(&hex)
-        let red = Double((hex >> 16) & 0xFF) / 255.0
-        let green = Double((hex >> 8) & 0xFF) / 255.0
-        let blue = Double(hex & 0xFF) / 255.0
-        return Color(red: red, green: green, blue: blue)
-    }
-
-    private var textColor: Color {
-        scheme == .dark ? Color.white.opacity(0.9) : Color.black.opacity(0.75)
-    }
-}

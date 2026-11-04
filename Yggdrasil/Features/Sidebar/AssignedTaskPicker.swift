@@ -1,72 +1,6 @@
 import GRDB
 import SwiftUI
 
-/// Mode toggle for the task-picker sheet. Same UI/flow, different source set:
-/// `assigned` reads from `task` directly (sync filters to assignee:@me);
-/// `review` reads from `pr_review_request` (PRs the user has been asked to
-/// review, fetched via the search endpoint).
-enum TaskPickerMode {
-    case assigned
-    case review
-
-    var title: String {
-        switch self {
-        case .assigned: "Open Assigned"
-        case .review: "PRs to Review"
-        }
-    }
-
-    var emptyTitle: String {
-        switch self {
-        case .assigned: "Nothing to open"
-        case .review: "No reviews waiting"
-        }
-    }
-
-    var emptySubtitle: String {
-        switch self {
-        case .assigned: "All assigned issues and PRs are already open, or nothing has been synced yet."
-        case .review: "You're not currently requested as a reviewer on any open PR."
-        }
-    }
-
-    /// Branch + worktree name used when opening a task in this mode. The
-    /// agent slug is the leading segment so the same PR can host parallel
-    /// agents — each one ends up on its own branch in its own worktree
-    /// directory (`<repoParent>/.worktrees/<agent>-<base>`). The `review-`
-    /// infix still lets the sidebar and chrome pick up the REVIEW badge
-    /// without a schema change.
-    func branchName(for task: YggdrasilTask, agentName: String) -> String {
-        let prefix = TaskPickerMode.agentSlug(agentName)
-        let base: String = switch self {
-        case .assigned:
-            task.type == .pullRequest ? "pr-\(task.number)" : "issue-\(task.number)"
-        case .review:
-            "review-pr-\(task.number)"
-        }
-        return prefix.isEmpty ? base : "\(prefix)-\(base)"
-    }
-
-    /// Lowercase + hyphenated slug from an agent profile name. "Claude" →
-    /// "claude"; "GitHub Copilot" → "github-copilot". Pure for testability.
-    static func agentSlug(_ name: String) -> String {
-        let lowered = name.lowercased()
-        let allowed = CharacterSet.lowercaseLetters.union(.decimalDigits)
-        var out = ""
-        var lastWasDash = true
-        for scalar in lowered.unicodeScalars {
-            if allowed.contains(scalar) {
-                out.append(Character(scalar))
-                lastWasDash = false
-            } else if !lastWasDash {
-                out.append("-")
-                lastWasDash = true
-            }
-        }
-        return out.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-    }
-}
-
 /// Sheet that lists tasks (assigned issues/PRs, or review-requested PRs)
 /// not yet open as a tab. Clicking a row opens it: ensures the worktree
 /// (PR head fetched, or new branch off the default base for issues) and
@@ -83,7 +17,19 @@ struct AssignedTaskPicker: View {
     @State private var rows: [Row] = []
     @State private var search: String = ""
     @State private var error: String?
-    @State private var openingTaskID: Int64?
+    /// Tasks currently being opened. A set, not a single id: setting up a
+    /// worktree can take seconds (a PR head fetch on a large repo), and a
+    /// single-slot guard made every other row unclickable for that whole time.
+    /// `WorktreeManager` holds a per-repo flock, so concurrent opens queue at
+    /// the git level rather than racing.
+    @State private var openingTaskIDs: Set<Int64> = []
+    @State private var agents: [CodingAgent] = []
+    /// nil until the user picks one, which means "use the default".
+    @State private var selectedAgentID: Int64?
+    @State private var hosts: [RemoteHost] = []
+    /// nil = this Mac. Starts on the default host; see `HostChooser`.
+    @State private var selectedHostID: Int64?
+    @State private var hostsLoaded = false
 
     /// One picker row. Bundles the task + its owning repo so the body view
     /// doesn't have to re-query per render.
@@ -92,6 +38,23 @@ struct AssignedTaskPicker: View {
         let repo: Repo
         var id: Int64 {
             task.id ?? 0
+        }
+
+        /// Everything the search box matches a term against. Terms aren't
+        /// field-scoped, so `-P0` excludes on the label without the user
+        /// having to say it's a label.
+        var searchFields: [String] {
+            var fields = [
+                task.title,
+                "\(repo.owner)/\(repo.name)",
+                "#\(task.number)",
+                task.state.rawValue
+            ]
+            if let milestone = task.milestoneTitle, !milestone.isEmpty {
+                fields.append(milestone)
+            }
+            fields.append(contentsOf: task.labels.map(\.name))
+            return fields
         }
     }
 
@@ -138,7 +101,7 @@ struct AssignedTaskPicker: View {
         HStack(spacing: 7) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
-            TextField("Filter by title, repo, or number", text: $search)
+            TextField("Filter — title, repo, #number, label, milestone; -term excludes", text: $search)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundStyle(YggdrasilTheme.text(scheme))
@@ -160,9 +123,13 @@ struct AssignedTaskPicker: View {
                     emptyState
                 } else {
                     ForEach(filteredRows) { row in
-                        TaskRow(row: row, isOpening: openingTaskID == row.task.id, scheme: scheme)
-                            .contentShape(Rectangle())
-                            .onTapGesture { Task { await open(row) } }
+                        TaskRow(
+                            row: row,
+                            isOpening: openingTaskIDs.contains(row.task.id ?? 0),
+                            scheme: scheme
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture { Task { await open(row) } }
                         Divider().opacity(0.5)
                     }
                 }
@@ -203,6 +170,8 @@ struct AssignedTaskPicker: View {
                     .accessibilityIdentifier("assignedpicker.error")
             }
             Spacer()
+            HostChooser(hosts: hosts, selectedHostID: $selectedHostID, scheme: scheme)
+            AgentChooser(agents: agents, selectedAgentID: $selectedAgentID, scheme: scheme)
             Button("Close") { dismiss() }
                 .keyboardShortcut(.cancelAction)
         }
@@ -210,18 +179,34 @@ struct AssignedTaskPicker: View {
 
     // MARK: - Data
 
-    private var filteredRows: [Row] {
-        let trimmed = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !trimmed.isEmpty else { return rows }
-        return rows.filter { row in
-            row.task.title.lowercased().contains(trimmed)
-                || "\(row.repo.owner)/\(row.repo.name)".lowercased().contains(trimmed)
-                || "#\(row.task.number)".contains(trimmed)
+    /// Re-read every reload, so hosts added, edited or removed in Settings
+    /// while the window is open are what gets used. Only the starting
+    /// selection is set once; later reloads keep the user's pick unless that
+    /// host is gone, which falls back to this Mac.
+    private func loadHosts() {
+        hosts = (try? services.hostStore.list()) ?? []
+        if !hostsLoaded {
+            hostsLoaded = true
+            selectedHostID = HostChooser.initialSelection(defaultHostID: services.defaultHostID, hosts: hosts)
+        } else if let id = selectedHostID, !hosts.contains(where: { $0.id == id }) {
+            selectedHostID = nil
         }
     }
 
+    private var chosenHost: RemoteHost? {
+        HostChooser.resolveHost(selectedID: selectedHostID, hosts: hosts)
+    }
+
+    private var filteredRows: [Row] {
+        let query = TaskSearchQuery(search)
+        guard !query.isEmpty else { return rows }
+        return rows.filter { query.matches($0.searchFields) }
+    }
+
     private func reload() {
+        loadHosts()
         do {
+            agents = try services.agentStore.list()
             rows = try services.database.queue.read { db -> [Row] in
                 // Tasks not currently shadowed by any tab — as a tab's primary
                 // task OR as an issue tab's linked PR (pr_task_id), so a PR
@@ -287,17 +272,22 @@ struct AssignedTaskPicker: View {
     }
 
     private func open(_ row: Row) async {
-        guard openingTaskID == nil, let taskID = row.task.id else { return }
-        openingTaskID = taskID
+        // Only guards against double-firing the same row; other rows stay live.
+        guard let taskID = row.task.id, !openingTaskIDs.contains(taskID) else { return }
+        openingTaskIDs.insert(taskID)
         error = nil
-        defer { openingTaskID = nil }
+        defer { openingTaskIDs.remove(taskID) }
         do {
-            guard row.repo.localMainPath != nil else {
-                error = "Repo \(row.repo.fullName) has no local clone. Set it in Preferences → Repos."
+            let host = chosenHost
+            guard host != nil || row.repo.localMainPath != nil else {
+                error = "\(row.repo.fullName) isn't cloned on this Mac — run it on a host, or set its location in Settings → Repositories."
                 return
             }
-            guard let agent = try (services.agentStore.getDefault() ?? services.agentStore.list().first)
-            else {
+            guard let agent = try AgentChooser.resolveAgent(
+                selectedID: selectedAgentID,
+                agents: agents,
+                defaultAgent: services.agentStore.getDefault()
+            ) else {
                 error = "No coding agent configured."
                 return
             }
@@ -305,33 +295,49 @@ struct AssignedTaskPicker: View {
             let baseRef: String? = row.task.type == .pullRequest
                 ? "refs/pull/\(row.task.number)/head"
                 : nil
-            let worktreeURL = try await services.worktreeManager.ensure(
-                repo: row.repo, branch: branch, baseRef: baseRef
-            )
+            // The worktree is NOT created here. Building it runs `git fetch` of
+            // the PR head while holding the repo's worktree lock, which is slow
+            // on a large repo — doing it on the click meant opening several PRs
+            // left the later ones queued on that lock until they timed out. The
+            // path is deterministic, so the tab can be inserted against it now
+            // and the git work can happen in the background.
+            guard let plannedPath = try services.plannedWorktreePath(
+                repo: row.repo, branch: branch, host: host
+            ) else {
+                error = "\(row.repo.fullName) isn't cloned on this Mac — run it on a host, or set its location in Settings → Repositories."
+                return
+            }
+
+            // Re-resolve the task id inside the write: the row this picker
+            // snapshotted may have been pruned since (closing a tab unprotects
+            // its task, and the sync that fires on close then deletes it),
+            // which made this insert fail the foreign key outright.
+            let liveTaskID = try await services.database.queue.write { db in
+                try TaskSyncWrites.resolveOrReviveTask(db: db, snapshot: row.task)
+            }
             let newTab = try services.tabStore.insert(
                 branchName: branch,
-                worktreePath: worktreeURL.path,
+                worktreePath: plannedPath,
                 agentID: agent.id,
-                taskID: taskID
+                taskID: liveTaskID,
+                preparationState: .pending,
+                hostID: host?.id
             )
             services.tabs.reload()
             if let tabID = newTab.id {
                 services.tabs.select(tabID)
-                services.sessions.add(
-                    OpenSession(
-                        id: tabID,
-                        displayName: "\(agent.name) · \(branch)",
-                        cwd: worktreeURL.path,
-                        command: agent.command,
-                        args: agent.args
-                    )
+                await services.worktreePreparer.enqueue(
+                    tabID: tabID, repo: row.repo, host: host, branch: branch, baseRef: baseRef
                 )
             }
-            // Refresh GitHub-side state so the pending-review pill + CI
-            // badges catch up immediately rather than waiting for the
-            // next scheduled tick.
             services.triggerSyncNow()
-            dismiss()
+            // Deliberately no `dismiss()`. Opening one task usually means
+            // opening several — a window that closes itself after each row
+            // has to be reopened to start the next one. `reload()` drops the
+            // row we just opened (the query excludes tasks already shadowed
+            // by a tab), so the list shrinks as you work through it and the
+            // user closes the window when they're done.
+            reload()
         } catch {
             self.error = String(describing: error)
         }
@@ -363,6 +369,17 @@ private struct TaskRow: View {
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(YggdrasilTheme.textMute(scheme))
                     stateBadge
+                    if let milestone = row.task.milestoneTitle, !milestone.isEmpty {
+                        milestoneChip(milestone)
+                    }
+                    ForEach(visibleLabels, id: \.self) { label in
+                        LabelChip(data: .init(name: label.name, color: label.color), scheme: scheme)
+                    }
+                    if overflowLabelCount > 0 {
+                        Text("+\(overflowLabelCount)")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                    }
                 }
             }
             Spacer()
@@ -393,6 +410,37 @@ private struct TaskRow: View {
                 .foregroundStyle(YggdrasilTheme.ember)
                 .frame(width: 18)
         }
+    }
+
+    /// Labels are rendered inline on a single row, so cap them — a task with
+    /// a dozen labels would otherwise push the repo and state off-screen. The
+    /// hidden ones are still searchable; only the rendering is capped.
+    private static let maxVisibleLabels = 3
+
+    private var visibleLabels: [YggdrasilTask.Label] {
+        Array(row.task.labels.prefix(Self.maxVisibleLabels))
+    }
+
+    private var overflowLabelCount: Int {
+        max(0, row.task.labels.count - Self.maxVisibleLabels)
+    }
+
+    /// Milestones have no colour from GitHub, so they get a plain chip rather
+    /// than the label treatment.
+    private func milestoneChip(_ title: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: "flag")
+                .font(.system(size: 8))
+            Text(title)
+                .font(.system(size: 9.5, weight: .medium))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1)
+        .foregroundStyle(YggdrasilTheme.textDim(scheme))
+        .overlay(
+            Capsule().stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
+        )
     }
 
     private var stateBadge: some View {

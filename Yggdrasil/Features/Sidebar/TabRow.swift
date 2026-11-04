@@ -36,6 +36,8 @@ struct TabRow: View {
                 HStack(spacing: 6) {
                     if model.isReview {
                         reviewPill
+                    } else if model.replyNeedsAttention {
+                        replyPill
                     }
                     Text(model.titleLine)
                         .font(.system(size: 12.5, weight: .medium))
@@ -64,8 +66,13 @@ struct TabRow: View {
                     .truncationMode(.middle)
                     .accessibilityIdentifier("tabrow.worktree")
 
-                StatusChipRow(status: model.liveStatus, agent: agent)
-                    .padding(.top, 2)
+                StatusChipRow(
+                    status: model.liveStatus, agent: agent,
+                    isMuted: model.isAttentionDismissed,
+                    preparation: model.preparationState,
+                    preparationError: model.preparationError
+                )
+                .padding(.top, 2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -118,8 +125,10 @@ struct TabRow: View {
     }
 
     /// REVIEW pill, three states (precedence amber > green > blue):
-    /// - amber + dot — "your move": the author pushed after you last engaged, or
-    ///   an unresolved thread you're in has a reply after yours;
+    /// - amber + dot — "your move": GitHub has an open review request for you
+    ///   (incl. a re-request after the author pushed fixes), the author pushed
+    ///   after you last engaged, or an unresolved thread you're in has a reply
+    ///   after yours;
     /// - green + check — you've approved the current head;
     /// - blue — a review session with nothing directed at you (unreviewed, bot
     ///   threads, threads you never joined).
@@ -149,11 +158,33 @@ struct TabRow: View {
         .background(Capsule().fill(colored ? tint.opacity(0.14) : YggdrasilTheme.accentSoft(scheme)))
         .overlay(Capsule().stroke(tint.opacity(0.4), lineWidth: 0.5))
         .help(attention
-            ? "Your move — the author pushed since you last engaged, or a thread you're in is awaiting your reply"
+            ? "Your move — your review is requested, the author pushed since you last engaged, or a thread you're in is awaiting your reply"
             : approved
             ? "Approved — you've approved the current head"
             : "Review session — nothing needs you right now")
         .accessibilityIdentifier("tabrow.reviewbadge")
+    }
+
+    /// REPLY pill — amber only, shown on a PR you wrote when unresolved review
+    /// threads are awaiting your answer. Unlike REVIEW there's no idle state:
+    /// the pill is absent when nothing is waiting on you.
+    @ViewBuilder
+    private var replyPill: some View {
+        let tint = YggdrasilTheme.statusWarn(scheme)
+        let count = model.liveStatus?.threadsAwaitingReply ?? 0
+        HStack(spacing: 3) {
+            Text("REPLY")
+                .font(.system(size: 9, weight: .bold))
+                .tracking(0.6)
+            Circle().fill(tint).frame(width: 4, height: 4)
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1)
+        .foregroundStyle(tint)
+        .background(Capsule().fill(tint.opacity(0.14)))
+        .overlay(Capsule().stroke(tint.opacity(0.4), lineWidth: 0.5))
+        .help("Your move — \(count) unresolved thread(s) on your PR are awaiting your reply")
+        .accessibilityIdentifier("tabrow.replybadge")
     }
 
     @ViewBuilder
@@ -208,11 +239,18 @@ struct TabRow: View {
 struct StatusChipRow: View {
     let status: TabStatus?
     let agent: AgentIdentity
+    /// Muted tabs say so: the mute can lapse on its own, so without this a
+    /// muted tab is pixel-identical to one with nothing going on.
+    var isMuted: Bool = false
+    /// Defaults to ready so the previews and any other caller are unaffected.
+    var preparation: YggdrasilTab.PreparationState = .ready
+    var preparationError: String?
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(Array(chips.enumerated()), id: \.offset) { _, chip in
                 StatusChip(chip: chip)
+                    .help(chip.help ?? "")
             }
             if chips.isEmpty {
                 StatusChip(chip: .init(symbol: nil, text: "no activity", tone: .neutral))
@@ -221,8 +259,28 @@ struct StatusChipRow: View {
     }
 
     private var chips: [StatusChip.Data] {
+        // A tab exists from the moment you click; its worktree lands later.
+        // Say so rather than showing a working session that isn't one yet.
+        switch preparation {
+        case .pending:
+            return [.init(symbol: "clock", text: "queued", tone: .neutral)]
+        case .preparing:
+            return [.init(symbol: "arrow.down.circle", text: "preparing", tone: .info)]
+        case .failed:
+            return [.init(
+                symbol: "exclamationmark.triangle.fill",
+                text: "setup failed",
+                tone: .err,
+                help: preparationError
+            )]
+        case .ready:
+            break
+        }
         guard let status else { return [] }
         var out: [StatusChip.Data] = []
+        if isMuted {
+            out.append(.init(symbol: "bell.slash", text: "muted", tone: .neutral))
+        }
 
         switch status.icon {
         case .running:
@@ -299,6 +357,9 @@ struct StatusChip: View {
         let symbol: String?
         let text: String
         let tone: Tone
+        /// Hover text. The setup-failure chip uses it to carry git's message,
+        /// which otherwise gets written to the row and never shown anywhere.
+        var help: String?
     }
 
     let chip: Data

@@ -1,104 +1,73 @@
 import XCTest
 @testable import Yggdrasil
 
+/// Maps what the transcript says into the state the sidebar renders.
+///
+/// The rule that matters: only an explicit pending question (and an API error)
+/// is "needs you". A finished turn is the resting state of nearly every open
+/// tab — 21 of 27 live tabs sit there — so treating it as a demand would make
+/// the "Needs me" filter match almost everything and mean nothing.
 final class ClaudeStateDetectorTests: XCTestCase {
-    private let now = Date(timeIntervalSince1970: 1_700_000_000)
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
-    func testNoRecordsReturnsUnknown() {
-        XCTAssertEqual(
-            ClaudeStateDetector.evaluate(
-                lastRecordType: nil, lastRecordStopReason: nil,
-                lastRecordAt: nil, now: now
-            ),
-            .unknown
+    private func state(_ activity: AgentActivity, ageSeconds: TimeInterval = 0) -> ClaudeState {
+        ClaudeStateDetector.evaluate(
+            activity: AgentActivitySample(activity: activity, timestamp: now.addingTimeInterval(-ageSeconds)),
+            now: now
         )
     }
 
-    func testAssistantMessageWithinFiveSecondsIsRunning() {
-        let fourSecondsAgo = now.addingTimeInterval(-4)
-        XCTAssertEqual(
-            ClaudeStateDetector.evaluate(
-                lastRecordType: "assistant",
-                lastRecordStopReason: nil,
-                lastRecordAt: fourSecondsAgo,
-                now: now
-            ),
-            .running
-        )
+    func testNoTranscriptIsUnknown() {
+        XCTAssertEqual(ClaudeStateDetector.evaluate(activity: nil, now: now), .unknown)
     }
 
-    func testEndTurnWithinThirtySecondsIsStillRunning() {
-        // Spec: "running — entry in last 5s with type==assistant and no terminal stop_reason".
-        // Conservative read: end_turn within the very-recent window keeps us in running
-        // until the 30s "awaiting" threshold elapses. The 5s rule applies to assistant
-        // messages without a terminal stop_reason.
-        let tenSecondsAgo = now.addingTimeInterval(-10)
-        XCTAssertEqual(
-            ClaudeStateDetector.evaluate(
-                lastRecordType: "assistant",
-                lastRecordStopReason: "end_turn",
-                lastRecordAt: tenSecondsAgo,
-                now: now
-            ),
-            .awaitingInput,
-            "an end_turn record means the model is awaiting the user"
-        )
+    // MARK: - The states that demand attention
+
+    func testPendingQuestionIsAwaitingInput() {
+        XCTAssertEqual(state(.awaitingAnswer), .awaitingInput)
     }
 
-    func testEndTurnOlderThanThirtySecondsIsAwaitingInput() {
-        let oneMinuteAgo = now.addingTimeInterval(-60)
-        XCTAssertEqual(
-            ClaudeStateDetector.evaluate(
-                lastRecordType: "assistant",
-                lastRecordStopReason: "end_turn",
-                lastRecordAt: oneMinuteAgo,
-                now: now
-            ),
-            .awaitingInput
-        )
+    /// Latched deliberately: a question doesn't stop being unanswered because
+    /// time passed. Real transcripts show gaps of 5+ minutes before an answer,
+    /// so any decay window would drop the row exactly when it still matters.
+    func testPendingQuestionDoesNotDecayToIdle() {
+        XCTAssertEqual(state(.awaitingAnswer, ageSeconds: 60 * 60 * 24), .awaitingInput)
     }
 
-    func testNothingForFiveMinutesIsIdle() {
-        let fiveMinutesAgo = now.addingTimeInterval(-301)
-        XCTAssertEqual(
-            ClaudeStateDetector.evaluate(
-                lastRecordType: "assistant",
-                lastRecordStopReason: "end_turn",
-                lastRecordAt: fiveMinutesAgo,
-                now: now
-            ),
-            .idle
-        )
+    func testAPIErrorIsErrored() {
+        XCTAssertEqual(state(.errored), .errored)
     }
 
-    func testErrorTypeIsErrored() {
-        XCTAssertEqual(
-            ClaudeStateDetector.evaluate(
-                lastRecordType: "error", lastRecordStopReason: nil,
-                lastRecordAt: now.addingTimeInterval(-2), now: now
-            ),
-            .errored
-        )
-        XCTAssertEqual(
-            ClaudeStateDetector.evaluate(
-                lastRecordType: "tool_error", lastRecordStopReason: nil,
-                lastRecordAt: now.addingTimeInterval(-2), now: now
-            ),
-            .errored,
-            "any type substring 'error' counts as errored"
-        )
+    func testErrorDoesNotDecayEither() {
+        XCTAssertEqual(state(.errored, ageSeconds: 60 * 60), .errored)
     }
 
-    func testUserMessageBetweenSetsRunning() {
-        // After the user sends a new message, the next assistant record will appear
-        // shortly. While we're waiting on it, we report running (the user just
-        // unblocked the model).
-        XCTAssertEqual(
-            ClaudeStateDetector.evaluate(
-                lastRecordType: "user", lastRecordStopReason: nil,
-                lastRecordAt: now.addingTimeInterval(-1), now: now
-            ),
-            .running
-        )
+    // MARK: - The states that don't
+
+    /// The decision this encodes: a finished turn is idle, not amber.
+    func testFinishedTurnIsIdleNotAwaiting() {
+        XCTAssertEqual(state(.turnEnded), .idle)
+        XCTAssertEqual(state(.turnEnded, ageSeconds: 60 * 60), .idle)
+    }
+
+    func testRecentWorkIsRunning() {
+        XCTAssertEqual(state(.working), .running)
+        XCTAssertEqual(state(.working, ageSeconds: 60), .running)
+    }
+
+    /// A tool call can run for minutes without writing a record, so the window
+    /// is the idle threshold rather than something tight.
+    func testWorkJustInsideTheIdleThresholdIsStillRunning() {
+        XCTAssertEqual(state(.working, ageSeconds: ClaudeStateDetector.idleThreshold - 1), .running)
+    }
+
+    func testWorkOlderThanTheIdleThresholdIsIdle() {
+        XCTAssertEqual(state(.working, ageSeconds: ClaudeStateDetector.idleThreshold + 1), .idle)
+    }
+
+    /// Clock skew: a record stamped in the future gives a negative age, which
+    /// must not read as stale.
+    func testFutureTimestampIsNotTreatedAsIdle() {
+        XCTAssertEqual(state(.working, ageSeconds: -30), .running)
     }
 }

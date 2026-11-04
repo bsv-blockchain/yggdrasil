@@ -21,7 +21,9 @@ struct PRDetail: Equatable {
     /// to tell whether an approval is still current after new pushes.
     let viewerReviewedHeadSHA: String?
     /// Count of unresolved review threads whose last comment isn't the viewer's
-    /// — i.e. threads awaiting the viewer's reply/re-review.
+    /// — i.e. threads awaiting the viewer's reply/re-review. On a PR the viewer
+    /// wrote, every such thread counts; on someone else's, only threads the
+    /// viewer has joined (the rest are the author's to resolve).
     let unresolvedThreadsAwaitingViewer: Int
     /// The most recent time the viewer engaged with the PR — the latest of their
     /// last review submission and their last comment (issue or review-thread).
@@ -30,6 +32,17 @@ struct PRDetail: Equatable {
     let viewerLastEngagementAt: Date?
     /// Commit date of the current head. Compared against `viewerLastEngagementAt`.
     let headCommittedAt: Date?
+    /// GitHub has an open review request for the viewer ("awaiting requested
+    /// review from you") — set by a first request or a re-request after the
+    /// author pushed fixes, and cleared by GitHub once the viewer reviews.
+    /// Team-based requests don't count: `isViewer` only exists on a User.
+    let viewerReviewRequested: Bool
+    /// The viewer wrote this PR, so unresolved threads on it are theirs to answer.
+    let viewerDidAuthor: Bool
+    /// When the viewer was last asked to review — the latest
+    /// `ReviewRequestedEvent` naming them. nil if they've never been asked (or
+    /// the request predates the fetched timeline window).
+    let viewerReviewRequestedAt: Date?
 }
 
 // MARK: - GraphQL response envelope
@@ -53,6 +66,7 @@ private struct RepositoryNode: Decodable {
 
 private struct PullRequestNode: Decodable {
     let mergeable: String
+    let viewerDidAuthor: Bool?
     let mergeStateStatus: String?
     let reviewDecision: String?
     let commits: CommitsNode?
@@ -60,6 +74,32 @@ private struct PullRequestNode: Decodable {
     let reviews: ReviewsNode?
     let viewerLatestReview: ViewerReviewNode?
     let reviewThreads: ReviewThreadsNode?
+    let reviewRequests: ReviewRequestsNode?
+    let timelineItems: TimelineItemsNode?
+}
+
+private struct TimelineItemsNode: Decodable {
+    let nodes: [ReviewRequestedEventNode]?
+}
+
+/// A `ReviewRequestedEvent` — who was asked, and when.
+private struct ReviewRequestedEventNode: Decodable {
+    let createdAt: String?
+    let requestedReviewer: RequestedReviewerNode?
+}
+
+private struct ReviewRequestsNode: Decodable {
+    let nodes: [ReviewRequestNode]?
+}
+
+private struct ReviewRequestNode: Decodable {
+    let requestedReviewer: RequestedReviewerNode?
+}
+
+/// A requested reviewer. `isViewer` is absent for Teams (and other non-User
+/// reviewers), which is why it's optional.
+private struct RequestedReviewerNode: Decodable {
+    let isViewer: Bool?
 }
 
 private struct ViewerReviewNode: Decodable {
@@ -91,6 +131,19 @@ private struct ThreadCommentsNode: Decodable {
 private struct AuthoredCommentNode: Decodable {
     let viewerDidAuthor: Bool?
     let createdAt: String?
+    let author: CommentAuthorNode?
+
+    var isFromBot: Bool {
+        author?.typename == "Bot"
+    }
+}
+
+private struct CommentAuthorNode: Decodable {
+    let typename: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case typename = "__typename"
+    }
 }
 
 private struct ReviewsNode: Decodable {
@@ -137,11 +190,18 @@ struct GraphQLClient {
           mergeable
           mergeStateStatus
           reviewDecision
+          viewerDidAuthor
           commits(last: 1) { totalCount nodes { commit { oid committedDate statusCheckRollup { state } } } }
           comments(last: 100) { totalCount nodes { viewerDidAuthor createdAt } }
           reviews(first: 100) { totalCount nodes { comments { totalCount } } }
           viewerLatestReview { state submittedAt commit { oid } }
-          reviewThreads(first: 100) { nodes { isResolved comments(last: 100) { nodes { viewerDidAuthor createdAt } } } }
+          reviewThreads(first: 100) {
+            nodes { isResolved comments(last: 100) { nodes { viewerDidAuthor createdAt author { __typename } } } }
+          }
+          reviewRequests(first: 100) { nodes { requestedReviewer { ... on User { isViewer } } } }
+          timelineItems(last: 100, itemTypes: [REVIEW_REQUESTED_EVENT]) {
+            nodes { ... on ReviewRequestedEvent { createdAt requestedReviewer { ... on User { isViewer } } } }
+          }
         }
       }
     }
@@ -184,15 +244,19 @@ struct GraphQLClient {
         default: nil
         }
         let ciState = pull.commits?.nodes.first?.commit.statusCheckRollup?.state
-        // Threads awaiting the viewer's reply: unresolved, the viewer authored a
-        // comment in it (so it's a conversation they're part of), and the last
-        // comment isn't theirs. Excludes bot threads and threads between others
-        // the viewer never joined — those are the author's to resolve.
+        // Threads awaiting the viewer's reply: unresolved, and the last comment
+        // isn't theirs. On someone else's PR they must also have joined the
+        // thread — threads between others (and bot threads) are the author's to
+        // resolve. On their own PR every such thread is theirs to answer,
+        // whether or not they've replied in it yet. A bot replying isn't
+        // somebody waiting on them, so the last comment is the last one a
+        // person wrote; a thread only bots wrote in falls back to its last.
+        let didAuthor = pull.viewerDidAuthor ?? false
         let unresolvedAwaitingViewer = (pull.reviewThreads?.nodes ?? []).filter { thread in
             guard !(thread.isResolved ?? false) else { return false }
             let comments = thread.comments?.nodes ?? []
-            guard comments.contains(where: { $0.viewerDidAuthor == true }) else { return false }
-            guard let last = comments.last else { return false }
+            if !didAuthor, !comments.contains(where: { $0.viewerDidAuthor == true }) { return false }
+            guard let last = comments.last(where: { !$0.isFromBot }) ?? comments.last else { return false }
             return !(last.viewerDidAuthor ?? false)
         }.count
 
@@ -227,7 +291,14 @@ struct GraphQLClient {
             viewerReviewedHeadSHA: pull.viewerLatestReview?.commit?.oid,
             unresolvedThreadsAwaitingViewer: unresolvedAwaitingViewer,
             viewerLastEngagementAt: engagementDates.max(),
-            headCommittedAt: parse(pull.commits?.nodes.first?.commit.committedDate)
+            headCommittedAt: parse(pull.commits?.nodes.first?.commit.committedDate),
+            viewerReviewRequested: (pull.reviewRequests?.nodes ?? [])
+                .contains { $0.requestedReviewer?.isViewer == true },
+            viewerDidAuthor: didAuthor,
+            viewerReviewRequestedAt: (pull.timelineItems?.nodes ?? [])
+                .filter { $0.requestedReviewer?.isViewer == true }
+                .compactMap { parse($0.createdAt) }
+                .max()
         )
     }
 }

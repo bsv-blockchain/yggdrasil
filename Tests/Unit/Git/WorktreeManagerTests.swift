@@ -25,6 +25,22 @@ final class WorktreeManagerTests: XCTestCase {
                       "worktree dir should exist on disk")
     }
 
+    /// Tabs are inserted against a *predicted* path before any git runs, so if
+    /// WorktreeManager's layout ever moves, every newly-opened tab silently
+    /// points somewhere that will never exist. The two derivations are
+    /// independent, so pin them together here rather than against a literal.
+    func testPredictedPathMatchesWhereEnsureActuallyPutsIt() async throws {
+        let manager = WorktreeManager()
+        for branch in ["feat/foo", "claude-review-pr-1565", "fix/update_cache"] {
+            let actual = try await manager.ensure(repo: fixture.repo, branch: branch, baseRef: nil)
+            XCTAssertEqual(
+                WorktreePreparer.predictedWorktreePath(repo: fixture.repo, branch: branch),
+                actual.path,
+                "prediction diverged from WorktreeManager for \(branch)"
+            )
+        }
+    }
+
     func testEnsureIdempotentWhenBranchAlreadyExists() async throws {
         let manager = WorktreeManager()
         let first = try await manager.ensure(repo: fixture.repo, branch: "feat/foo", baseRef: nil)

@@ -16,20 +16,149 @@ enum Migrations {
         migrator.registerMigration("v9", migrate: v9)
         migrator.registerMigration("v10", migrate: v10)
         migrator.registerMigration("v11", migrate: v11)
+        migrator.registerMigration("v12", migrate: v12)
+        migrator.registerMigration("v13", migrate: v13)
+        migrator.registerMigration("v14", migrate: v14)
+        migrator.registerMigration("v15", migrate: v15)
+        migrator.registerMigration("v16", migrate: v16)
+        migrator.registerMigration("v17", migrate: v17)
+        migrator.registerMigration("v18", migrate: v18)
+        migrator.registerMigration("v19", migrate: v19)
         return migrator
     }
 
-    // MARK: - v11 — Per-repo PR target repo
+    // MARK: - v19 — Per-repo PR target repo
 
     ///
     /// Some repos keep issues in one GitHub repo and PRs in another (e.g. a
     /// private issue tracker with a public code repo). `pr_repo_id` points at
     /// the tracked repo whose PRs "Link PR…" should default to. Nullable;
     /// ON DELETE SET NULL so untracking the PR repo just drops the setting.
-    private static func v11(_ db: Database) throws {
+    private static func v19(_ db: Database) throws {
         try db.alter(table: "repo") { table in
             table.add(column: "pr_repo_id", .integer)
                 .references("repo", onDelete: .setNull)
+        }
+    }
+
+    // MARK: - v18 — One checkout per repo per host
+
+    ///
+    /// Where a repo's main checkout lives on a host. Pinned the first time a
+    /// tab for the repo runs there, so changing the host's repos root later
+    /// never clones a second copy; editable per repo. Every tab works in a
+    /// worktree under it.
+    private static func v18(_ db: Database) throws {
+        try db.create(table: "host_repo") { table in
+            table.column("host_id", .integer).notNull().references("host", onDelete: .cascade)
+            table.column("repo_id", .integer).notNull().references("repo", onDelete: .cascade)
+            table.column("checkout_path", .text).notNull()
+            table.primaryKey(["host_id", "repo_id"])
+            table.uniqueKey(["host_id", "checkout_path"])
+        }
+    }
+
+    // MARK: - v17 — Remote hosts
+
+    ///
+    /// Tabs can run on an ssh host instead of locally. `tab.host_id` NULL means
+    /// local. RESTRICT rather than SET NULL: nulling it would turn a remote tab
+    /// into a "local" one pointing at a path that only exists on the server.
+    private static func v17(_ db: Database) throws {
+        try db.create(table: "host") { table in
+            table.autoIncrementedPrimaryKey("id")
+            table.column("name", .text).notNull().unique()
+            table.column("ssh_target", .text).notNull()
+            table.column("repos_root", .text).notNull()
+            table.column("created_at", .datetime).notNull()
+        }
+        try db.alter(table: "tab") { table in
+            table.add(column: "host_id", .integer).references("host", onDelete: .restrict)
+        }
+    }
+
+    // MARK: - v16 — Pinned Claude session id per tab
+
+    ///
+    /// The app now owns the Claude conversation id for a tab: the first spawn
+    /// passes `--session-id <uuid>`, later spawns `--resume <uuid>`. Replaces
+    /// the "most recent transcript in this cwd" `--continue` guess for new tabs,
+    /// and is what lets a conversation be moved between machines. Nullable:
+    /// tabs that predate it keep the `--continue` path.
+    private static func v16(_ db: Database) throws {
+        try db.alter(table: "session_state") { table in
+            table.add(column: "claude_session_id", .text)
+        }
+    }
+
+    // MARK: - v15 — a tab exists before its worktree does
+
+    ///
+    /// Opening a task used to build the worktree first and insert the tab
+    /// after, so the click blocked on `git fetch` of a PR head — slow on a
+    /// large repo, and `WorktreeManager` holds the per-repo lock across it, so
+    /// opening several at once left the later ones waiting until they timed
+    /// out. The tab is now inserted immediately and prepared in the background;
+    /// these columns carry how far that got, and the error when it failed.
+    ///
+    /// `ready` by default so every existing tab — which already has its
+    /// worktree on disk — is untouched by this.
+    private static func v15(_ db: Database) throws {
+        try db.alter(table: "tab") { table in
+            table.add(column: "preparation_state", .text).notNull().defaults(to: "ready")
+            table.add(column: "preparation_error", .text)
+        }
+    }
+
+    // MARK: - v14 — When the review was requested (REVIEW pill)
+
+    ///
+    /// v12 made any open review request read as "your move", which nags forever
+    /// on a request answered with a comment: GitHub only clears a request when
+    /// the viewer submits a formal review. Store when the request was made so it
+    /// can be compared against the viewer's last engagement.
+    private static func v14(_ db: Database) throws {
+        try db.alter(table: "github_status") { table in
+            table.add(column: "viewer_review_requested_at", .datetime)
+        }
+    }
+
+    // MARK: - v13 — PR authorship (REPLY pill)
+
+    ///
+    /// Unresolved review threads on a PR the viewer wrote were invisible: the
+    /// thread count only included threads the viewer had already replied in, and
+    /// authored-PR tabs showed no pill at all. Store whether the viewer wrote the
+    /// PR so the count can use the author-side rule and the REPLY pill can fire.
+    private static func v13(_ db: Database) throws {
+        try db.alter(table: "github_status") { table in
+            table.add(column: "viewer_did_author_pr", .boolean).notNull().defaults(to: false)
+        }
+    }
+
+    // MARK: - v12 — Open review request for the viewer (REVIEW pill)
+
+    ///
+    /// The timestamp heuristic misses the case GitHub is most explicit about:
+    /// the author pushed fixes and re-requested review, but the viewer had
+    /// commented after the head commit landed, so nothing looked outstanding.
+    /// Store GitHub's own "awaiting requested review from you" bit.
+    private static func v12(_ db: Database) throws {
+        try db.alter(table: "github_status") { table in
+            table.add(column: "viewer_review_requested", .boolean).notNull().defaults(to: false)
+        }
+    }
+
+    // MARK: - v11 — Per-agent environment variables (issue #47)
+
+    ///
+    /// A coding-agent profile can now carry extra environment variables, so one
+    /// machine can hold e.g. a personal and a work Claude profile that differ
+    /// only by the variable selecting the account. Same JSON-in-a-column shape
+    /// as `args_json`; existing rows default to "no overrides".
+    private static func v11(_ db: Database) throws {
+        try db.alter(table: "coding_agent") { table in
+            table.add(column: "env_json", .text).notNull().defaults(to: "{}")
         }
     }
 

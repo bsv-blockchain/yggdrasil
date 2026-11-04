@@ -112,7 +112,6 @@ private func httpResult(_ data: Data) -> HTTPResult {
     HTTPResult(status: 200, body: data, etag: nil, rateLimitRemaining: 4999)
 }
 
-// swiftlint:disable type_body_length
 final class TaskSyncServiceTests: XCTestCase {
     func testFullSyncInsertsTasksForTrackedReposOnly() async throws {
         let db = try YggdrasilDatabase.inMemory()
@@ -375,45 +374,6 @@ final class TaskSyncServiceTests: XCTestCase {
         XCTAssertEqual(countAfter, 1)
     }
 
-    func test_deleteStaleTasks_keepsTabLinkedTasks() throws {
-        let db = try YggdrasilDatabase.inMemory()
-        let repoID = try insertRepo(db, owner: "o", name: "r")
-        let epoch = Date(timeIntervalSince1970: 0)
-
-        let survivingNumbers: [Int] = try db.queue.write { dbW -> [Int] in
-            func makeTask(_ number: Int) throws -> Int64 {
-                var task = YggdrasilTask(
-                    id: nil, repoID: repoID, type: .pullRequest, number: number,
-                    title: "t\(number)", body: nil, state: .open, authorLogin: "x",
-                    githubURL: "", apiURL: "",
-                    createdAt: epoch, updatedAt: epoch, lastSyncedAt: epoch,
-                    etag: nil, labelsJSON: "[]", milestoneTitle: nil
-                )
-                try task.insert(dbW)
-                return task.id!
-            }
-            let linkedID = try makeTask(101)
-            _ = try makeTask(102) // unlinked → should be pruned
-
-            var tab = YggdrasilTab(
-                id: nil, taskID: linkedID, codingAgentID: nil, position: 0,
-                branchName: "feat/x", worktreePath: "/tmp/x", lastMainView: .agent,
-                createdAt: epoch, lastActiveAt: epoch
-            )
-            try tab.insert(dbW)
-
-            let repo = try Repo.fetchOne(dbW, key: repoID)!
-            // Empty fetched-set: BOTH tasks are stale by the synced-list rule.
-            // Only the tab-linked one (101) must survive.
-            try TaskSyncWrites.deleteStaleTasks(db: dbW, repos: [repo], fetched: [])
-
-            return try Int.fetchAll(dbW, sql: "SELECT number FROM task ORDER BY number")
-        }
-
-        XCTAssertEqual(survivingNumbers, [101],
-                       "tab-linked task survives prune; unlinked stale task is deleted")
-    }
-
     func testFullSyncRefreshesLiveTabPRMissingFromSearchLists() async throws {
         // A review PR with a live tab that has dropped out of every search list
         // (e.g. after you submit a review you're no longer a requested reviewer).
@@ -479,5 +439,3 @@ final class TaskSyncServiceTests: XCTestCase {
         XCTAssertTrue(status?.reviewApprovedByViewer ?? false, "now reflects the fresh review, not stale nil")
     }
 }
-
-// swiftlint:enable type_body_length

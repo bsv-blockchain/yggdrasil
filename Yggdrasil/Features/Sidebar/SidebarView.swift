@@ -2,9 +2,9 @@ import SwiftUI
 
 // swiftlint:disable type_body_length file_length
 /// Sidebar — redesigned per `Yggdrasil.html`:
-/// - Header: blue gradient Yggdrasil mark + workspace name + "N tabs · M active"
+/// - Header: blue gradient Yggdrasil mark + workspace name + "N tabs · M need you"
 /// - Search field with ⌘K hint chip
-/// - Filter pills (All / Active / PRs / Issues)
+/// - Filter pills (All / Needs me / PRs / Issues)
 /// - "+" button → NewTabSheet (Phase 4) — to be replaced by AgentPicker in P9 T7
 /// - Rich `TabRow` rows
 struct SidebarView: View {
@@ -15,6 +15,7 @@ struct SidebarView: View {
     /// the insertion line so the user knows where the dropped tab will land.
     @State private var dropTargetTabID: Int64?
     @State private var rawSearchQuery: String = ""
+    @FocusState private var searchFocused: Bool
     @State private var debouncedQuery: String = ""
     @State private var debounceTask: Task<Void, Never>?
     @State private var activeFilter: Filter = .all
@@ -27,11 +28,23 @@ struct SidebarView: View {
 
     enum Filter: String, CaseIterable, Identifiable {
         case all = "All"
-        case active = "Active"
+        case needsMe = "Needs me"
         case prs = "PRs"
         case issues = "Issues"
         var id: String {
             rawValue
+        }
+
+        /// Whether the PRs / Issues pill keeps a tab with this primary task and
+        /// linked PR. An issue tab with a linked PR shows that PR's number, so
+        /// it counts under PRs too; otherwise searching that number under PRs
+        /// came up empty. (All and Needs me don't look at tasks.)
+        func keeps(task: YggdrasilTask?, prTask: YggdrasilTask?) -> Bool {
+            switch self {
+            case .prs: task?.type == .pullRequest || prTask != nil
+            case .issues: task?.type == .issue
+            case .all, .needsMe: true
+            }
         }
     }
 
@@ -51,21 +64,12 @@ struct SidebarView: View {
         let bySearch = tabsModel.filtered(by: debouncedQuery)
         switch activeFilter {
         case .all: return bySearch
-        case .active:
-            return bySearch.filter {
-                guard let id = $0.id else { return false }
-                let icon = services.tabStatus.status(forTabID: id).icon
-                return icon == .running || icon == .awaitingInput
-            }
-        case .prs:
+        case .needsMe:
+            return bySearch.filter(needsAttention)
+        case .prs, .issues:
             return bySearch.filter { tab in
-                guard let id = tab.id, let task = tabsModel.tasksByTabID[id] else { return false }
-                return task.type == .pullRequest
-            }
-        case .issues:
-            return bySearch.filter { tab in
-                guard let id = tab.id, let task = tabsModel.tasksByTabID[id] else { return false }
-                return task.type == .issue
+                guard let id = tab.id else { return false }
+                return activeFilter.keeps(task: tabsModel.tasksByTabID[id], prTask: tabsModel.prTasksByTabID[id])
             }
         }
     }
@@ -94,10 +98,10 @@ struct SidebarView: View {
             tabsModel.visibleTabIDs = ids
         }
         .onAppear {
-            groupByRepo = AppearancePrefsPane.readGroupByRepo(services: services)
+            groupByRepo = AppearanceSettings.readGroupByRepo(services: services)
         }
         .onReceive(NotificationCenter.default.publisher(for: .sidebarGroupingChanged)) { _ in
-            groupByRepo = AppearancePrefsPane.readGroupByRepo(services: services)
+            groupByRepo = AppearanceSettings.readGroupByRepo(services: services)
         }
     }
 
@@ -148,13 +152,27 @@ struct SidebarView: View {
 
     private var workspaceSubtitle: String {
         let total = tabsModel.tabs.count
-        let active = tabsModel.tabs.filter { tab in
-            guard let id = tab.id else { return false }
-            let icon = services.tabStatus.status(forTabID: id).icon
-            return icon == .running || icon == .awaitingInput
-        }.count
         if total == 0 { return "no tabs" }
-        return "\(total) tab\(total == 1 ? "" : "s") · \(active) active"
+        let waiting = needsAttentionCount
+        let tabs = "\(total) tab\(total == 1 ? "" : "s")"
+        return waiting == 0 ? "\(tabs) · nothing waiting" : "\(tabs) · \(waiting) need you"
+    }
+
+    /// True when the row is waiting on the user. Reads the same live status the
+    /// row renders, so the filter and the amber pills can never disagree.
+    private func needsAttention(_ tab: YggdrasilTab) -> Bool {
+        guard let id = tab.id else { return false }
+        return TabRowViewModel.needsAttention(
+            branchName: tab.branchName,
+            status: services.tabStatus.status(forTabID: id),
+            dismissedSignature: AttentionDismissal.dismissedSignature(tabID: id)
+        )
+    }
+
+    /// How many tabs are waiting on the user — shown on the "Needs me" pill so
+    /// the count is visible without selecting the filter first.
+    private var needsAttentionCount: Int {
+        tabsModel.tabs.filter(needsAttention).count
     }
 
     // MARK: - Search + filters
@@ -165,6 +183,10 @@ struct SidebarView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(YggdrasilTheme.textMute(scheme))
             TextField("Search tabs, branches, repos", text: $rawSearchQuery)
+                .focused($searchFocused)
+                .onReceive(NotificationCenter.default.publisher(for: TabSearchCommand.focus)) { _ in
+                    searchFocused = true
+                }
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundStyle(YggdrasilTheme.text(scheme))
@@ -194,13 +216,19 @@ struct SidebarView: View {
         .padding(.horizontal, 12)
     }
 
+    /// "Needs me" carries its count; the other pills are just their name.
+    private func pillLabel(_ filter: Filter) -> String {
+        guard filter == .needsMe, needsAttentionCount > 0 else { return filter.rawValue }
+        return "\(filter.rawValue) \(needsAttentionCount)"
+    }
+
     private var filterPills: some View {
         HStack(spacing: 4) {
             ForEach(Filter.allCases) { filter in
                 Button {
                     activeFilter = filter
                 } label: {
-                    Text(filter.rawValue)
+                    Text(pillLabel(filter))
                         .font(.system(size: 11, weight: activeFilter == filter ? .semibold : .medium))
                         .foregroundStyle(
                             activeFilter == filter ? YggdrasilTheme.text(scheme) : YggdrasilTheme.textMute(scheme)
@@ -423,17 +451,65 @@ struct SidebarView: View {
         return true
     }
 
+    /// "Move to ▸": between this Mac and the configured hosts. Host to host
+    /// isn't offered; that goes through this Mac.
+    @ViewBuilder
+    private func moveMenu(for tab: YggdrasilTab) -> some View {
+        let hosts = (try? services.hostStore.list()) ?? []
+        if !hosts.isEmpty {
+            Menu("Move to") {
+                if tab.hostID != nil {
+                    Button("This Mac") { SidebarActions.moveTab(tab, to: nil, services: services) }
+                } else {
+                    ForEach(hosts, id: \.id) { host in
+                        Button(host.name) { SidebarActions.moveTab(tab, to: host, services: services) }
+                    }
+                }
+            }
+            .disabled(!tab.isReady || tab.id.map { services.sessions.movingTabs.contains($0) } ?? false)
+        }
+    }
+
     @ViewBuilder
     private func contextMenu(for tab: YggdrasilTab) -> some View {
+        if let id = tab.id {
+            if AttentionSignature.isDismissed(
+                current: services.tabStatus.status(forTabID: id).attentionSignature,
+                dismissed: AttentionDismissal.dismissedSignature(tabID: id)
+            ) {
+                Button("Un-mute Attention") {
+                    SidebarActions.restoreAttention(tabID: id, services: services)
+                }
+            } else {
+                Button("Mute Until Something Changes") {
+                    SidebarActions.dismissAttention(tabID: id, services: services)
+                }
+            }
+            Divider()
+        }
+        // A move stops and starts the agent itself; these would race it.
+        let moving = tab.id.map { services.sessions.movingTabs.contains($0) } ?? false
+        if tab.preparationState != .ready, !moving {
+            Button("Retry Setup") {
+                SidebarActions.retryPreparation(tab: tab, services: services)
+            }
+            Divider()
+        }
         Button("Resume Session") {
             if let id = tab.id { SidebarActions.restartAgent(tabID: id, services: services) }
         }
+        .disabled(moving)
         Button("New Shell") {
             if let id = tab.id { SidebarActions.openShell(tabID: id, services: services) }
         }
+        .disabled(moving)
+        moveMenu(for: tab)
         Divider()
+        // The worktree of a remote tab isn't on this Mac.
         Button("Open in Finder") { SidebarActions.openInFinder(path: tab.worktreePath) }
+            .disabled(tab.hostID != nil)
         Button("Open in Terminal.app") { SidebarActions.openInTerminal(path: tab.worktreePath) }
+            .disabled(tab.hostID != nil)
         Divider()
         if let id = tab.id {
             // "Has a PR" = a PR-only tab (primary task is the PR) or an issue
@@ -478,10 +554,14 @@ struct SidebarView: View {
 
     private var noMatchesState: some View {
         VStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
+            Image(systemName: activeFilter == .needsMe && debouncedQuery.isEmpty
+                ? "checkmark.circle"
+                : "magnifyingglass")
                 .font(.system(size: 24))
                 .foregroundStyle(YggdrasilTheme.textFaint(scheme))
-            Text("No matches")
+            Text(activeFilter == .needsMe && debouncedQuery.isEmpty
+                ? "Nothing waiting on you"
+                : "No matches")
                 .font(.callout)
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
         }

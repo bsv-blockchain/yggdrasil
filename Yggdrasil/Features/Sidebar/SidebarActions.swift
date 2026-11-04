@@ -35,54 +35,96 @@ enum SidebarActions {
 
     @MainActor
     static func restartAgent(tabID: Int64, services: AppServices) {
+        guard let session = agentSession(tabID: tabID, services: services) else { return }
+        services.sessions.clearExited(tabID: tabID)
+        services.sessions.terminate(tabID: tabID)
+        respawn(session, services: services)
+    }
+
+    /// The tab's agent as a session, wherever the tab row points now.
+    @MainActor
+    static func agentSession(tabID: Int64, services: AppServices) -> OpenSession? {
         guard let tab = services.tabs.tabs.first(where: { $0.id == tabID }),
               let agentID = tab.codingAgentID,
               let agent = try? services.agentStore.get(id: agentID)
-        else { return }
-        services.sessions.clearExited(tabID: tabID)
-        services.sessions.terminate(tabID: tabID)
-        // Defer the re-add one runloop tick so SwiftUI can dismantle the old
-        // AgentTerminalSurface (and its dead PTY) before the replacement row
-        // mounts a fresh one.
-        DispatchQueue.main.async {
-            services.sessions.add(OpenSession(
-                id: tabID,
-                displayName: "\(agent.name) \u{00b7} \(tab.branchName)",
-                cwd: tab.worktreePath,
-                command: agent.command,
-                args: agent.args
-            ))
-        }
+        else { return nil }
+        return OpenSession(
+            id: tabID,
+            displayName: "\(agent.name) \u{00b7} \(tab.branchName)",
+            cwd: tab.worktreePath,
+            command: agent.command,
+            args: agent.args,
+            env: agent.env,
+            host: services.host(for: tab)
+        )
     }
 
     @MainActor
     static func openShell(tabID: Int64, services: AppServices) {
         guard let session = services.sessions.sessions.first(where: { $0.id == tabID }) else { return }
-        let cwd = session.cwd
         services.sessions.clearExited(tabID: tabID)
         services.sessions.terminate(tabID: tabID)
-        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-        // Defer the re-add one runloop tick so SwiftUI can dismantle the old
-        // AgentTerminalSurface (and its dead PTY) before the replacement row
-        // mounts a fresh one.
-        DispatchQueue.main.async {
-            services.sessions.add(OpenSession(
-                id: tabID,
-                displayName: "Shell",
-                cwd: cwd,
-                command: shell,
-                args: []
-            ))
+        // On a host, an empty command makes the helper start the user's own
+        // login shell there.
+        let shell = session.host == nil ? ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh" : ""
+        respawn(OpenSession(
+            id: tabID,
+            displayName: "Shell",
+            cwd: session.cwd,
+            command: shell,
+            args: [],
+            host: session.host
+        ), services: services)
+    }
+
+    /// The three-way remove-tab prompt, in the order the buttons are presented.
+    ///
+    /// Order is load-bearing: NSAlert binds Return to the *first* button, so the
+    /// destructive option must never lead. It used to, and once the View-menu
+    /// "Close Tab…" item started dispatching, a reflexive close-then-Return ran
+    /// `git worktree remove --force` on the selected worktree with no undo.
+    /// `hasDestructiveAction` only colours the button — it does not move it out
+    /// of the default slot.
+    enum RemoveTabChoice: CaseIterable {
+        /// DB row + session; the worktree stays on disk.
+        case tabOnly
+        /// Also runs `git worktree remove --force`.
+        case tabAndWorktree
+        case cancel
+
+        var title: String {
+            switch self {
+            case .tabOnly: "Remove Tab Only"
+            case .tabAndWorktree: "Remove Tab + Worktree"
+            case .cancel: "Cancel"
+            }
+        }
+
+        var isDestructive: Bool {
+            self == .tabAndWorktree
+        }
+
+        /// Read a `runModal()` response back through `allCases`, which is also
+        /// what the buttons were added from — the two cannot drift apart.
+        /// Anything unrecognised is treated as Cancel.
+        static func from(response: NSApplication.ModalResponse) -> RemoveTabChoice {
+            switch response {
+            case .alertFirstButtonReturn: allCases[0]
+            case .alertSecondButtonReturn: allCases[1]
+            default: .cancel
+            }
         }
     }
 
     /// Confirm-then-delete a tab. Tears down any running session and (optionally)
-    /// removes the worktree on disk. Three-way prompt:
-    ///   - Remove Tab Only — DB row + session, worktree stays on disk.
-    ///   - Remove Tab + Worktree — also runs `git worktree remove --force`.
-    ///   - Cancel.
+    /// removes the worktree on disk. See `RemoveTabChoice` for the prompt.
+    @MainActor
     static func removeTab(id: Int64, services: AppServices) {
         guard let tab = services.tabs.tabs.first(where: { $0.id == id }) else { return }
+        if let host = services.host(for: tab) {
+            removeRemoteTab(id: id, tab: tab, host: host, services: services)
+            return
+        }
         let alert = NSAlert()
         alert.messageText = "Remove this tab?"
         alert.informativeText = """
@@ -94,19 +136,16 @@ enum SidebarActions {
         discards any uncommitted work inside it.
         """
         alert.alertStyle = .warning
-        let removeAndDeleteButton = alert.addButton(withTitle: "Remove Tab + Worktree")
-        alert.addButton(withTitle: "Remove Tab Only")
-        alert.addButton(withTitle: "Cancel")
-        // First button is the default; make the destructive option visually marked.
-        removeAndDeleteButton.hasDestructiveAction = true
+        for choice in RemoveTabChoice.allCases {
+            alert.addButton(withTitle: choice.title).hasDestructiveAction = choice.isDestructive
+        }
 
-        let response = alert.runModal()
-        switch response {
-        case .alertFirstButtonReturn:
-            performRemoval(id: id, tab: tab, deleteWorktree: true, services: services)
-        case .alertSecondButtonReturn:
+        switch RemoveTabChoice.from(response: alert.runModal()) {
+        case .tabOnly:
             performRemoval(id: id, tab: tab, deleteWorktree: false, services: services)
-        default:
+        case .tabAndWorktree:
+            performRemoval(id: id, tab: tab, deleteWorktree: true, services: services)
+        case .cancel:
             return
         }
     }
@@ -115,8 +154,10 @@ enum SidebarActions {
         id: Int64, tab: YggdrasilTab, deleteWorktree: Bool, services: AppServices
     ) {
         // Tear down the running agent first so its files aren't held open
-        // by the time `git worktree remove` runs.
+        // by the time `git worktree remove` runs. (Dismantling its surface
+        // stops and collects the process.)
         services.sessions.remove(id: id)
+        services.sessions.forgetOpened(tabID: id)
 
         if deleteWorktree {
             // Resolve the owning repo from the worktree's grandparent dir
@@ -162,6 +203,15 @@ enum SidebarActions {
             }
         }
 
+        // Drop the mute with the tab; a key left behind would silently muffle
+        // a future tab that reused the id.
+        AttentionDismissal.restore(tabID: id)
+        // Call off any queued preparation first: otherwise closing a tab you
+        // just opened still creates the worktree and branch afterwards, with
+        // nothing referencing them — and for "Remove Tab + Worktree" it
+        // recreates exactly what the user asked to delete.
+        Task { await services.worktreePreparer.cancel(tabID: id) }
+
         do {
             try services.tabStore.delete(id: id)
         } catch {
@@ -178,13 +228,61 @@ enum SidebarActions {
     }
 
     /// Move sidebar tab selection by `delta` (wrapping at both ends) and mirror
-    /// the new selection onto the live-session host. Shared by the View-menu
-    /// commands (⌘⇧[ / ⌘⇧]) and the hidden arrow-key buttons (⌥↑ / ⌥↓) so the
-    /// move-then-sync stays in one place.
+    /// the new selection onto the live-session host. Driven by the View-menu
+    /// Previous/Next Session commands (⌥↑ / ⌥↓), keeping the move-then-sync in
+    /// one place.
     static func selectTab(by delta: Int, services: AppServices) {
         services.tabs.moveSelection(by: delta)
         if let id = services.tabs.selectedID {
             services.sessions.selectedID = id
+        }
+    }
+
+    /// Mute this tab's amber until something actually changes. Records the
+    /// current attention fingerprint; the mute lapses the moment a new commit,
+    /// thread, review request or agent record changes it.
+    @MainActor
+    static func dismissAttention(tabID: Int64, services: AppServices) {
+        let signature = services.tabStatus.status(forTabID: tabID).attentionSignature
+        // Before the first poll tick a tab has only the placeholder status,
+        // whose signature is empty. Storing that would be a silent no-op: the
+        // next tick overwrites it with a real signature and the mute lapses
+        // with nothing having visibly happened.
+        guard !signature.isEmpty else {
+            presentInfo(title: "Not ready yet",
+                        text: "This tab has no status yet. Try again in a moment.")
+            return
+        }
+        AttentionDismissal.dismiss(tabID: tabID, signature: signature)
+        services.tabs.reload()
+    }
+
+    @MainActor
+    static func restoreAttention(tabID: Int64, services: AppServices) {
+        AttentionDismissal.restore(tabID: tabID)
+        services.tabs.reload()
+    }
+
+    /// Re-run a worktree preparation that failed. Without this a failed tab is
+    /// a dead end — the error is on the row, but the only way out would be to
+    /// close it and start again.
+    @MainActor
+    static func retryPreparation(tab: YggdrasilTab, services: AppServices) {
+        guard let tabID = tab.id else { return }
+        guard let repo = services.tabs.repoByTabID[tabID] else {
+            presentInfo(title: "Can't prepare this tab",
+                        text: "This tab isn't inside a tracked repository.")
+            return
+        }
+        let baseRef: String? = services.tabs.tasksByTabID[tabID].flatMap { task in
+            task.type == .pullRequest ? "refs/pull/\(task.number)/head" : nil
+        }
+        try? services.tabStore.setPreparation(id: tabID, state: .pending, error: nil)
+        services.tabs.reload()
+        Task {
+            await services.worktreePreparer.enqueue(
+                tabID: tabID, repo: repo, host: services.host(for: tab), branch: tab.branchName, baseRef: baseRef
+            )
         }
     }
 
@@ -206,67 +304,6 @@ enum SidebarActions {
             )
         }
         services.tabs.reload()
-    }
-
-    /// Which PR "Link PR…" should import.
-    struct LinkPRTarget: Equatable {
-        let owner: String
-        let name: String
-        let number: Int
-
-        var display: String {
-            "\(owner)/\(name)#\(number)"
-        }
-    }
-
-    /// Parse the "Link PR…" input. A PR URL or `owner/repo#N` names its repo;
-    /// anything else (`123`, `#123`, `pr-123`) means PR N in the default repo.
-    /// Issue URLs and junk return nil.
-    static func parseLinkPRInput(_ raw: String, defaultOwner: String, defaultName: String) -> LinkPRTarget? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // owner/repo#N
-        let hashParts = trimmed.split(separator: "#", omittingEmptySubsequences: false)
-        if hashParts.count == 2 {
-            let slug = hashParts[0].split(separator: "/", omittingEmptySubsequences: false)
-            let digits = hashParts[1]
-            if slug.count == 2,
-               slug.allSatisfy({ !$0.isEmpty && !$0.contains(where: \.isWhitespace) }),
-               !digits.isEmpty, digits.allSatisfy(\.isNumber), let number = Int(digits) {
-                return LinkPRTarget(owner: String(slug[0]), name: String(slug[1]), number: number)
-            }
-        }
-
-        let interpreted = NewTabSheet.interpretBranchInput(trimmed)
-        if let slug = interpreted.repoSlug {
-            // GitHub URL: only /pull/N is a PR.
-            let ownerName = slug.split(separator: "/")
-            guard interpreted.branch.hasPrefix("pr-"), ownerName.count == 2,
-                  let number = Int(interpreted.branch.dropFirst(3)) else { return nil }
-            return LinkPRTarget(owner: String(ownerName[0]), name: String(ownerName[1]), number: number)
-        }
-        guard let number = NewTabSheet.parsePRNumber(interpreted.branch) else { return nil }
-        return LinkPRTarget(owner: defaultOwner, name: defaultName, number: number)
-    }
-
-    /// The repo a bare PR number in "Link PR…" refers to. Starts from the
-    /// tab's task repo (an issue tab's issue repo), falling back to the repo
-    /// owning the worktree path — two tracked repos can share one checkout,
-    /// so the path alone can name the wrong one — then applies that repo's
-    /// configured PR repo.
-    static func defaultPRRepo(taskRepoID: Int64?, pathRepo: Repo, repos: [Repo]) -> Repo {
-        let source = taskRepoID.flatMap { id in repos.first { $0.id == id } } ?? pathRepo
-        return source.prRepo(among: repos)
-    }
-
-    /// The tracked repo `target` names. GitHub owner/repo names are
-    /// case-insensitive, so a pasted URL may differ in case from what was
-    /// typed when the repo was added.
-    static func trackedRepo(for target: LinkPRTarget, in repos: [Repo]) -> Repo? {
-        repos.first {
-            $0.owner.caseInsensitiveCompare(target.owner) == .orderedSame
-                && $0.name.caseInsensitiveCompare(target.name) == .orderedSame
-        }
     }
 
     /// "Link PR…" — turn an ad-hoc tab into a PR tab. Resolves the repo the
@@ -355,11 +392,93 @@ enum SidebarActions {
 
     /// Single-button informational NSAlert.
     @MainActor
-    private static func presentInfo(title: String, text: String) {
+    static func presentInfo(title: String, text: String) {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = text
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+}
+
+// MARK: - Remote tabs
+
+extension SidebarActions {
+    /// Mounts `session` in place of the one just terminated. Local: defer the
+    /// re-add one runloop tick so SwiftUI can dismantle the old
+    /// AgentTerminalSurface (and its dead PTY) before the replacement row
+    /// mounts a fresh one. Remote: `terminate` only detached, so end the
+    /// agent on the host first; otherwise `ygg attach` would just reattach
+    /// to it. A failed kill (host unreachable) still respawns, and the new
+    /// surface's reconnect loop takes over.
+    @MainActor
+    private static func respawn(_ session: OpenSession, services: AppServices) {
+        guard let host = session.host else {
+            DispatchQueue.main.async { services.sessions.add(session) }
+            return
+        }
+        Task { @MainActor in
+            do {
+                try await services.remoteControl.kill(host: host, tabID: session.id)
+            } catch {
+                YggdrasilLog.ui.error(
+                    "Remote kill failed for tab \(session.id, privacy: .public): \(String(describing: error), privacy: .public)"
+                )
+            }
+            services.sessions.add(session)
+        }
+    }
+
+    /// Same choice as for a local tab. Either way the agent is stopped on the
+    /// host first; the worktree is removed with git on the host, and the repo's
+    /// checkout there stays.
+    @MainActor
+    private static func removeRemoteTab(id: Int64, tab: YggdrasilTab, host: RemoteHost, services: AppServices) {
+        let alert = NSAlert()
+        alert.messageText = "Remove this tab?"
+        alert.informativeText = """
+        Branch: \(tab.branchName)
+        Worktree: \(tab.worktreePath) on \(host.name)
+
+        The agent running on \(host.name) is stopped. Deleting the worktree runs \
+        `git worktree remove --force` on the host, which discards any uncommitted work in it.
+        """
+        alert.alertStyle = .warning
+        for choice in RemoveTabChoice.allCases {
+            alert.addButton(withTitle: choice.title).hasDestructiveAction = choice.isDestructive
+        }
+        let choice = RemoveTabChoice.from(response: alert.runModal())
+        guard choice != .cancel else { return }
+        let repo = services.tabs.repoByTabID[id]
+        Task { @MainActor in
+            var problems: [String] = []
+            do {
+                try await services.remoteControl.kill(host: host, tabID: id)
+            } catch {
+                problems.append("The agent couldn't be stopped: \(error)")
+            }
+            // Independent of the kill: a dead agent is no reason to leave the
+            // worktree behind for the next tab on this branch to pick up.
+            if choice == .tabAndWorktree {
+                if let repo {
+                    do {
+                        try await services.existingWorktreeManager(on: host, repo: repo).remove(
+                            repo: repo, path: URL(fileURLWithPath: tab.worktreePath, isDirectory: true), force: true
+                        )
+                    } catch {
+                        problems.append("The worktree couldn't be removed: \(error)")
+                    }
+                } else {
+                    problems
+                        .append("The worktree isn't under a tracked repository's checkout, so it was left in place.")
+                }
+            }
+            guard !problems.isEmpty else { return }
+            presentInfo(
+                title: "Removed the tab, but not everything on \(host.name)",
+                text: problems.joined(separator: "\n\n") + "\n\nWorktree: \(tab.worktreePath)"
+            )
+        }
+        performRemoval(id: id, tab: tab, deleteWorktree: false, services: services)
     }
 }

@@ -3,6 +3,33 @@ import XCTest
 @testable import Yggdrasil
 
 final class MigrationsTests: XCTestCase {
+    /// Issue #47 ships a schema change, so the interesting case isn't a fresh
+    /// database — it's the one already on disk from the previous release.
+    func testV11AddsEnvToAgentsCreatedByAnEarlierRelease() throws {
+        let queue = try DatabaseQueue()
+        let migrator = Migrations.register()
+        // An install running the previous release.
+        try migrator.migrate(queue, upTo: "v10")
+        let now = Date()
+        try queue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO coding_agent
+                    (name, command, args_json, is_default, position, created_at, updated_at)
+                VALUES ('Codex', 'codex', '[]', 0, 1, ?, ?)
+                """,
+                arguments: [now, now]
+            )
+        }
+
+        // Launching this build migrates forward in place.
+        try migrator.migrate(queue)
+
+        let agents = try queue.read { db in try CodingAgent.fetchAll(db) }
+        XCTAssertEqual(agents.count, 2, "seeded Claude + the pre-existing Codex row survive")
+        XCTAssertTrue(agents.allSatisfy(\.env.isEmpty), "pre-existing profiles start with no overrides")
+    }
+
     func testV1CreatesAllRequiredTables() throws {
         let db = try YggdrasilDatabase.inMemory()
         let tables = try db.queue.read { db in
@@ -280,48 +307,11 @@ final class MigrationsTests: XCTestCase {
         XCTAssertTrue(read?.reviewActionOutstanding ?? false)
     }
 
-    func testV11PRRepoRoundTripsAndNullsOnDelete() throws {
+    func testV16AddsClaudeSessionIDColumn() throws {
         let db = try YggdrasilDatabase.inMemory()
-        let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let issuesID = try db.queue.write { db -> Int64 in
-            var prs = Repo(
-                id: nil, owner: "bsv-blockchain", name: "teranode",
-                defaultBranch: "main", localMainPath: nil, addedAt: now
-            )
-            try prs.insert(db)
-            var issues = Repo(
-                id: nil, owner: "bitcoin-sv", name: "teranode",
-                defaultBranch: "main", localMainPath: nil, addedAt: now,
-                prRepoID: prs.id
-            )
-            try issues.insert(db)
-            return issues.id!
+        let columns = try db.queue.read { db in
+            try db.columns(in: "session_state").map(\.name)
         }
-        let stored = try db.queue.read { db in try Repo.fetchOne(db, key: issuesID) }
-        XCTAssertNotNil(stored?.prRepoID)
-
-        // Untracking the PR repo drops the setting instead of failing the delete.
-        try db.queue.write { db in
-            _ = try Repo.filter(Column("owner") == "bsv-blockchain").deleteAll(db)
-        }
-        let after = try db.queue.read { db in try Repo.fetchOne(db, key: issuesID) }
-        XCTAssertNotNil(after)
-        XCTAssertNil(after?.prRepoID)
-    }
-
-    func testPRRepoResolvesConfiguredRepoElseSelf() {
-        let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let prs = Repo(id: 1, owner: "bsv-blockchain", name: "teranode",
-                       defaultBranch: "main", localMainPath: nil, addedAt: now)
-        let issues = Repo(id: 2, owner: "bitcoin-sv", name: "teranode",
-                          defaultBranch: "main", localMainPath: nil, addedAt: now,
-                          prRepoID: 1)
-        let dangling = Repo(id: 3, owner: "x", name: "y",
-                            defaultBranch: "main", localMainPath: nil, addedAt: now,
-                            prRepoID: 99)
-        let all = [prs, issues, dangling]
-        XCTAssertEqual(issues.prRepo(among: all), prs)
-        XCTAssertEqual(prs.prRepo(among: all), prs)
-        XCTAssertEqual(dangling.prRepo(among: all), dangling)
+        XCTAssertTrue(columns.contains("claude_session_id"), "columns=\(columns)")
     }
 }

@@ -125,29 +125,29 @@ final class HTTPClientTests: XCTestCase {
         XCTAssertTrue((req.headers["User-Agent"] ?? "").hasPrefix("Yggdrasil/"))
     }
 
-    func testStoresAndResendsEtag() async throws {
+    func testNeverSendsIfNoneMatch() async throws {
+        // Nothing caches a body to go with an ETag, so a 304 reached callers as
+        // an empty list: sync read it as "nothing assigned" and pruned every
+        // assigned issue without a tab. Every GET must fetch the full body.
         let url = try XCTUnwrap(URL(string: "https://api.github.com/issues"))
+        let etags = ETagStore(database: db)
+        try etags.set("W/\"stale\"", for: url)
         StubURLProtocol.replies = [
             .response(status: 200, body: Data("[]".utf8), headers: ["Etag": "W/\"abc\""]),
-            .response(status: 304, body: Data(), headers: [:])
+            .response(status: 200, body: Data("[]".utf8), headers: ["Etag": "W/\"abc\""])
         ]
         let client = URLSessionHTTPClient(
             session: makeStubbedSession(),
             auth: makeAuthService(),
-            etags: ETagStore(database: db)
+            etags: etags
         )
 
-        let first = try await client.get(url: url, accept: "application/json")
-        XCTAssertEqual(first.status, 200)
-        XCTAssertEqual(first.etag, "W/\"abc\"")
-        XCTAssertNotNil(first.body)
-        XCTAssertNil(StubURLProtocol.recorded[0].headers["If-None-Match"],
-                     "first request must not have If-None-Match")
-
-        let second = try await client.get(url: url, accept: "application/json")
-        XCTAssertEqual(second.status, 304)
-        XCTAssertNil(second.body, "304 result body must be nil")
-        XCTAssertEqual(StubURLProtocol.recorded[1].headers["If-None-Match"], "W/\"abc\"")
+        _ = try await client.get(url: url, accept: "application/json")
+        _ = try await client.get(url: url, accept: "application/json")
+        XCTAssertEqual(StubURLProtocol.recorded.count, 2)
+        XCTAssertNil(StubURLProtocol.recorded.first?.headers["If-None-Match"])
+        XCTAssertNil(StubURLProtocol.recorded.last?.headers["If-None-Match"])
+        XCTAssertEqual(try etags.get(for: url), "W/\"abc\"", "the ETag is still stored")
     }
 
     func testParsesRateLimitRemaining() async throws {

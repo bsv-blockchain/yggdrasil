@@ -48,6 +48,10 @@ struct MainPaneView: View {
             ensureSessionForSelectedTab()
             autoResumeIfExited()
         }
+        // Preparation finishing is what makes a freshly-opened tab spawnable.
+        .onChange(of: selectedTab.preparationState) { _, _ in
+            ensureSessionForSelectedTab()
+        }
         .onChange(of: layout) { _, newValue in
             newValue.persist(for: selectedTab)
             persistPrimary(newValue.primarySegment)
@@ -96,6 +100,8 @@ struct MainPaneView: View {
         switch segment {
         case .agent: agentSurface
         case .github: GitHubSubPane(services: services, tab: selectedTab)
+        case .diff where selectedTab.hostID != nil:
+            RemoteUnavailableNotice(feature: "Diff", scheme: scheme)
         case .diff:
             DiffSubPane(
                 services: services,
@@ -119,13 +125,20 @@ struct MainPaneView: View {
                     cwd: session.cwd,
                     command: session.command,
                     args: session.args,
+                    env: session.env,
                     sessionStore: services.sessionStore,
                     sessions: services.sessions,
+                    host: session.host,
                     isActive: services.tabs.selectedID == selectedTab.id
                 )
 
-                if services.sessions.exitedTabs[session.id] != nil {
-                    TerminalExitBanner(scheme: scheme)
+                if let host = session.host, services.sessions.reconnecting.contains(session.id) {
+                    ReconnectingBanner(hostName: host.name, scheme: scheme)
+                } else if services.sessions.exitedTabs[session.id] != nil {
+                    TerminalExitBanner(
+                        agentLabel: services.tabs.agentIdentity(for: selectedTab).label,
+                        scheme: scheme
+                    )
                 }
             }
         } else {
@@ -152,6 +165,11 @@ struct MainPaneView: View {
 
     private func ensureSessionForSelectedTab() {
         guard let tabID = selectedTab.id else { return }
+        // The worktree may not exist yet — tabs are inserted on the click and
+        // prepared in the background. Spawning into a directory that isn't
+        // there yet drops the agent straight into a shell error. The
+        // `preparationState` change reloads the tab, which runs this again.
+        guard selectedTab.isReady else { return }
         if services.sessions.sessions.contains(where: { $0.id == tabID }) { return }
         guard let agentID = selectedTab.codingAgentID else {
             YggdrasilLog.ui.info("Tab \(tabID, privacy: .public) has no coding_agent_id; cannot auto-spawn")
@@ -170,7 +188,9 @@ struct MainPaneView: View {
                     displayName: "\(agent.name) · \(selectedTab.branchName)",
                     cwd: selectedTab.worktreePath,
                     command: agent.command,
-                    args: agent.args
+                    args: agent.args,
+                    env: agent.env,
+                    host: services.host(for: selectedTab)
                 )
             )
             services.sessions.selectedID = tabID
@@ -451,9 +471,11 @@ struct PaneHeader: View {
                 Button("Resume Session") {
                     SidebarActions.restartAgent(tabID: id, services: services)
                 }
+                .disabled(services.sessions.movingTabs.contains(id))
                 Button("New Shell") {
                     SidebarActions.openShell(tabID: id, services: services)
                 }
+                .disabled(services.sessions.movingTabs.contains(id))
             }
         }
     }
@@ -497,13 +519,16 @@ struct PaneHeader: View {
 // MARK: - TerminalExitBanner
 
 struct TerminalExitBanner: View {
+    /// Name of the agent that was running — "Claude" was hardcoded here and
+    /// showed on Codex tabs too.
+    let agentLabel: String
     let scheme: ColorScheme
 
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: "info.circle")
                 .font(.system(size: 11))
-            Text("Session ended. Right-click the Claude tab to resume your session or open a shell.")
+            Text("Session ended. Right-click the \(agentLabel) tab to resume your session or open a shell.")
                 .font(.system(size: 11))
         }
         .foregroundStyle(YggdrasilTheme.textDim(scheme))
@@ -517,5 +542,41 @@ struct TerminalExitBanner: View {
                 .frame(height: 0.5),
             alignment: .top
         )
+    }
+}
+
+/// Shown while a remote tab's ssh connection is down and the surface retries
+/// on its own. ssh exits 255 for auth and host-key failures too, so this
+/// doesn't promise the agent is still running.
+struct ReconnectingBanner: View {
+    let hostName: String
+    let scheme: ColorScheme
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ProgressView().controlSize(.small)
+            Text("Lost the ssh connection to \(hostName). Reconnecting… ssh's own error is shown above.")
+                .font(.system(size: 11))
+        }
+        .foregroundStyle(YggdrasilTheme.textDim(scheme))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(YggdrasilTheme.bgPaneSoft(scheme))
+    }
+}
+
+/// Placeholder for panes that need the worktree on this Mac.
+struct RemoteUnavailableNotice: View {
+    let feature: String
+    let scheme: ColorScheme
+
+    var body: some View {
+        ZStack {
+            YggdrasilTheme.bgPane(scheme)
+            Text("\(feature) isn't available for remote tabs yet.")
+                .font(.callout)
+                .foregroundStyle(YggdrasilTheme.textDim(scheme))
+        }
     }
 }

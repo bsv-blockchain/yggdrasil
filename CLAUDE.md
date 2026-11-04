@@ -88,8 +88,8 @@ the sqlite before testing a schema-changing build).
 ## Releasing
 
 Releases are **tag-driven**. `release.yml` triggers on a pushed `v*.*.*` tag,
-builds + signs (Developer ID) + notarizes the DMG, and creates a **draft**
-GitHub release with the DMG + SHA256SUMS. Steps:
+builds + signs (Developer ID) + notarizes the DMG, and **publishes** a GitHub
+release with the DMG + SHA256SUMS + `appcast.xml`. Steps:
 
 1. Bump the version in **both** `project.yml` *and* `Yggdrasil/Info.plist`
    (`CFBundleShortVersionString` + `CFBundleVersion`) — both are tracked and
@@ -97,7 +97,21 @@ GitHub release with the DMG + SHA256SUMS. Steps:
    committed file is what reviewers diff). Commit as
    `chore(release): bump to X.Y.Z` with the changelog in the body.
 2. Land that on `main`, then tag the bump commit: `git tag -a vX.Y.Z -m "Yggdrasil vX.Y.Z" && git push origin vX.Y.Z`.
-3. The workflow produces a **draft** release — edit notes and **publish manually**.
+3. The workflow publishes the release itself — no manual step. Notes come from
+   the **body of the bump commit**, so that body is the changelog users read.
+
+   Two things to know about the publish:
+   - Sparkle's feed is `SUFeedURL` = `releases/latest/download/appcast.xml`, and
+     `releases/latest` **skips drafts**. A release left as a draft is invisible
+     to "Check for updates" no matter how good its assets are — that's why the
+     workflow publishes rather than drafting.
+   - The workflow creates the release as a draft, uploads the assets, and only
+     then flips it to published + latest. Publishing first would point the feed
+     at an asset-less release for the length of the upload, 404-ing every
+     client's update check.
+
+   Re-running the workflow on an existing tag re-uploads the assets but leaves
+   the notes alone, so hand-edited notes survive.
 
 ## CI & branch protection
 

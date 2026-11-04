@@ -10,12 +10,30 @@ import Foundation
 /// same repo across multiple Yggdrasil instances or external git tooling. Within a
 /// single process the actor's isolation already serialises calls; the flock adds
 /// cross-process protection.
+///
+/// **Not thread-safe.** `isReleased` is unsynchronised, which is only sound
+/// because the sole consumer holds the lock in a local inside an actor method
+/// and releases it in a `defer` — no second reference exists to race with. Don't
+/// store one in a property or hand it across isolation domains without adding
+/// synchronisation first.
 final class FileLock {
     private let descriptor: Int32
+    /// `WorktreeManager` releases in a `defer` and `deinit` releases again, so
+    /// without this the second call ran `close()` on a descriptor number the
+    /// process had already reused for something else.
+    private var isReleased = false
 
     private init(descriptor: Int32) {
         self.descriptor = descriptor
     }
+
+    #if DEBUG
+        /// Exposed so the tests can check the descriptor's flags and whether it
+        /// survives exec. Debug-only so app code can't reach for a raw fd.
+        var descriptorForTesting: Int32 {
+            descriptor
+        }
+    #endif
 
     /// Open the lockfile at `url` (creating it if missing) and acquire an
     /// exclusive lock. Polls every `pollInterval` until acquired or `timeout`
@@ -30,9 +48,17 @@ final class FileLock {
         let parent = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
 
-        let descriptor = open(url.path, O_RDWR | O_CREAT, 0o644)
+        // O_CLOEXEC is load-bearing. An flock belongs to the open file
+        // description, and `fork` shares it — so an agent PTY spawned while
+        // this lock was held inherited the descriptor and kept the repo locked
+        // for the whole life of that session, timing out every later tab in
+        // that repo. Closing on exec is what stops the child inheriting it.
+        let descriptor = open(url.path, O_RDWR | O_CREAT | O_CLOEXEC, 0o644)
         guard descriptor >= 0 else {
-            throw FileLockError.openFailed(errno: errno, path: url.path)
+            // Captured before building the error: `url.path` allocates, and an
+            // allocation can clobber errno. `flockFailed` below does the same.
+            let capturedErrno = errno
+            throw FileLockError.openFailed(errno: capturedErrno, path: url.path)
         }
 
         let deadline = ContinuousClock.now.advanced(by: timeout)
@@ -47,7 +73,17 @@ final class FileLock {
                     close(descriptor)
                     throw FileLockError.timedOut(path: url.path)
                 }
-                try await Task.sleep(for: pollInterval)
+                do {
+                    try await Task.sleep(for: pollInterval)
+                } catch {
+                    // Cancelled mid-poll. Nothing owns `descriptor` yet — no
+                    // FileLock exists to release it — so close it here or it
+                    // leaks for the life of the app. Reachable: `ensure` runs
+                    // from UI-driven tasks that get cancelled, and the poll
+                    // loop only runs when another holder is contending.
+                    close(descriptor)
+                    throw error
+                }
                 continue
             }
             // Other errors are fatal.
@@ -57,8 +93,11 @@ final class FileLock {
         }
     }
 
-    /// Release the lock and close the descriptor. Idempotent.
+    /// Release the lock and close the descriptor. Idempotent — and it has to
+    /// be, since callers release in a `defer` and `deinit` releases again.
     func release() {
+        guard !isReleased else { return }
+        isReleased = true
         _ = flock(descriptor, LOCK_UN)
         close(descriptor)
     }

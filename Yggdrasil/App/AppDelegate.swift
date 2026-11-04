@@ -49,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             let services = try AppServices()
             self.services = services
             Diagnostics.ensureCrashFolder()
-            AppearancePrefsPane.applyPersisted(services: services)
+            AppearanceSettings.applyPersisted(services: services)
             // One-shot cleanup: tear down any leftover yggdrasil-* tmux
             // sessions from previous versions of the app (we used to back
             // every tab with a tmux session). Runs best-effort in the
@@ -65,16 +65,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
 
         // Rewrites Shift+Enter to ESC+CR so Claude Code and similar agents
-        // see "insert newline" instead of "submit". This is the only PTY-
-        // input interceptor we keep — scroll-wheel + selection now work
-        // natively via SwiftTerm since we dropped tmux mouse-mode.
-        TerminalKeyInterceptor.install()
-        // Bridges the mouse to full-screen / mouse-reading agents (e.g. Claude
-        // Code's fullscreen renderer): forwards the wheel (which SwiftTerm never
-        // sends to the app) and keeps mouse reporting in sync with the agent's
-        // live mouse mode so clicks/selection work without breaking native
-        // selection when the agent isn't reading the mouse.
-        TerminalMouseInterceptor.install()
+        // see "insert newline" instead of "submit", and routes Option+Up/Down
+        // either to the terminal or to the sidebar depending on focus. The
+        // delegate is handed over so the sidebar branch can reach the services.
+        // This is the only PTY-input interceptor we keep — scroll-wheel +
+        // selection now work natively via SwiftTerm since we dropped tmux
+        // mouse-mode.
+        TerminalKeyInterceptor.install(appDelegate: self)
+        // Lets an agent's OSC 52 copy through right after the user's own input
+        // (see ClipboardGuardDelegate): over ssh that's how Claude copies.
+        TerminalInputClock.install()
 
         // Install the AppKit "Coding" menu after the main menu bar is built.
         // SwiftUI sets up the bar during its own scene init; defer one tick

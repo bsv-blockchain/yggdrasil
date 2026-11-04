@@ -1,7 +1,7 @@
 import Foundation
 
 /// Polling intervals that the user can change at runtime from
-/// `IntervalsPrefsPane`. Persisted as plain strings in the `setting`
+/// Settings → General. Persisted as plain strings in the `setting`
 /// key-value table so they survive relaunch.
 ///
 /// Values are clamped both on save (so a buggy caller can't poison the

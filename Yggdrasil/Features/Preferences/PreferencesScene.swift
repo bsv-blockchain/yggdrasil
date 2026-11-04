@@ -1,14 +1,14 @@
 import SwiftUI
 
 /// `Settings` scene installed by `YggdrasilApp`. Renders the standard macOS
-/// Preferences window with four tabs: Repos, Agents, Intervals, Appearance.
+/// `Settings` scene installed by `YggdrasilApp`: the standard macOS settings
+/// window with toolbar tabs. Each pane sizes itself; the window follows.
 struct PreferencesScene: Scene {
     @ObservedObject var appDelegate: AppDelegate
 
     var body: some Scene {
         Settings {
             PreferencesRoot(appDelegate: appDelegate)
-                .frame(minWidth: 560, minHeight: 360)
         }
     }
 }
@@ -21,23 +21,21 @@ struct PreferencesRoot: View {
     @ObservedObject var appDelegate: AppDelegate
 
     var body: some View {
-        Group {
-            if let services = appDelegate.services {
-                TabView {
-                    RepoPrefsPane(services: services)
-                        .tabItem { Label("Repos", systemImage: "folder.badge.gearshape") }
-                    AgentPrefsPane(services: services)
-                        .tabItem { Label("Agents", systemImage: "cpu") }
-                    IntervalsPrefsPane(services: services)
-                        .tabItem { Label("Intervals", systemImage: "clock") }
-                    AppearancePrefsPane(services: services)
-                        .tabItem { Label("Appearance", systemImage: "paintbrush") }
-                }
-                .padding(20)
-            } else {
-                Text("Preferences load after first launch.")
-                    .padding()
+        if let services = appDelegate.services {
+            TabView {
+                GeneralPrefsPane(services: services)
+                    .tabItem { Label("General", systemImage: "gearshape") }
+                RepoPrefsPane(services: services)
+                    .tabItem { Label("Repositories", systemImage: "shippingbox") }
+                AgentPrefsPane(services: services)
+                    .tabItem { Label("Agents", systemImage: "terminal") }
+                HostPrefsPane(services: services)
+                    .tabItem { Label("Hosts", systemImage: "server.rack") }
             }
+        } else {
+            Text("Settings are available once Yggdrasil has finished launching.")
+                .foregroundStyle(.secondary)
+                .padding(40)
         }
     }
 }

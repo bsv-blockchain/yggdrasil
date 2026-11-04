@@ -17,10 +17,17 @@ struct GitHubAggregate: Equatable {
     /// The viewer has approved the current head. Drives the green REVIEW pill
     /// (superseded by `hasActivity` — a thread awaiting them still reads amber).
     let reviewApproved: Bool
+    /// Unresolved review threads awaiting the viewer's reply on a PR they wrote.
+    /// Drives the amber REPLY pill; 0 on PRs they didn't write.
+    let threadsAwaitingReply: Int
+    /// The viewer wrote the linked PR. Gates signals that are only their move on
+    /// their own PR — red CI is the author's problem, not the reviewer's.
+    let viewerDidAuthorPR: Bool
 
     init(
         ciState: String?, reviewState: String? = nil, unread: Int,
-        newCommits: Int = 0, hasActivity: Bool = false, reviewApproved: Bool = false
+        newCommits: Int = 0, hasActivity: Bool = false, reviewApproved: Bool = false,
+        threadsAwaitingReply: Int = 0, viewerDidAuthorPR: Bool = false
     ) {
         self.ciState = ciState
         self.reviewState = reviewState
@@ -28,6 +35,8 @@ struct GitHubAggregate: Equatable {
         self.newCommits = newCommits
         self.hasActivity = hasActivity
         self.reviewApproved = reviewApproved
+        self.threadsAwaitingReply = threadsAwaitingReply
+        self.viewerDidAuthorPR = viewerDidAuthorPR
     }
 }
 
@@ -56,11 +65,21 @@ struct TabStatus: Equatable {
     /// The viewer has approved the current head — drives the green REVIEW pill.
     /// `reviewActivity` (amber) takes precedence when both are set.
     let reviewApproved: Bool
+    /// Unresolved threads awaiting the viewer's reply on a PR they wrote —
+    /// drives the amber REPLY pill on authored-PR tabs.
+    let threadsAwaitingReply: Int
+    /// The viewer wrote the linked PR — gates the author-only signals.
+    let viewerDidAuthorPR: Bool
+    /// Fingerprint of why this tab wants attention. Dismissing amber stores it;
+    /// the dismissal lapses as soon as this changes.
+    let attentionSignature: String
 
     init(
         icon: Icon, showsUnreadBadgeDot: Bool, tooltipLines: [String],
         reviewState: String? = nil, reviewActivity: Bool = false, newCommits: Int = 0,
-        reviewApproved: Bool = false
+        reviewApproved: Bool = false, threadsAwaitingReply: Int = 0,
+        viewerDidAuthorPR: Bool = false,
+        attentionSignature: String = ""
     ) {
         self.icon = icon
         self.showsUnreadBadgeDot = showsUnreadBadgeDot
@@ -69,12 +88,16 @@ struct TabStatus: Equatable {
         self.reviewActivity = reviewActivity
         self.newCommits = newCommits
         self.reviewApproved = reviewApproved
+        self.threadsAwaitingReply = threadsAwaitingReply
+        self.viewerDidAuthorPR = viewerDidAuthorPR
+        self.attentionSignature = attentionSignature
     }
 
     static func aggregate(
         claude: ClaudeState,
         git: GitState,
-        github: GitHubAggregate
+        github: GitHubAggregate,
+        attentionSignature: String = ""
     ) -> TabStatus {
         let icon = pickIcon(claude: claude, git: git, github: github)
         return TabStatus(
@@ -84,7 +107,10 @@ struct TabStatus: Equatable {
             reviewState: github.reviewState,
             reviewActivity: github.hasActivity,
             newCommits: github.newCommits,
-            reviewApproved: github.reviewApproved
+            reviewApproved: github.reviewApproved,
+            threadsAwaitingReply: github.threadsAwaitingReply,
+            viewerDidAuthorPR: github.viewerDidAuthorPR,
+            attentionSignature: attentionSignature
         )
     }
 
@@ -114,6 +140,9 @@ struct TabStatus: Equatable {
         if let review = reviewLabel(github.reviewState) { lines.append("Review: \(review)") }
         if github.newCommits > 0 { lines.append("\(github.newCommits) new commit(s)") }
         if github.unread > 0 { lines.append("\(github.unread) unread comment(s)") }
+        if github.threadsAwaitingReply > 0 {
+            lines.append("\(github.threadsAwaitingReply) thread(s) awaiting your reply")
+        }
         return lines
     }
 

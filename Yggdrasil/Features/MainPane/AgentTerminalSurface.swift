@@ -18,8 +18,12 @@ struct AgentTerminalSurface: NSViewRepresentable {
     let cwd: String
     let command: String
     let args: [String]
+    /// Extra environment variables from the agent profile (issue #47).
+    let env: [String: String]
     let sessionStore: SessionStateStore
     let sessions: SessionsModel?
+    /// ssh host to run on; nil runs the agent on this Mac.
+    let host: RemoteHost?
     /// True when this surface belongs to the currently-selected tab.
     /// Drives auto-focus of the terminal on activation so a tab switch
     /// goes straight from sidebar click → typing into the agent.
@@ -40,23 +44,27 @@ struct AgentTerminalSurface: NSViewRepresentable {
         cwd: String,
         command: String,
         args: [String],
+        env: [String: String] = [:],
         sessionStore: SessionStateStore,
         sessions: SessionsModel? = nil,
+        host: RemoteHost? = nil,
         isActive: Bool = false
     ) {
         self.tabID = tabID
         self.cwd = cwd
         self.command = command
         self.args = args
+        self.env = env
         self.sessionStore = sessionStore
         self.sessions = sessions
+        self.host = host
         self.isActive = isActive
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
-            tabID: tabID, cwd: cwd, command: command, args: args,
-            sessionStore: sessionStore, sessions: sessions
+            tabID: tabID, cwd: cwd, command: command, args: args, env: env,
+            sessionStore: sessionStore, sessions: sessions, host: host
         )
     }
 
@@ -70,10 +78,12 @@ struct AgentTerminalSurface: NSViewRepresentable {
 
     func makeNSView(context: Context) -> LocalProcessTerminalView {
         let view = DroppableTerminalView(frame: .zero)
+        // Local paths mean nothing to an agent on another machine.
+        view.sendsLocalFilePaths = host == nil
         AgentTerminalSurface.applyTheme(to: view, scheme: effectiveScheme)
         // Initial state: mouse reporting off (no agent is reading the mouse at
-        // launch). `TerminalMouseInterceptor` then keeps this in sync with the
-        // live `mouseMode` on every mouse/scroll event:
+        // launch). `DroppableTerminalView.dataReceived`/`.linefeed` then keep
+        // this in sync with the live `mouseMode` as output arrives:
         //  - OFF when the agent isn't reading the mouse → SwiftTerm keeps the
         //    native text selection alive across streaming output (it clears the
         //    selection on each line feed while reporting is on).
@@ -147,7 +157,9 @@ struct AgentTerminalSurface: NSViewRepresentable {
         let cwd: String
         let command: String
         let args: [String]
+        let env: [String: String]
         let sessionStore: SessionStateStore
+        let host: RemoteHost?
         private weak var sessions: SessionsModel?
         private weak var attachedView: LocalProcessTerminalView?
         private let lock = NSLock()
@@ -163,14 +175,17 @@ struct AgentTerminalSurface: NSViewRepresentable {
 
         init(
             tabID: Int64, cwd: String, command: String, args: [String],
-            sessionStore: SessionStateStore, sessions: SessionsModel?
+            env: [String: String],
+            sessionStore: SessionStateStore, sessions: SessionsModel?, host: RemoteHost?
         ) {
             self.tabID = tabID
             self.cwd = cwd
             self.command = command
             self.args = args
+            self.env = env
             self.sessionStore = sessionStore
             self.sessions = sessions
+            self.host = host
             super.init()
         }
 
@@ -181,6 +196,7 @@ struct AgentTerminalSurface: NSViewRepresentable {
         @MainActor
         func setActive(_ active: Bool, on view: LocalProcessTerminalView) {
             defer { lastActive = active }
+            (view as? DroppableTerminalView)?.isSelectedTab = active
             guard active, lastActive != true else { return }
             // Defer one runloop tick so SwiftUI/AppKit has finished any
             // pending layout — without this the makeFirstResponder call
@@ -207,15 +223,30 @@ struct AgentTerminalSurface: NSViewRepresentable {
         private func startIfNeeded(in view: LocalProcessTerminalView) {
             guard !didStart else { return }
             didStart = true
-            // If Claude has prior conversation history for this worktree
-            // (transcripts under ~/.claude/projects/<encoded-cwd>/*.jsonl),
-            // append `--continue` so the agent picks up where it left off.
+            if let host {
+                startRemote(on: host, in: view)
+                return
+            }
+            // Pin Claude to the tab's own conversation id (`--session-id` on
+            // first spawn, `--resume` after) so it picks up where it left off.
             // Other agent commands fall through untouched.
-            let resolvedArgs = AgentTerminalSurface.applyResumeFlag(
-                command: command, args: args, cwd: cwd
-            )
+            let stored: StoredSession
             do {
-                _ = try sessionStore.start(tabID: tabID, cwd: cwd, command: command, args: resolvedArgs)
+                stored = try sessionStore.get(tabID: tabID)
+                    .map { $0.claudeSessionID.map(StoredSession.pinned) ?? .unpinned } ?? .noRow
+            } catch {
+                stored = .unknown
+            }
+            let plan = AgentTerminalSurface.resolveResume(
+                command: command, args: args, cwd: cwd,
+                stored: stored, newSessionID: UUID().uuidString.lowercased()
+            )
+            let resolvedArgs = plan.args
+            do {
+                _ = try sessionStore.start(
+                    tabID: tabID, cwd: cwd, command: command, args: resolvedArgs,
+                    claudeSessionID: plan.sessionID
+                )
             } catch {
                 YggdrasilLog.pty
                     .error("Failed to write session_state.start: \(String(describing: error), privacy: .public)")
@@ -232,10 +263,18 @@ struct AgentTerminalSurface: NSViewRepresentable {
             let quotedArgs = resolvedArgs.map(CodingAgentRunner.shellQuote).joined(separator: " ")
             let colorfgbg = initialScheme == .light ? "0;15" : "15;0"
             let payload = "export COLORFGBG='\(colorfgbg)'; exec \(quotedCmd) \(quotedArgs)"
+            // Profile environment goes through the PTY's envp, not the `-c`
+            // payload: shell argv is readable by any local process via `ps`,
+            // and these values are typically account tokens. nil keeps
+            // SwiftTerm's own defaults for profiles with no overrides.
+            let environment = AgentEnvironment.merged(
+                defaults: Terminal.getEnvironmentVariables(termName: "xterm-256color"),
+                overrides: env
+            )
             view.startProcess(
                 executable: userShell,
                 args: ["-l", "-i", "-c", payload],
-                environment: nil,
+                environment: environment,
                 execName: nil,
                 currentDirectory: cwd
             )
@@ -243,21 +282,18 @@ struct AgentTerminalSurface: NSViewRepresentable {
             sessions?.registerLivePID(pid, for: tabID)
             YggdrasilLog.pty
                 .info("Spawned agent pid=\(self.pid, privacy: .public) command=\(self.command, privacy: .public)")
+            if !env.isEmpty {
+                // Names only — values are tokens.
+                YggdrasilLog.pty
+                    .info("Agent env overrides: \(self.env.keys.sorted().joined(separator: ", "), privacy: .public)")
+            }
         }
 
         func terminate() {
-            // Direct SIGTERM the agent PID; SIGKILL after 5s if it hasn't
-            // exited cleanly. Replaces the tmux-killSession path we used
-            // when agent survival was a feature.
-            let targetPid = pid
-            guard targetPid > 0 else { return }
-            kill(targetPid, SIGTERM)
-            Task { [weak self] in
-                try? await Task.sleep(for: .seconds(5))
-                if self?.lastExitCode == nil {
-                    kill(targetPid, SIGKILL)
-                }
-            }
+            // SIGTERM, SIGKILL after 5s, and collect the child: this view (and
+            // SwiftTerm's exit watcher with it) is usually being torn down, so
+            // nothing else would, and it would stay a zombie.
+            ChildReaper.stopInBackground(pid)
         }
 
         // MARK: - LocalProcessTerminalViewDelegate
@@ -281,52 +317,35 @@ struct AgentTerminalSurface: NSViewRepresentable {
                 YggdrasilLog.pty
                     .error("Failed to write session_state.end: \(String(describing: error), privacy: .public)")
             }
-            sessions?.unregisterLivePID(for: tabID)
             let id = tabID
+            let exitedPID = pid
+            // The child is gone (SwiftTerm collected it); a later terminate()
+            // on this surface must not signal its pid, which may be reused.
+            pid = 0
+            let remote = host != nil
             DispatchQueue.main.async { [weak self] in
-                self?.sessions?.markExited(tabID: id, exitCode: resolved)
+                guard let sessions = self?.sessions else { return }
+                // Only the tab's current process can have lost its connection;
+                // one we terminated or replaced was meant to exit.
+                let wasCurrent = sessions.releaseLivePID(exitedPID, for: id)
+                if wasCurrent, ReconnectPolicy.shouldReconnect(isRemote: remote, exitCode: exitCode) {
+                    let attempt = sessions.beginReconnect(tabID: id)
+                    if !ReconnectPolicy.shouldGiveUp(attempt: attempt) {
+                        // Possibly just the link: the agent keeps running in
+                        // dtach on the host. Reattach with backoff.
+                        let delay = ReconnectPolicy.delaySeconds(attempt: attempt)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(delay)) { [weak sessions] in
+                            guard let sessions, sessions.reconnecting.contains(id) else { return }
+                            sessions.reattach(tabID: id)
+                        }
+                        return
+                    }
+                    sessions.connectionHeld(tabID: id)
+                }
+                sessions.markExited(tabID: id, exitCode: resolved)
             }
-            YggdrasilLog.pty.info("Agent pid=\(self.pid, privacy: .public) exited code=\(resolved, privacy: .public)")
+            YggdrasilLog.pty.info("Agent pid=\(exitedPID, privacy: .public) exited code=\(resolved, privacy: .public)")
         }
-    }
-
-    /// Append the agent-specific resume flag to `args` when there's a prior
-    /// conversation for this cwd. Currently Claude-aware only: `claude
-    /// --continue` resumes the most recent conversation in the cwd, but
-    /// errors out (exit 1) when no transcript exists. Checking the
-    /// session_state row isn't enough — claude stores its history under
-    /// `~/.claude/projects/<encoded-cwd>/*.jsonl`, and that's where we look.
-    /// Pure for testability.
-    static func applyResumeFlag(
-        command: String,
-        args: [String],
-        cwd: String,
-        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
-        directoryContents: (String) -> [String]? = {
-            try? FileManager.default.contentsOfDirectory(atPath: $0)
-        }
-    ) -> [String] {
-        let lowerCmd = command.lowercased()
-        guard lowerCmd.contains("claude") else { return args }
-        // Don't double-up if the user already set the flag.
-        if args.contains("--continue") || args.contains("-c") || args.contains("--resume") {
-            return args
-        }
-        // claude maps cwd → ~/.claude/projects/<encoded>/ where the encoding
-        // replaces every `/` and `.` with a `-`. So
-        //   /Users/me/checkout/.worktrees/pr-643
-        // becomes
-        //   -Users-me-checkout--worktrees-pr-643
-        let encoded = cwd
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ".", with: "-")
-        let home = NSHomeDirectory()
-        let projectDir = "\(home)/.claude/projects/\(encoded)"
-        guard fileExists(projectDir),
-              let entries = directoryContents(projectDir),
-              entries.contains(where: { $0.hasSuffix(".jsonl") })
-        else { return args }
-        return args + ["--continue"]
     }
 
     /// Same `/bin/sh -c 'cd "<cwd>" && exec <cmd> <args>...'` invocation as
@@ -336,5 +355,68 @@ struct AgentTerminalSurface: NSViewRepresentable {
         let qCmd = CodingAgentRunner.shellQuote(command)
         let qArgs = args.map(CodingAgentRunner.shellQuote).joined(separator: " ")
         return "cd \(qCwd) && exec \(qCmd) \(qArgs)"
+    }
+}
+
+// MARK: - Remote tabs
+
+extension AgentTerminalSurface.Coordinator {
+    /// Runs `ssh … ygg attach`, which attaches to the tab's dtach session
+    /// on the host or creates it. Killing this process only detaches.
+    private func startRemote(on host: RemoteHost, in view: LocalProcessTerminalView) {
+        let storedID: String?
+        let newID: String?
+        do {
+            storedID = try sessionStore.get(tabID: tabID)?.claudeSessionID
+            newID = UUID().uuidString.lowercased()
+        } catch {
+            // Unreadable row: don't pin rather than mint over a possible pin.
+            storedID = nil
+            newID = nil
+        }
+        let spawn = RemoteSpawn.make(
+            host: host,
+            session: OpenSession(id: tabID, displayName: "", cwd: cwd, command: command, args: args),
+            storedSessionID: storedID,
+            newSessionID: newID,
+            colorfgbg: initialScheme == .light ? "0;15" : "15;0"
+        )
+        do {
+            _ = try sessionStore.start(
+                tabID: tabID, cwd: cwd, command: command, args: args,
+                claudeSessionID: spawn.claudeSessionID
+            )
+        } catch {
+            YggdrasilLog.pty
+                .error("Failed to write session_state.start: \(String(describing: error), privacy: .public)")
+        }
+        if !env.isEmpty {
+            // Locally these go through the PTY's envp so tokens never show
+            // in `ps`; over ssh the only route today is the command line,
+            // visible in `ps` on both machines. Not passed until there's a
+            // private channel. Names only — values are tokens.
+            YggdrasilLog.pty.warning(
+                "Agent env vars not passed to remote tab: \(self.env.keys.sorted().joined(separator: ", "), privacy: .public)"
+            )
+        }
+        SSHCommand.prepareControlDirectory()
+        view.startProcess(
+            executable: spawn.executable,
+            args: spawn.args,
+            environment: nil,
+            execName: nil,
+            currentDirectory: NSHomeDirectory()
+        )
+        pid = view.process.shellPid
+        sessions?.registerLivePID(pid, for: tabID)
+        // A connection that stays up this long has recovered; reset backoff.
+        let id = tabID
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            guard let self, lastExitCode == nil else { return }
+            sessions?.connectionHeld(tabID: id)
+        }
+        YggdrasilLog.pty.info(
+            "Attaching tab \(self.tabID, privacy: .public) on \(host.sshTarget, privacy: .public) pid=\(self.pid, privacy: .public)"
+        )
     }
 }

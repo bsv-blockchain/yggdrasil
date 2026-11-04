@@ -8,11 +8,10 @@ extension Notification.Name {
     static let sidebarGroupingChanged = Notification.Name("yggdrasil.sidebarGroupingChanged")
 }
 
-/// Light/dark/auto theme preference. Persists into `setting` table under
-/// "appearance" and applies via `NSApplication.shared.appearance`.
-struct AppearancePrefsPane: View {
-    let services: AppServices
-
+/// App + terminal theme and sidebar grouping preferences, edited in
+/// Settings → General. App theme and grouping persist in the `setting` table;
+/// the terminal theme in UserDefaults (read via @AppStorage by the terminal).
+enum AppearanceSettings {
     enum Mode: String, CaseIterable, Identifiable {
         case auto, light, dark
         var id: String {
@@ -55,66 +54,22 @@ struct AppearancePrefsPane: View {
     static let groupByRepoKey = "sidebar.groupByRepo"
     static let terminalThemeKey = "yggdrasil.terminalTheme"
 
-    @State private var selection: Mode = .auto
-    @State private var terminalTheme: TerminalTheme = .auto
-    @State private var groupByRepo: Bool = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Appearance").font(.title3).bold()
-
-            Picker("Theme", selection: $selection) {
-                ForEach(Mode.allCases) { mode in
-                    Text(mode.label).tag(mode)
-                }
-            }
-            .pickerStyle(.radioGroup)
-            .onChange(of: selection) { _, newMode in
-                apply(mode: newMode)
-            }
-
-            Picker("Terminal", selection: $terminalTheme) {
-                ForEach(TerminalTheme.allCases) { mode in
-                    Text(mode.label).tag(mode)
-                }
-            }
-            .pickerStyle(.radioGroup)
-            .onChange(of: terminalTheme) { _, newMode in
-                UserDefaults.standard.set(newMode.rawValue, forKey: Self.terminalThemeKey)
-            }
-
-            Divider()
-
-            Toggle("Group tabs by repository", isOn: $groupByRepo)
-                .onChange(of: groupByRepo) { _, newValue in
-                    persistGroupByRepo(newValue)
-                }
-
-            Spacer()
-        }
-        .onAppear(perform: load)
-    }
-
-    private func load() {
-        let store = SettingsStore(database: services.database)
-        if let raw = try? store.get(forKey: Self.settingKey),
-           let mode = Mode(rawValue: raw) {
-            selection = mode
-        }
-        if let raw = UserDefaults.standard.string(forKey: Self.terminalThemeKey),
-           let mode = TerminalTheme(rawValue: raw) {
-            terminalTheme = mode
-        }
-        groupByRepo = Self.readGroupByRepo(services: services)
-    }
-
-    private func apply(mode: Mode) {
+    static func apply(mode: Mode, services: AppServices) {
         NSApp.appearance = mode.appearance
-        let store = SettingsStore(database: services.database)
-        try? store.set(mode.rawValue, forKey: Self.settingKey)
+        try? SettingsStore(database: services.database).set(mode.rawValue, forKey: settingKey)
     }
 
-    private func persistGroupByRepo(_ value: Bool) {
+    static func readMode(services: AppServices) -> Mode {
+        (try? SettingsStore(database: services.database).get(forKey: settingKey))
+            .flatMap { Mode(rawValue: $0) } ?? .auto
+    }
+
+    static var terminalTheme: TerminalTheme {
+        get { UserDefaults.standard.string(forKey: terminalThemeKey).flatMap(TerminalTheme.init) ?? .auto }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: terminalThemeKey) }
+    }
+
+    static func persistGroupByRepo(_ value: Bool, services: AppServices) {
         let store = SettingsStore(database: services.database)
         try? store.set(value ? "1" : "0", forKey: Self.groupByRepoKey)
         NotificationCenter.default.post(name: .sidebarGroupingChanged, object: nil)

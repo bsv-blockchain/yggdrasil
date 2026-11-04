@@ -263,7 +263,8 @@ final class CodingMenuController: NSObject {
                         displayName: "\(pick.agent.name) · \(lastComponent)",
                         cwd: pick.cwd,
                         command: pick.agent.command,
-                        args: pick.agent.args
+                        args: pick.agent.args,
+                        env: pick.agent.env
                     )
                 )
             }

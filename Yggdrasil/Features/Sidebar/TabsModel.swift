@@ -98,7 +98,15 @@ final class TabsModel {
             let allRepos = try Repo.fetchAll(db)
             for tab in self.tabs {
                 guard let tabID = tab.id else { continue }
-                if let owning = Self.repoOwning(worktreePath: tab.worktreePath, repos: allRepos) {
+                let owning = if let hostID = tab.hostID {
+                    try Self.repoOwning(
+                        remoteWorktreePath: tab.worktreePath,
+                        checkouts: HostRepoStore(database: self.database).list(hostID: hostID, in: db)
+                    )
+                } else {
+                    Self.repoOwning(worktreePath: tab.worktreePath, repos: allRepos)
+                }
+                if let owning {
                     repos[tabID] = owning
                 }
                 if let prTaskID = tab.prTaskID,
@@ -195,7 +203,7 @@ final class TabsModel {
 
     func moveSelection(by delta: Int) {
         // The published order is a snapshot from the sidebar's last render, so a
-        // row removed since (⌘W, or a background reload) can still be listed.
+        // row removed since (⌘⇧W, or a background reload) can still be listed.
         // Selecting a dead id leaves the main pane blank, so drop them here.
         let live = Set(tabs.compactMap(\.id))
         let order = (visibleTabIDs ?? tabs.compactMap(\.id)).filter(live.contains)
@@ -247,6 +255,15 @@ final class TabsModel {
     ///   • new (current): `<repo>/.worktrees/<slug>` — inside the repo
     ///   • legacy:        `<repo-parent>/.worktrees/<slug>` — sibling of repo
     /// We try in-repo first (path prefix match), then sibling-of-repo.
+    /// A remote tab's repo: the one whose checkout on the tab's host contains
+    /// the worktree. Remote tabs never fall back to local clone paths.
+    static func repoOwning(remoteWorktreePath: String, checkouts: [HostRepoCheckout]) -> Repo? {
+        checkouts
+            .filter { remoteWorktreePath.hasPrefix($0.path.hasSuffix("/") ? $0.path : $0.path + "/") }
+            .max { $0.path.count < $1.path.count }?
+            .repo
+    }
+
     static func repoOwning(worktreePath: String, repos: [Repo]) -> Repo? {
         // 1. In-repo: any tracked repo whose localMainPath is an ancestor of
         //    the worktree path. Most specific (longest) match wins so a
@@ -276,16 +293,29 @@ final class TabsModel {
     }
 
     /// Returns the tabs filtered by a case-insensitive substring match against the
-    /// row's titleLine (task title or branch fallback) and branchName. Returns the
-    /// full list when `query` is empty after trimming.
+    /// row's titleLine (task title or branch fallback), branchName, and the
+    /// issue/PR numbers shown in its badges (incl. an issue tab's linked PR), so
+    /// `1889` finds a PR linked to an issue tab. A leading `#` (`#1889`) matches
+    /// that exact number instead of a substring. Returns the full list when
+    /// `query` is empty after trimming.
     func filtered(by query: String) -> [YggdrasilTab] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return tabs }
         let needle = trimmed.lowercased()
         return tabs.filter { tab in
             let row = model(for: tab)
+            let numbers = [row.trailingBadge, row.secondaryBadge].compactMap { badge -> String? in
+                switch badge {
+                case let .prNumber(number), let .issueNumber(number): String(number)
+                case .none: nil
+                }
+            }
+            let matchesNumber = needle.hasPrefix("#")
+                ? numbers.contains(String(needle.dropFirst()))
+                : numbers.contains { $0.contains(needle) }
             return row.titleLine.lowercased().contains(needle)
                 || row.branchLine.lowercased().contains(needle)
+                || matchesNumber
         }
     }
 

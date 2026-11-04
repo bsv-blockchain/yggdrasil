@@ -8,7 +8,7 @@ import SwiftUI
 ///
 /// Sits above the sidebar+main HSplit. The system traffic lights are macOS's
 /// native ones in the title-bar area; we don't redraw them. Theme toggle here
-/// also writes back to AppearancePrefsPane.
+/// also writes back to AppearanceSettings.
 struct WindowChromeBar: View {
     let services: AppServices
     @Environment(\.colorScheme) private var scheme
@@ -175,17 +175,17 @@ struct WindowChromeBar: View {
     }
 
     private func toggleTheme() {
-        // Cycle dark → light → auto. Persists via AppearancePrefsPane.
+        // Cycle dark → light → auto. Persists via AppearanceSettings.
         let currentRaw =
             (try? SettingsStore(database: services.database)
-                    .get(forKey: AppearancePrefsPane.settingKey)) ?? ""
-        let next: AppearancePrefsPane.Mode = switch AppearancePrefsPane.Mode(rawValue: currentRaw) ?? .auto {
+                    .get(forKey: AppearanceSettings.settingKey)) ?? ""
+        let next: AppearanceSettings.Mode = switch AppearanceSettings.Mode(rawValue: currentRaw) ?? .auto {
         case .auto: .light
         case .light: .dark
         case .dark: .auto
         }
         NSApp.appearance = next.appearance
         try? SettingsStore(database: services.database)
-            .set(next.rawValue, forKey: AppearancePrefsPane.settingKey)
+            .set(next.rawValue, forKey: AppearanceSettings.settingKey)
     }
 }

@@ -18,6 +18,9 @@ struct NewTabSheet: View {
     @State private var agents: [CodingAgent] = []
     @State private var selectedRepoID: Int64?
     @State private var selectedAgentID: Int64?
+    @State private var hosts: [RemoteHost] = []
+    /// nil = this Mac. Starts at Settings → General → "Run new tabs on".
+    @State private var selectedHostID: Int64?
     @State private var branchName: String = ""
     /// Base ref the new branch is created off (e.g. `main`, `develop`).
     /// Defaults to the picked repo's recorded default branch but is fully
@@ -90,6 +93,11 @@ struct NewTabSheet: View {
         HStack(spacing: 10) {
             Image(systemName: "folder")
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
+            // The optional tag is correct here and must stay optional: a
+            // Picker's `selection:` is a non-optional binding of its
+            // SelectionValue, so with `Int64?` state the SelectionValue *is*
+            // `Int64?`. This is the opposite of `List(selection:)`, which takes
+            // the wrapped type — don't "fix" this one to match the prefs panes.
             Picker("", selection: $selectedRepoID) {
                 ForEach(repos, id: \.id) { repo in
                     Text(repo.fullName).tag(repo.id)
@@ -98,8 +106,25 @@ struct NewTabSheet: View {
             .labelsHidden()
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if let repo = repos.first(where: { $0.id == selectedRepoID }),
-               let path = repo.localMainPath {
+            if !hosts.isEmpty {
+                Picker("Run on", selection: $selectedHostID) {
+                    Text("This Mac").tag(Int64?.none)
+                    ForEach(hosts, id: \.id) { host in
+                        Text(host.name).tag(host.id)
+                    }
+                }
+                .fixedSize()
+                .accessibilityIdentifier("newtab.host")
+            }
+
+            if let host = selectedHost, let repo = selectedRepo {
+                Text("\(host.name): \((try? services.hostRepoStore.checkoutPath(host: host, repo: repo)) ?? "")")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(YggdrasilTheme.textMute(scheme))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            } else if let repo = repos.first(where: { $0.id == selectedRepoID }),
+                      let path = repo.localMainPath {
                 Text(path)
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(YggdrasilTheme.textMute(scheme))
@@ -183,7 +208,7 @@ struct NewTabSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 7))
 
                 Text(
-                    "Yggdrasil will create this branch in a new worktree under \(repoMainPath ?? "<repo>")/.worktrees/. Type `pr-N` or `issue-N` to auto-link to an existing GitHub task."
+                    "Yggdrasil will create this branch in a new worktree under \(worktreeParentHint)/.worktrees/. Type `pr-N` or `issue-N` to auto-link to an existing GitHub task."
                 )
                 .font(.system(size: 10))
                 .foregroundStyle(YggdrasilTheme.textMute(scheme))
@@ -249,6 +274,20 @@ struct NewTabSheet: View {
 
     // MARK: - Logic (preserved)
 
+    /// Where the worktree will go: the repo's checkout on the chosen host, or
+    /// its local clone.
+    private var worktreeParentHint: String {
+        if let host = selectedHost, let repo = selectedRepo {
+            let path = (try? services.hostRepoStore.checkoutPath(host: host, repo: repo)) ?? "<repo>"
+            return "\(host.name):\(path)"
+        }
+        return repoMainPath ?? "<repo>"
+    }
+
+    private var selectedHost: RemoteHost? {
+        hosts.first { $0.id == selectedHostID }
+    }
+
     private var canConfirm: Bool {
         guard !inProgress else { return false }
         guard selectedRepoID != nil, selectedAgentID != nil else { return false }
@@ -261,6 +300,8 @@ struct NewTabSheet: View {
             agents = try services.agentStore.list()
             selectedRepoID = repos.first?.id
             selectedAgentID = (try? services.agentStore.getDefault()?.id) ?? agents.first?.id
+            hosts = try services.hostStore.list()
+            selectedHostID = services.defaultHost?.id
             baseBranch = selectedRepo?.defaultBranch ?? ""
         } catch {
             self.error = "Failed to load: \(error.localizedDescription)"
@@ -287,12 +328,17 @@ struct NewTabSheet: View {
         error = nil
         defer { inProgress = false }
 
-        guard await ensureRepoCloned(repo) else { return }
+        // On a host the checkout is pinned now and cloned there in the
+        // background, with the worktree.
+        let host = selectedHost
+        if host == nil {
+            guard await ensureRepoCloned(repo) else { return }
 
-        if let updated = repos.first(where: { $0.id == repoID }) { repo = updated }
-        guard repo.localMainPath != nil else {
-            error = "Repo \(repo.fullName) has no local clone path on disk; set it in Settings > Repos."
-            return
+            if let updated = repos.first(where: { $0.id == repoID }) { repo = updated }
+            guard repo.localMainPath != nil else {
+                error = "Repo \(repo.fullName) has no local clone path on disk; set it in Settings > Repos."
+                return
+            }
         }
 
         // Interpret whatever the user typed: GitHub URL ➜ pr-N/issue-N
@@ -327,9 +373,16 @@ struct NewTabSheet: View {
         }
         let effectiveBase = baseFromInput ?? (trimmedBase.isEmpty ? nil : trimmedBase)
         do {
-            let worktreeURL = try await services.worktreeManager.ensure(
-                repo: repo, branch: finalBranch, baseRef: effectiveBase
-            )
+            // Same as the task pickers: the worktree is built in the
+            // background. Doing it here blocked the sheet on `git fetch`, and
+            // now that preparations queue on the WorktreeManager actor it would
+            // also block behind every PR fetch already in flight.
+            guard let plannedPath = try services.plannedWorktreePath(
+                repo: repo, branch: finalBranch, host: host
+            ) else {
+                error = "Repo \(repo.fullName) has no local clone path on disk."
+                return
+            }
             // Match the branch against PR/issue patterns ("pr-643", "#643") so the
             // GitHub pane has a task to render. Falls back to nil (= no task link)
             // for free-form branch names like "feat/foo".
@@ -340,21 +393,17 @@ struct NewTabSheet: View {
             )
             let newTab = try services.tabStore.insert(
                 branchName: finalBranch,
-                worktreePath: worktreeURL.path,
+                worktreePath: plannedPath,
                 agentID: agent.id,
-                taskID: resolvedTaskID
+                taskID: resolvedTaskID,
+                preparationState: .pending,
+                hostID: host?.id
             )
             services.tabs.reload()
             if let tabID = newTab.id {
                 services.tabs.select(tabID)
-                services.sessions.add(
-                    OpenSession(
-                        id: tabID,
-                        displayName: "\(agent.name) · \(finalBranch)",
-                        cwd: worktreeURL.path,
-                        command: agent.command,
-                        args: agent.args
-                    )
+                await services.worktreePreparer.enqueue(
+                    tabID: tabID, repo: repo, host: host, branch: finalBranch, baseRef: effectiveBase
                 )
             }
             services.triggerSyncNow()

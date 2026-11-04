@@ -70,9 +70,19 @@ struct TabRowViewModel: Equatable {
     /// A review tab the viewer has approved at the current head — turns the pill
     /// green. `reviewNeedsAttention` (amber) wins when both are set.
     let reviewApproved: Bool
+    /// A non-review PR tab where unresolved threads on a PR you wrote await your
+    /// reply — turns on the amber REPLY pill. Never set on review tabs, which
+    /// already carry the REVIEW pill.
+    let replyNeedsAttention: Bool
     /// Phase 6+: live status carrying the priority icon + tooltip lines + the
     /// unread-dot flag. nil when nothing has populated it yet.
     let liveStatus: TabStatus?
+    /// The user muted this tab's amber and nothing has changed since.
+    let isAttentionDismissed: Bool
+    /// How far the tab's worktree has got. Tabs are inserted the instant you
+    /// click, so a brand-new row exists before its worktree does.
+    let preparationState: YggdrasilTab.PreparationState
+    let preparationError: String?
 
     /// `task == nil` for ad-hoc tabs that don't shadow a GitHub issue/PR.
     init(
@@ -82,7 +92,8 @@ struct TabRowViewModel: Equatable {
         liveStatus: TabStatus? = nil,
         repoName: String? = nil,
         grouped: Bool = false,
-        maxWorktreeChars: Int = 50
+        maxWorktreeChars: Int = 50,
+        defaults: UserDefaults = .standard
     ) {
         if let task {
             titleLine = task.title
@@ -105,17 +116,63 @@ struct TabRowViewModel: Equatable {
             secondaryBadge = .none
         }
         branchLine = tab.branchName
+        preparationState = tab.preparationState
+        preparationError = tab.preparationError
         worktreeLine = TabRowViewModel.midEllipsis(tab.worktreePath, max: maxWorktreeChars)
         self.liveStatus = liveStatus
         statusIcon = Self.mapIcon(liveStatus?.icon) ?? .idle
         isReview = NewTabSheet.isReviewBranch(tab.branchName)
-        reviewNeedsAttention = NewTabSheet.isReviewBranch(tab.branchName)
+        let muted = AttentionSignature.isDismissed(
+            current: liveStatus?.attentionSignature ?? "",
+            dismissed: tab.id.flatMap {
+                AttentionDismissal.dismissedSignature(tabID: $0, defaults: defaults)
+            }
+        )
+        isAttentionDismissed = muted
+        reviewNeedsAttention = !muted
+            && NewTabSheet.isReviewBranch(tab.branchName)
             && (liveStatus?.reviewActivity ?? false)
         reviewApproved = NewTabSheet.isReviewBranch(tab.branchName)
             && (liveStatus?.reviewApproved ?? false)
+        replyNeedsAttention = !muted
+            && !NewTabSheet.isReviewBranch(tab.branchName)
+            && (liveStatus?.threadsAwaitingReply ?? 0) > 0
         // Repo name is redundant with the section header when grouping by repo.
         repoLine = grouped ? nil : repoName
         reviewDot = ReviewDot(reviewState: liveStatus?.reviewState)
+    }
+
+    /// True when this row is waiting on the user — the predicate behind the
+    /// sidebar's "Needs me" filter. Deliberately mirrors what the row renders:
+    /// an amber REVIEW/REPLY pill (both of which are gated on the branch kind),
+    /// a Claude session stopped for input or errored, or red CI on a PR the
+    /// viewer wrote. Informational signals — unread comments, a dirty worktree,
+    /// a working agent — never qualify; include them and the filter matches
+    /// every tab.
+    static func needsAttention(
+        branchName: String,
+        status: TabStatus?,
+        dismissedSignature: String? = nil
+    ) -> Bool {
+        guard let status else { return false }
+        // Muted until something actually changes. The signature lapses on a new
+        // commit, thread, review request or agent record, so this can't hide a
+        // tab indefinitely.
+        if AttentionSignature.isDismissed(
+            current: status.attentionSignature, dismissed: dismissedSignature
+        ) {
+            return false
+        }
+        if NewTabSheet.isReviewBranch(branchName) {
+            if status.reviewActivity { return true }
+        } else if status.threadsAwaitingReply > 0 {
+            return true
+        }
+        switch status.icon {
+        case .awaitingInput, .errored: return true
+        case .ciFailing: return status.viewerDidAuthorPR
+        default: return false
+        }
     }
 
     /// Map the aggregator's icon onto the row's enum. Returns nil to mean
