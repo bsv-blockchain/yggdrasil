@@ -38,6 +38,19 @@ final class ActionCatalogTests: XCTestCase {
         XCTAssertEqual(names.count, Set(names).count, "names are unique")
     }
 
+    func testSendCanTypeKeystrokesInsteadOfPasting() throws {
+        let send = try XCTUnwrap(ActionCatalog.all.first { $0.name == "tab.send" })
+        XCTAssertNoThrow(try send.validate(["tab": .int(1), "text": .string("2"), "paste": .bool(false)]))
+    }
+
+    func testExitCodesAreTheProcessesOwn() {
+        // The terminal reports the raw wait status.
+        XCTAssertEqual(ControlEncoding.exitStatus(0), 0)
+        XCTAssertEqual(ControlEncoding.exitStatus(256), 1)
+        XCTAssertEqual(ControlEncoding.exitStatus(15), 143, "killed by SIGTERM")
+        XCTAssertEqual(ControlEncoding.exitStatus(-1), -1, "unknown")
+    }
+
     func testOnlyReadingIsAllowedToAReadKey() {
         let reading = Set(ActionCatalog.all.filter { $0.scope == .read }.map(\.name))
         XCTAssertEqual(reading, [

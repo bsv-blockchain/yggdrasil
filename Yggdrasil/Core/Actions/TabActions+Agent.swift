@@ -58,13 +58,16 @@ extension TabActions {
         }
     }
 
-    /// Types `text` into the agent; `submit` then presses Enter.
-    static func send(tabID: Int64, text: String, submit: Bool, services: AppServices) async throws {
+    /// Types `text` into the agent; `submit` then presses Enter. `paste`
+    /// false sends it as keystrokes even when the agent takes pastes.
+    static func send(
+        tabID: Int64, text: String, submit: Bool, paste: Bool = true, services: AppServices
+    ) async throws {
         _ = try tab(tabID, services)
         guard services.sessions.exitedTabs[tabID] == nil,
               let view = services.sessions.terminal(for: tabID)
         else { throw ActionError.notRunning }
-        await TerminalControl.send(text, submit: submit, to: view)
+        await TerminalControl.send(text, submit: submit, paste: paste, to: view)
     }
 
     /// What the agent's terminal shows, plus up to `scrollback` lines above.

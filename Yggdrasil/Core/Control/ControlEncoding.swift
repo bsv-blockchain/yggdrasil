@@ -6,6 +6,14 @@ import Foundation
 enum ControlEncoding {
     // MARK: - Results
 
+    /// The process's exit code from the raw wait status the terminal reports;
+    /// 128 + the signal when a signal ended it, as a shell shows it.
+    nonisolated static func exitStatus(_ raw: Int32) -> Int32 {
+        guard raw >= 0 else { return raw }
+        let signal = raw & 0x7F
+        return signal == 0 ? (raw >> 8) & 0xFF : 128 + signal
+    }
+
     static func tab(_ tab: YggdrasilTab, services: AppServices) -> JSONValue {
         guard let id = tab.id else { return .null }
         let sessions = services.sessions
@@ -23,7 +31,7 @@ enum ControlEncoding {
         fields["preparation"] = .string(tab.preparationState.rawValue)
         fields["preparationError"] = .optional(tab.preparationError)
         fields["running"] = .bool(sessions.terminal(for: id) != nil && exitCode == nil)
-        fields["exitCode"] = exitCode.map { .int($0) } ?? .null
+        fields["exitCode"] = exitCode.map { .int(exitStatus($0)) } ?? .null
         fields["reconnecting"] = .bool(sessions.reconnecting.contains(id))
         fields["moving"] = .bool(sessions.movingTabs.contains(id))
         fields["opened"] = .bool(sessions.isOpened(tabID: id))

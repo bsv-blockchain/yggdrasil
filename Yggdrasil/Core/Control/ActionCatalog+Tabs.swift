@@ -165,12 +165,20 @@ extension ActionCatalog {
                 params: [
                     tab,
                     Param("text", .string, "What to type. Newlines stay text in a prompt that accepts a paste."),
-                    Param("submit", .boolean, "Press Enter after the text. Default true.", required: false)
+                    Param("submit", .boolean, "Press Enter after the text. Default true.", required: false),
+                    Param(
+                        "paste", .boolean,
+                        """
+                        False types the text as keystrokes instead of pasting it: for a menu, which ignores a \
+                        paste (send 2, or ESC[B for Down, with submit), and for keys like Escape. Default true.
+                        """,
+                        required: false
+                    )
                 ]
             ) { params, context in
                 try await TabActions.send(
                     tabID: params.int("tab"), text: params.string("text"), submit: params.bool("submit", default: true),
-                    services: context.services
+                    paste: params.bool("paste", default: true), services: context.services
                 )
                 return .bool(true)
             },

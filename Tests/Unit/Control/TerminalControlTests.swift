@@ -36,6 +36,11 @@ final class TerminalControlTests: XCTestCase {
         XCTAssertFalse(input.dropFirst(start.count).dropLast(end.count).contains(0x1B))
     }
 
+    func testKeystrokesKeepEscapeSequences() {
+        // paste=false: for menus, where a paste is ignored, and keys like Down.
+        XCTAssertEqual(TerminalControl.input("\u{1b}[B2", bracketedPaste: false), [0x1B, 0x5B, 0x42, 0x32])
+    }
+
     func testSubmitIsASeparateCarriageReturn() {
         XCTAssertEqual(TerminalControl.submitKey, [0x0D])
     }
@@ -49,6 +54,15 @@ final class TerminalControlTests: XCTestCase {
         XCTAssertEqual(screen.cursorRow, 2)
         XCTAssertFalse(screen.alternateScreen)
         XCTAssertTrue(view.getTerminal().bracketedPasteMode)
+    }
+
+    func testCellsNothingDrewReadAsSpaces() {
+        // A TUI positions text with cursor moves; the cells it skips were
+        // never written and come out of the buffer as NUL.
+        let view = DroppableTerminalView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
+        view.feed(text: "a\u{1b}[1;5Hb")
+        let screen = TerminalControl.screen(of: view, scrollback: 0)
+        XCTAssertEqual(screen.lines.first, "a   b")
     }
 
     func testScrollbackComesBeforeTheScreen() {
