@@ -29,7 +29,7 @@ final class ManagerSessionTests: XCTestCase {
         XCTAssertEqual(session.cwd, folder)
         XCTAssertEqual(session.command, "claude")
         XCTAssertEqual(session.args, defaultAgent.args + [
-            "--mcp-config", "\(folder)/mcp.json", "--settings", "\(folder)/settings.json",
+            "--mcp-config", "\(folder)/mcp.json", "--strict-mcp-config", "--settings", "\(folder)/settings.json",
             "--append-system-prompt", ManagerSession.instructions
         ])
         XCTAssertEqual(session.env["YGGDRASIL_SOCKET"], "/data/control.sock")
@@ -73,19 +73,54 @@ final class ManagerSessionTests: XCTestCase {
         }
     }
 
-    func testClaudeItselfAsksBeforeTheToolsThatLoseWork() throws {
+    func testClaudeItselfAsksBeforeAnythingThatChangesThings() throws {
         // The prompt's rule alone didn't hold: the model took "close X" as
         // the yes. Claude Code's "ask" rules prompt even with
-        // --dangerously-skip-permissions.
-        _ = try makeSession(ManagerSession.ensureTab(services: services, dataDirectory: dataDirectory))
-        let data = try Data(contentsOf: dataDirectory.appendingPathComponent("manager/settings.json"))
-        let settings = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let ask = try XCTUnwrap((settings["permissions"] as? [String: Any])?["ask"] as? [String])
-        for tool in ["tab_close", "tab_terminate", "tab_restart", "tab_shell", "tab_move",
-                     "repo_remove", "agent_remove", "host_remove", "app_quit"] {
+        // --dangerously-skip-permissions. Every full-scope tool asks unless
+        // it's on the short free list, so a new action asks by default.
+        let permissions = try settings()["permissions"] as? [String: Any]
+        let ask = try XCTUnwrap(permissions?["ask"] as? [String])
+        for tool in ["tab_send", "tab_close", "tab_terminate", "tab_restart", "tab_shell", "tab_move",
+                     "repo_remove", "agent_update", "agent_setDefault", "settings_set", "app_quit"] {
             XCTAssertTrue(ask.contains("mcp__yggdrasil__\(tool)"), tool)
         }
-        XCTAssertFalse(ask.contains("mcp__yggdrasil__tabs_list"), "reading never asks")
+        for tool in ["tabs_list", "tab_screen", "tab_open", "tab_start", "tab_select"] {
+            XCTAssertFalse(ask.contains("mcp__yggdrasil__\(tool)"), tool)
+        }
+    }
+
+    func testTheFreeListNamesRealTools() {
+        // A rename would otherwise quietly turn a free tool into an asking
+        // one, or worse, keep a stale name here.
+        let names = Set(ActionCatalog.all.map(\.toolName))
+        XCTAssertTrue(ManagerSession.freeTools.isSubset(of: names), "\(ManagerSession.freeTools.subtracting(names))")
+    }
+
+    func testTheShellCantReachTheAPIAroundTheRules() throws {
+        let permissions = try settings()["permissions"] as? [String: Any]
+        let deny = try XCTUnwrap(permissions?["deny"] as? [String])
+        XCTAssertTrue(deny.contains("Bash(yggctl:*)"))
+        XCTAssertTrue(deny.contains("Bash(/App.app/Contents/MacOS/yggctl:*)"))
+        XCTAssertTrue(deny.contains("Bash(curl:*)"))
+    }
+
+    func testARevokedKeyIsReplaced() throws {
+        // Settings → API has a Revoke button for it too.
+        let tab = try ManagerSession.ensureTab(services: services, dataDirectory: dataDirectory)
+        let first = try makeSession(tab).env["YGGDRASIL_API_KEY"]
+        let store = APIKeyStore(database: services.database)
+        try store.revoke(id: XCTUnwrap(sessionKeys().first?.id))
+        let second = try makeSession(tab).env["YGGDRASIL_API_KEY"]
+        XCTAssertNotEqual(first, second)
+        XCTAssertNotNil(try store.verify(secret: XCTUnwrap(second)))
+    }
+
+    func testAClaudeCommandInAnyCaseCounts() throws {
+        let claude = try AgentActions.add(name: "Mine", command: "/opt/bin/Claude", args: ["--x"], services: services)
+        try AgentActions.setDefault(id: XCTUnwrap(claude.id), services: services)
+        let session = try makeSession(ManagerSession.ensureTab(services: services, dataDirectory: dataDirectory))
+        XCTAssertEqual(session.command, "/opt/bin/Claude")
+        XCTAssertEqual(session.args.first, "--x")
     }
 
     func testOneKeyPerRunRevokedOnQuit() throws {
@@ -114,6 +149,12 @@ final class ManagerSessionTests: XCTestCase {
             tab: tab, services: services, dataDirectory: dataDirectory,
             yggctlPath: "/App.app/Contents/MacOS/yggctl", socketPath: "/data/control.sock"
         )
+    }
+
+    private func settings() throws -> [String: Any] {
+        _ = try makeSession(ManagerSession.ensureTab(services: services, dataDirectory: dataDirectory))
+        let data = try Data(contentsOf: dataDirectory.appendingPathComponent("manager/settings.json"))
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
     private func sessionKeys() throws -> [APIKey] {

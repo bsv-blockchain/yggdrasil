@@ -64,6 +64,13 @@ struct YggdrasilTab: Codable, FetchableRecord, MutablePersistableRecord, Equatab
         /// The pinned Yggdrasil session: kept out of the tab list, the API
         /// and the status poller.
         case manager
+
+        /// An unknown kind, from a newer build, loads as a tab rather than
+        /// failing the whole list, as with `PreparationState`.
+        init(from decoder: Decoder) throws {
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            self = Kind(rawValue: raw) ?? .tab
+        }
     }
 
     var kind: Kind = .tab

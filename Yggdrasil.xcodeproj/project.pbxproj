@@ -268,6 +268,7 @@
 		DF07ED462A9C5B1B4EB6BE6B /* SubagentProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 400A9CBD1C2BD1858CDCA56C /* SubagentProbeTests.swift */; };
 		E1212DD427416AD577133718 /* AppActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12091F8B387DDE4BC57C74B9 /* AppActions.swift */; };
 		E1BF3BD4DFA39725A75D5283 /* SubagentProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF20C0A430FB892129EFCE69 /* SubagentProbe.swift */; };
+		E2D331AFDD5A1A51CF4D034C /* TabKindTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C08C18B734CC3B358C1B374 /* TabKindTests.swift */; };
 		E4286CA80F3A5B2A3A199853 /* TerminalPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7ED4461BDBE347067823D7 /* TerminalPaletteTests.swift */; };
 		E473BAEAADA205EC37AB28A0 /* TabMigratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70AEE8224FDF1CE60F72EF3E /* TabMigratorTests.swift */; };
 		E4894CCF53789C443B2F689A /* ManagerPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71ED3AC7A1FD48E1ED306D7C /* ManagerPaneView.swift */; };
@@ -404,6 +405,7 @@
 		3ADB95B672D8657A0603B514 /* AgentEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEnvironment.swift; sourceTree = "<group>"; };
 		3B290637D838C6AD9FA878CC /* SSHCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHCommand.swift; sourceTree = "<group>"; };
 		3B3B12085F0CA95C6A059DCD /* CodingMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingMenuController.swift; sourceTree = "<group>"; };
+		3C08C18B734CC3B358C1B374 /* TabKindTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabKindTests.swift; sourceTree = "<group>"; };
 		3C61A37C04C41D18A19DBF74 /* APIKeyStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyStoreTests.swift; sourceTree = "<group>"; };
 		3D39743809B1945013F42382 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		3DF70644BF4747122D3ADD6B /* ControlEncoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlEncoding.swift; sourceTree = "<group>"; };
@@ -1247,6 +1249,7 @@
 				E128C7B37C10926AF5628298 /* RepoPRRepoTests.swift */,
 				2A8A112A91F42061FC56C62A /* SessionStateStoreTests.swift */,
 				3822992A97D0625D635CAE36 /* SettingsStoreTests.swift */,
+				3C08C18B734CC3B358C1B374 /* TabKindTests.swift */,
 			);
 			path = Storage;
 			sourceTree = "<group>";
@@ -1551,6 +1554,7 @@
 				D315857EF741E7EAA8EAA2A4 /* TabActionsTests.swift in Sources */,
 				C7E9AAC16E3868C0D7D1CF72 /* TabAgentActionsTests.swift in Sources */,
 				0C1CB85C896277398D513BEE /* TabCommandsTests.swift in Sources */,
+				E2D331AFDD5A1A51CF4D034C /* TabKindTests.swift in Sources */,
 				8BD68CD529C2D421C7033849 /* TabMigrationIntegrationTests.swift in Sources */,
 				E473BAEAADA205EC37AB28A0 /* TabMigratorTests.swift in Sources */,
 				704A55EE84220A6F097E4E7C /* TabRowViewModelTests.swift in Sources */,

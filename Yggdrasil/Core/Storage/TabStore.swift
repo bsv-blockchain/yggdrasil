@@ -22,13 +22,7 @@ struct TabStore {
         try database.queue.read { db in try YggdrasilTab.fetchOne(db, key: id) }
     }
 
-    /// Inserts a new tab at the end (position = max(position) + 1). Returns the
-    /// row with its auto-assigned id and position.
-    /// `preparationState` defaults to `.ready` so every existing call site
-    /// keeps its behaviour; the task pickers pass `.pending` because they now
-    /// insert the tab before its worktree exists.
     /// The pinned Yggdrasil session's row, made the first time it's asked for.
-    @discardableResult
     func ensureManager(worktreePath: String, agentID: Int64?) throws -> YggdrasilTab {
         try database.queue.write { db in
             if let existing = try YggdrasilTab.filter(Column("kind") == YggdrasilTab.Kind.manager.rawValue)
@@ -47,6 +41,12 @@ struct TabStore {
         }
     }
 
+    /// Inserts a new tab at the end (position = max(position) + 1). Returns the
+    /// row with its auto-assigned id and position.
+    /// `preparationState` defaults to `.ready` so every existing call site
+    /// keeps its behaviour; the task pickers pass `.pending` because they now
+    /// insert the tab before its worktree exists.
+    @discardableResult
     func insert(
         branchName: String,
         worktreePath: String,

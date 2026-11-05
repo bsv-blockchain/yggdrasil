@@ -69,7 +69,9 @@ extension TabActions {
     static func unlinkPR(tabID: Int64, services: AppServices) throws {
         // The stored row, not the sidebar's copy: that one lags a link made
         // since its last reload.
-        guard let tab = try services.tabStore.get(id: tabID) else { throw ActionError.unknownTab(tabID) }
+        guard let tab = try services.tabStore.get(id: tabID), tab.kind == .tab else {
+            throw ActionError.unknownTab(tabID)
+        }
         if tab.prTaskID != nil {
             try services.tabStore.setPRTaskID(id: tabID, prTaskID: nil)
         } else {

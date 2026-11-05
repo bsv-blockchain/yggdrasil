@@ -163,6 +163,12 @@ final class ActionCatalogTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? ActionError, try .unknownTab(XCTUnwrap(manager.id)))
         }
+        do {
+            _ = try await run("tab.unlinkPR", ["tab": .int(XCTUnwrap(manager.id))], services)
+            XCTFail("unlinked on the pinned session")
+        } catch {
+            XCTAssertEqual(error as? ActionError, try .unknownTab(XCTUnwrap(manager.id)))
+        }
     }
 
     func testAgentArgumentsAreForFullKeysOnly() async throws {

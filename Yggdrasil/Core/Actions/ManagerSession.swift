@@ -6,7 +6,7 @@ import Foundation
 @MainActor
 enum ManagerSession {
     /// The key's name in Settings → API.
-    static let keyName = "Yggdrasil session"
+    static let keyName = "Yggdrasil session (built-in)"
 
     static func folder(dataDirectory: URL = DataDirectory.url()) -> URL {
         dataDirectory.appendingPathComponent("manager", isDirectory: true)
@@ -42,10 +42,10 @@ enum ManagerSession {
         try mcpConfig(yggctlPath: yggctlPath).write(to: config, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: config.path)
         let settings = folder.appendingPathComponent("settings.json")
-        try settingsFile().write(to: settings, options: .atomic)
+        try settingsFile(yggctlPath: yggctlPath).write(to: settings, options: .atomic)
 
         let agent = try services.agentStore.getDefault()
-        let isClaude = agent.map { ($0.command as NSString).lastPathComponent == "claude" } ?? false
+        let isClaude = agent.map { ($0.command as NSString).lastPathComponent.lowercased() == "claude" } ?? false
         var env = isClaude ? agent?.env ?? [:] : [:]
         env["YGGDRASIL_API_KEY"] = try key(services: services)
         env["YGGDRASIL_SOCKET"] = socketPath
@@ -56,7 +56,9 @@ enum ManagerSession {
             command: isClaude ? agent?.command ?? "claude" : "claude",
             args: (isClaude ? agent?.args ?? [] : [])
                 + [
-                    "--mcp-config", config.path, "--settings", settings.path,
+                    // Only this MCP server: the key is in the environment,
+                    // which every other server would inherit too.
+                    "--mcp-config", config.path, "--strict-mcp-config", "--settings", settings.path,
                     "--append-system-prompt", instructions
                 ],
             env: env,
@@ -89,24 +91,45 @@ enum ManagerSession {
 
     /// One full key per app run, kept in memory only.
     private static func key(services: AppServices) throws -> String {
-        if let secret = services.managerKeySecret { return secret }
+        // Still valid? It has a Revoke button in Settings → API like any key.
+        if let secret = services.managerKeySecret,
+           (try? APIKeyStore(database: services.database).verify(secret: secret)) != nil {
+            return secret
+        }
         let secret = try APIKeyStore(database: services.database).create(name: keyName, scope: .full).secret
         services.managerKeySecret = secret
         return secret
     }
 
-    /// Tools that lose work or interrupt it. Claude Code asks the user before
-    /// each of these, even with --dangerously-skip-permissions: the prompt's
-    /// own rule wasn't enough, as the model took "close X" as the go-ahead.
-    static let confirmedTools = [
-        "tab_close", "tab_terminate", "tab_restart", "tab_shell", "tab_move",
-        "repo_remove", "agent_remove", "host_remove", "app_quit"
+    /// Full-scope tools the session may use without Claude Code asking:
+    /// opening, starting and showing tabs, and housekeeping. Every other
+    /// full-scope tool asks, so an action added later asks by default.
+    static let freeTools: Set<String> = [
+        "tab_open", "tab_openTask", "tab_openIssue", "tab_start", "tab_select", "tab_selectRelative",
+        "tab_mute", "tab_unmute", "tab_retrySetup", "tab_reloadGitHub", "tab_setLayout", "tab_setDiffScope",
+        "tab_reorder", "tab_openInFinder", "tab_openInTerminal", "sync_now", "app_checkForUpdates",
+        "app_revealCrashLogs"
     ]
 
-    private static func settingsFile() throws -> Data {
+    /// The tools Claude Code asks the user about, even with
+    /// --dangerously-skip-permissions: the prompt's own rule wasn't enough,
+    /// as the model took "close X" as the go-ahead.
+    static var confirmedTools: [String] {
+        ActionCatalog.all
+            .filter { $0.scope == .full && !freeTools.contains($0.toolName) }
+            .map(\.toolName)
+    }
+
+    /// The ask rules, and deny rules for reaching the API from the shell
+    /// around them: the key is in the shell's environment too. Prefix rules
+    /// only, so a wrapped command (`sh -c …`) isn't caught.
+    private static func settingsFile(yggctlPath: String) throws -> Data {
         try JSONSerialization.data(
-            withJSONObject: ["permissions": ["ask": confirmedTools.map { "mcp__yggdrasil__\($0)" }]],
-            options: [.prettyPrinted, .sortedKeys]
+            withJSONObject: ["permissions": [
+                "ask": confirmedTools.map { "mcp__yggdrasil__\($0)" },
+                "deny": ["Bash(yggctl:*)", "Bash(\(yggctlPath):*)", "Bash(curl:*)"]
+            ]],
+            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         )
     }
 

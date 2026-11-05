@@ -314,15 +314,4 @@ final class MigrationsTests: XCTestCase {
         }
         XCTAssertTrue(columns.contains("claude_session_id"), "columns=\(columns)")
     }
-
-    func testV21GivesEveryTabAKind() throws {
-        let db = try YggdrasilDatabase.inMemory()
-        let tab = try TabStore(database: db).insert(branchName: "b", worktreePath: "/w", agentID: nil, taskID: nil)
-        let kind = try db.queue.read { db in try String.fetchOne(
-            db,
-            sql: "SELECT kind FROM tab WHERE id = ?",
-            arguments: [tab.id]
-        ) }
-        XCTAssertEqual(kind, "tab")
-    }
 }

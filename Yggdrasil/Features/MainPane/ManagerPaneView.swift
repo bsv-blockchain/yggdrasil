@@ -43,20 +43,15 @@ struct ManagerPaneView: View {
 
     @ViewBuilder
     private var content: some View {
-        if let control, !control.isRunning {
-            notice(
-                control.lastError ?? "The Yggdrasil session uses the control API, which is off.",
-                action: control.lastError == nil ? "Turn On" : nil
-            ) {
-                control.isEnabled = true
-            }
-        } else if let failure {
-            notice(failure, action: "Try Again") {
-                self.failure = nil
-                ensureSession()
-            }
-        } else if let id = tab.id, let session = services.sessions.sessions.first(where: { $0.id == id }) {
+        // A running session keeps its terminal whatever happens to the API:
+        // unmounting it would end its claude mid-turn.
+        if let id = tab.id, let session = services.sessions.sessions.first(where: { $0.id == id }) {
             VStack(spacing: 0) {
+                if let control, !control.isRunning {
+                    banner("The control API is off: the Yggdrasil tools won't work until it's on.") {
+                        Button("Turn On") { control.isEnabled = true }
+                    }
+                }
                 AgentTerminalSurface(
                     tabID: id,
                     cwd: session.cwd,
@@ -70,13 +65,23 @@ struct ManagerPaneView: View {
                     isActive: services.tabs.selectedID == id
                 )
                 if services.sessions.exitedTabs[id] != nil {
-                    HStack {
-                        Text("The Yggdrasil session ended.")
+                    banner("The Yggdrasil session ended.") {
                         Button("Start Again") { restart() }
                     }
-                    .font(.system(size: 11))
-                    .padding(8)
                 }
+            }
+        } else if let control, !control.isRunning {
+            if let error = control.lastError {
+                notice("The control API didn't start: \(error)", action: "Try Again") { control.apply() }
+            } else {
+                notice("The Yggdrasil session uses the control API, which is off.", action: "Turn On") {
+                    control.isEnabled = true
+                }
+            }
+        } else if let failure {
+            notice(failure, action: "Try Again") {
+                self.failure = nil
+                ensureSession()
             }
         } else {
             ProgressView()
@@ -84,7 +89,20 @@ struct ManagerPaneView: View {
         }
     }
 
-    private func notice(_ text: String, action: String?, perform: @escaping () -> Void) -> some View {
+    private func banner(_ text: String, @ViewBuilder action: () -> some View) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "info.circle")
+            Text(text)
+            Spacer()
+            action()
+        }
+        .font(.system(size: 11))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(YggdrasilTheme.bgPaneSoft(scheme))
+    }
+
+    private func notice(_ text: String, action: String, perform: @escaping () -> Void) -> some View {
         VStack(spacing: 10) {
             Image(systemName: "powerplug")
                 .font(.system(size: 22))
@@ -92,9 +110,7 @@ struct ManagerPaneView: View {
             Text(text)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
-            if let action {
-                Button(action, action: perform)
-            }
+            Button(action, action: perform)
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
