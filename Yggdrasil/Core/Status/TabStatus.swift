@@ -73,13 +73,17 @@ struct TabStatus: Equatable {
     /// Fingerprint of why this tab wants attention. Dismissing amber stores it;
     /// the dismissal lapses as soon as this changes.
     let attentionSignature: String
+    /// Claude is mid-turn. Kept apart from `icon`, where a dirty tree or
+    /// unread activity outranks "running", for the Working filter.
+    let claudeBusy: Bool
 
     init(
         icon: Icon, showsUnreadBadgeDot: Bool, tooltipLines: [String],
         reviewState: String? = nil, reviewActivity: Bool = false, newCommits: Int = 0,
         reviewApproved: Bool = false, threadsAwaitingReply: Int = 0,
         viewerDidAuthorPR: Bool = false,
-        attentionSignature: String = ""
+        attentionSignature: String = "",
+        claudeBusy: Bool = false
     ) {
         self.icon = icon
         self.showsUnreadBadgeDot = showsUnreadBadgeDot
@@ -91,6 +95,7 @@ struct TabStatus: Equatable {
         self.threadsAwaitingReply = threadsAwaitingReply
         self.viewerDidAuthorPR = viewerDidAuthorPR
         self.attentionSignature = attentionSignature
+        self.claudeBusy = claudeBusy
     }
 
     static func aggregate(
@@ -110,7 +115,8 @@ struct TabStatus: Equatable {
             reviewApproved: github.reviewApproved,
             threadsAwaitingReply: github.threadsAwaitingReply,
             viewerDidAuthorPR: github.viewerDidAuthorPR,
-            attentionSignature: attentionSignature
+            attentionSignature: attentionSignature,
+            claudeBusy: claude == .running
         )
     }
 

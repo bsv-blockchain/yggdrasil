@@ -39,6 +39,24 @@ final class TabStatusTests: XCTestCase {
         XCTAssertEqual(status.icon, .ciFailing)
     }
 
+    func testClaudeBusyIsKeptWhateverIconWins() {
+        // A dirty tree outranks "running" for the icon, but the Working pill
+        // still has to find a Claude that's mid-turn.
+        let busy = make(
+            claude: .running,
+            git: GitState(dirty: true, remote: .noRemote),
+            github: .init(ciState: "SUCCESS", unread: 5)
+        )
+        XCTAssertEqual(busy.icon, .dirty)
+        XCTAssertTrue(busy.claudeBusy)
+        let waiting = make(
+            claude: .awaitingInput,
+            git: GitState(dirty: false, remote: .noRemote),
+            github: .init(ciState: "SUCCESS", unread: 0)
+        )
+        XCTAssertFalse(waiting.claudeBusy)
+    }
+
     func testDirtyBeatsUnreadAndRunning() {
         let status = make(
             claude: .running,

@@ -87,21 +87,71 @@ struct RootView: View {
 struct SidebarSessionsLayout: View {
     let services: AppServices
     @Environment(\.colorScheme) private var scheme
+    @AppStorage(SidebarWidth.defaultsKey) private var sidebarWidth = SidebarWidth.standard
+    /// Width when the current drag began: the gesture reports the distance
+    /// from there, so adding it to the live width would compound.
+    @State private var dragStartWidth: Double?
+    /// The width while dragging, saved to `sidebarWidth` when the drag ends
+    /// rather than on every movement.
+    @State private var draggedWidth: Double?
 
     var body: some View {
         VStack(spacing: 0) {
             WindowChromeBar(services: services)
-            HSplitView {
-                SidebarView(services: services) { _ in
-                    services.sessions.selectedID = services.tabs.selectedID
+            GeometryReader { geometry in
+                let width = SidebarWidth.clamped(draggedWidth ?? sidebarWidth, windowWidth: geometry.size.width)
+                HStack(spacing: 0) {
+                    SidebarView(services: services) { _ in
+                        services.sessions.selectedID = services.tabs.selectedID
+                    }
+                    .frame(width: width)
+                    sidebarDivider(width: width, windowWidth: geometry.size.width)
+                        // Above the main pane, which would otherwise take
+                        // the right half of the grab zone.
+                        .zIndex(1)
+                    mainPane
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                mainPane
-                    .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .background(YggdrasilTheme.bg(scheme))
         .onAppear { services.sessions.hasMainWindow = true }
         .onDisappear { services.sessions.hasMainWindow = false }
+    }
+
+    /// The sidebar's edge: a hairline with a wider grab zone, dragged like
+    /// the panes' divider.
+    private func sidebarDivider(width: Double, windowWidth: Double) -> some View {
+        Rectangle()
+            .fill(YggdrasilTheme.border(scheme))
+            .frame(width: 1)
+            .overlay(
+                Color.clear
+                    .frame(width: 8)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(coordinateSpace: .global)
+                            .onChanged { value in
+                                let start = dragStartWidth ?? width
+                                if dragStartWidth == nil { dragStartWidth = start }
+                                draggedWidth = SidebarWidth.clamped(
+                                    start + value.translation.width, windowWidth: windowWidth
+                                )
+                            }
+                            .onEnded { _ in
+                                if let draggedWidth { sidebarWidth = draggedWidth }
+                                draggedWidth = nil
+                                dragStartWidth = nil
+                            }
+                    )
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.resizeLeftRight.push()
+                        } else {
+                            NSCursor.pop()
+                        }
+                    }
+            )
     }
 
     @ViewBuilder

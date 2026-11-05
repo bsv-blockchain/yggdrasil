@@ -83,6 +83,8 @@ struct TabRowViewModel: Equatable {
     /// click, so a brand-new row exists before its worktree does.
     let preparationState: YggdrasilTab.PreparationState
     let preparationError: String?
+    /// The ssh host the tab runs on; nil on this Mac.
+    let hostName: String?
 
     /// `task == nil` for ad-hoc tabs that don't shadow a GitHub issue/PR.
     init(
@@ -92,6 +94,7 @@ struct TabRowViewModel: Equatable {
         liveStatus: TabStatus? = nil,
         repoName: String? = nil,
         grouped: Bool = false,
+        hostName: String? = nil,
         maxWorktreeChars: Int = 50,
         defaults: UserDefaults = .standard
     ) {
@@ -116,6 +119,7 @@ struct TabRowViewModel: Equatable {
             secondaryBadge = .none
         }
         branchLine = tab.branchName
+        self.hostName = hostName
         preparationState = tab.preparationState
         preparationError = tab.preparationError
         worktreeLine = TabRowViewModel.midEllipsis(tab.worktreePath, max: maxWorktreeChars)
