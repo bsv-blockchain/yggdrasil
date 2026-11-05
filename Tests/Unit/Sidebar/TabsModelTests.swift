@@ -32,18 +32,6 @@ final class TabsModelTests: XCTestCase {
         XCTAssertEqual(model.selectedID, first.id)
     }
 
-    func testTheManagerIsNotATab() throws {
-        let tab = try store.insert(branchName: "a", worktreePath: "/a", agentID: nil, taskID: nil)
-        let manager = try store.ensureManager(worktreePath: "/data/manager", agentID: nil)
-        model.reload()
-        XCTAssertEqual(model.tabs.map(\.id), [tab.id])
-        XCTAssertEqual(model.managerTab?.id, manager.id)
-        try model.select(XCTUnwrap(manager.id))
-        model.reload()
-        XCTAssertEqual(model.selectedID, manager.id, "selecting it survives a reload")
-        XCTAssertNil(model.selectedTabID, "but it isn't a selected tab")
-    }
-
     func testATabOnAHostCarriesTheHostsName() throws {
         let host = try HostStore(database: db).add(name: "developers-env", sshTarget: "dev", reposRoot: "/srv")
         let remote = try store.insert(
