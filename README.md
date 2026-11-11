@@ -332,4 +332,4 @@ reports in `phase-N-report.md`. Running log of spec deviations:
 
 ## License
 
-[MIT](LICENSE) © BSV Association.
+[Apache License 2.0](LICENSE) © BSV Association.

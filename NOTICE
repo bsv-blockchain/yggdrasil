@@ -1,0 +1,5 @@
+yggdrasil
+Copyright 2026 BSV Association
+
+This product includes software from these projects, under their own licenses:
+- React and React DOM, bundled in Yggdrasil/Resources/diff2html/index.js: Copyright (c) Facebook, Inc. and its affiliates (MIT)
