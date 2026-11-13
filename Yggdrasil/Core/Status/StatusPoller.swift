@@ -19,7 +19,7 @@ actor StatusPoller {
     private let probe: GitStateProbe
     private let sessionProbe: AgentSessionProbe
     private let model: TabStatusModel
-    /// Each local tab's unfinished subagents; nil where nothing shows them.
+    /// Each tab's unfinished subagents; nil where nothing shows them.
     private let subagents: SubagentsModel?
     private let subagentProbe: SubagentProbe
     /// The tabs whose agent runs right now; read on the main actor each tick.
@@ -97,7 +97,8 @@ actor StatusPoller {
         let sessionCache: AgentSessionProbe.Cache?
         /// Carried forward so the next tick can reuse it if git fails then.
         let gitState: GitState?
-        let subagents: [SubagentInfo]
+        /// nil when a host couldn't be asked: keep what the last tick found.
+        let subagents: [SubagentInfo]?
     }
 
     private func tick() async {
@@ -159,7 +160,7 @@ actor StatusPoller {
                 freshGitStates[result.tabID] = result.gitState
                 await MainActor.run {
                     model.set(result.status, forTabID: result.tabID)
-                    subagents?.set(result.subagents, forTabID: result.tabID)
+                    if let found = result.subagents { subagents?.set(found, forTabID: result.tabID) }
                 }
             }
         }
@@ -183,6 +184,9 @@ actor StatusPoller {
         // flicker it back, which is a different kind of wrong.
         let gitState = await freshGit ?? input.lastGitState
         let (sample, cache) = await session
+        // After the session probe, not beside it: on a host each is an ssh
+        // session on the shared connection, which sshd caps (10 by default).
+        let foundSubagents = await probeSubagents(input)
 
         // Read once: a second read for the fingerprint could straddle a sync
         // write and describe state B while the amber it fingerprints came from
@@ -192,7 +196,7 @@ actor StatusPoller {
         let claude = ClaudeStateDetector.evaluate(activity: sample, now: Date())
         let signature = AttentionSignature.make(row: row, session: sample)
 
-        return Probed(
+        return await Probed(
             tabID: input.tabID,
             status: TabStatus.aggregate(
                 claude: claude, git: gitState ?? GitState(dirty: false, remote: .noRemote), github: github,
@@ -200,12 +204,23 @@ actor StatusPoller {
             ),
             sessionCache: cache,
             gitState: gitState,
-            // Only a running claude on this Mac has subagents to read here;
-            // every other tab publishes none, so a moved or stopped tab loses its rows.
-            subagents: input.host == nil && input.agent == .claude && input.agentRunning
-                ? subagentProbe.unfinished(worktreePath: input.tab.worktreePath, since: input.agentStartedAt)
-                : []
+            subagents: foundSubagents
         )
+    }
+
+    /// Only a running claude has subagents; every other tab publishes none,
+    /// so a stopped tab, or one switched to another agent, loses its rows.
+    /// On a host they're read with `ygg subagents`; a failed or hung fetch
+    /// keeps the last list, as the status does.
+    private nonisolated func probeSubagents(_ input: ProbeInput) async -> [SubagentInfo]? {
+        guard input.agent == .claude, input.agentRunning else { return [] }
+        let path = input.tab.worktreePath
+        let since = input.agentStartedAt
+        guard let host = input.host else { return subagentProbe.unfinished(worktreePath: path, since: since) }
+        let source = SSHSubagentSource(runner: Self.remoteRunner(host))
+        return try? await withDeadline(Self.probeDeadline) {
+            try await SubagentProbe.unfinished(worktreePath: path, since: since, source: source)
+        }
     }
 
     /// This tick's git state, or nil when the probe failed or timed out.
@@ -255,29 +270,6 @@ actor StatusPoller {
     private static func remoteRunner(_ host: RemoteHost) -> SSHSubprocessRunner {
         SSHSubprocessRunner(host: host, transport: ProcessRunner(terminatesOnCancel: true))
     }
-
-    /// Run `work`, giving up after `deadline`. `ProcessRunner` has no timeout,
-    /// so a `git` that never exits would otherwise hang this tab's probe — and
-    /// with it the batch, the tick, and every tab's status until the app
-    /// restarts. The group still waits for `work` to finish once cancelled, so
-    /// this only holds when the work's runner terminates on cancellation.
-    private nonisolated func withDeadline<T: Sendable>(
-        _ deadline: Duration,
-        _ work: @escaping @Sendable () async throws -> T
-    ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask { try await work() }
-            group.addTask {
-                try await Task.sleep(for: deadline)
-                throw ProbeTimeout()
-            }
-            defer { group.cancelAll() }
-            guard let first = try await group.next() else { throw ProbeTimeout() }
-            return first
-        }
-    }
-
-    private struct ProbeTimeout: Error {}
 
     /// The github_status row, read once per tab per tick and used for both the
     /// aggregate and the attention fingerprint.

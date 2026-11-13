@@ -14,7 +14,7 @@ import Foundation
 /// tcsh login shell can't misparse it. The login shell is only asked for the
 /// PATH its rc files set, via `env; exit`, whose output doesn't depend on the shell.
 enum RemoteHelper {
-    static let version = 6
+    static let version = 7
     static let path = "~/.yggdrasil/bin/ygg"
     static let requiredTools = ["claude", "git", "gh", "dtach"]
 
@@ -26,13 +26,14 @@ enum RemoteHelper {
     #   ygg kill <tab> | ygg alive <tab> | ygg list
     #   ygg run -- <cmd> [args...]
     #   ygg transcript <project-dir> <max-bytes> [<mtime> <size> <path>]
+    #   ygg subagents <project-dir> | ygg subagent-tail <project-dir> <session> <agent-id> <max-bytes> [<known-size>]
     set -eu
     YGG_VERSION=\(version)
     TOOLS="\(requiredTools.joined(separator: " "))"
     STATE="$HOME/.yggdrasil/sessions"
     PATH_CACHE="$HOME/.yggdrasil/login-path"
 
-    usage() { echo "usage: ygg version|check|attach|kill|alive|list|run|transcript" >&2; exit 2; }
+    usage() { echo "usage: ygg version|check|attach|kill|alive|list|run|transcript|subagents|subagent-tail" >&2; exit 2; }
     tab_ok() { case "$1" in ''|*[!0-9]*) usage ;; esac; }
     # Live = dtach still holds the tab's socket and the recorded agent pid
     # runs. dtach removes the socket when the agent exits, so a pid that's
@@ -175,6 +176,53 @@ enum RemoteHelper {
             cat "$newest"
         else
             tail -c "$3" "$newest" | tail -n +2
+        fi ;;
+    subagents)
+        # The newest conversation's unfinished subagents, from Claude Code's
+        # <session>/subagents/agent-<id>.meta.json: a "subagents <session>"
+        # header, then "<id>\\t<transcript mtime>\\t<transcript birth>\\t<meta
+        # json>" per agent ("-" before it has a transcript; birth 0 where
+        # unknown). Finished ones are skipped before any stat: a session
+        # collects hundreds. Meta files are read with builtins, no forks.
+        [ $# -ge 2 ] || usage
+        case "$2" in ''|.*|*/*) usage ;; esac
+        newest=$(ls -t "$HOME/.claude/projects/$2"/*.jsonl 2>/dev/null | head -n 1)
+        if [ -z "$newest" ]; then echo subagents; exit 0; fi
+        session=${newest##*/}; session=${session%.jsonl}
+        echo "subagents $session"
+        dir="${newest%.jsonl}/subagents"
+        for m in "$dir"/agent-*.meta.json; do
+            [ -f "$m" ] || continue
+            meta=""
+            while IFS= read -r line || [ -n "$line" ]; do meta="$meta$line"; done < "$m"
+            case "$meta" in *'"finished":true'*|*'"finished": true'*) continue ;; esac
+            id=${m##*/agent-}; id=${id%.meta.json}
+            j="$dir/agent-$id.jsonl"
+            if [ -f "$j" ]; then
+                t=$(stat -c '%Y %W' "$j" 2>/dev/null || stat -f '%m %B' "$j")
+            else
+                t="- -"
+            fi
+            printf '%s\\t%s\\t%s\\t%s\\n' "$id" "${t%% *}" "${t#* }" "$meta"
+        done ;;
+    subagent-tail)
+        # The last <max-bytes> of one subagent's transcript in conversation
+        # <session>, as whole lines: "ok <size>" then the lines, "same <size>"
+        # when it's still <known-size> bytes, or "none".
+        [ $# -ge 5 ] || usage
+        case "$2" in ''|.*|*/*) usage ;; esac
+        case "$3" in ''|*[!A-Za-z0-9-]*) usage ;; esac
+        case "$4" in ''|*[!A-Za-z0-9]*) usage ;; esac
+        case "$5" in ''|*[!0-9]*) usage ;; esac
+        f="$HOME/.claude/projects/$2/$3/subagents/agent-$4.jsonl"
+        if [ ! -f "$f" ]; then echo none; exit 0; fi
+        size=$(stat -c '%s' "$f" 2>/dev/null || stat -f '%z' "$f")
+        if [ "${6:-}" = "$size" ]; then echo "same $size"; exit 0; fi
+        echo "ok $size"
+        if [ "$size" -le "$5" ]; then
+            cat "$f"
+        else
+            tail -c "$5" "$f" | tail -n +2
         fi ;;
     run)
         shift

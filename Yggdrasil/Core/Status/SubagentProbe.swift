@@ -13,6 +13,19 @@ struct SubagentInfo: Equatable {
     let lastWrite: Date?
     /// Where its transcript is (or will be).
     let transcriptPath: String
+    /// On a host: the conversation it belongs to, which the transcript view
+    /// asks the host for. nil on this Mac, where `transcriptPath` says it.
+    var conversationID: String?
+}
+
+/// One subagent's meta file and its transcript's dates, read here or on a host.
+struct SubagentMetaEntry: Equatable {
+    let agentID: String
+    let meta: Data
+    let modified: Date?
+    let created: Date?
+    /// On a host, the agent's file name: its folder is the host's.
+    let transcriptPath: String
 }
 
 /// Filesystem seam for `SubagentProbe`.
@@ -47,32 +60,64 @@ struct SubagentProbe {
     /// its subagents finished, so anything not written since is a leftover.
     func unfinished(worktreePath: String, since: Date?, now: Date = Date()) -> [SubagentInfo] {
         guard let directory = subagentsDirectory(worktreePath: worktreePath) else { return [] }
-        let found: [(info: SubagentInfo, started: Date)] = fileSystem.fileNames(inDirectory: directory)
-            .compactMap { name in
-                guard name.hasPrefix("agent-"), name.hasSuffix(".meta.json"),
-                      let data = fileSystem.contents(atPath: "\(directory)/\(name)"),
-                      let meta = try? JSONDecoder().decode(Meta.self, from: data),
-                      meta.finished != true
-                else { return nil }
-                let agentID = String(name.dropFirst("agent-".count).dropLast(".meta.json".count))
-                let path = "\(directory)/agent-\(agentID).jsonl"
-                let dates = fileSystem.dates(atPath: path)
-                if let since, let written = dates?.modified, written < since { return nil }
-                if meta.finished == nil {
-                    guard let written = dates?.modified,
-                          now.timeIntervalSince(written) <= Self.unmarkedActivityWindow else { return nil }
-                }
-                let info = SubagentInfo(
-                    agentID: agentID,
-                    agentType: meta.agentType ?? "agent",
-                    description: meta.description ?? "",
-                    spawnDepth: meta.spawnDepth ?? 1,
-                    background: meta.requestShape == "background",
-                    lastWrite: dates?.modified,
-                    transcriptPath: path
-                )
-                return (info, dates?.created ?? .distantFuture)
+        let entries: [SubagentMetaEntry] = fileSystem.fileNames(inDirectory: directory).compactMap { name in
+            guard name.hasPrefix("agent-"), name.hasSuffix(".meta.json"),
+                  let data = fileSystem.contents(atPath: "\(directory)/\(name)")
+            else { return nil }
+            let agentID = String(name.dropFirst("agent-".count).dropLast(".meta.json".count))
+            let path = "\(directory)/agent-\(agentID).jsonl"
+            let dates = fileSystem.dates(atPath: path)
+            return SubagentMetaEntry(
+                agentID: agentID, meta: data, modified: dates?.modified, created: dates?.created, transcriptPath: path
+            )
+        }
+        return Self.select(entries, since: since, now: now)
+    }
+
+    /// The same for a tab on an ssh host, from its `ygg subagents`.
+    /// How far before the tab's start a host's subagent may have last
+    /// written and still count. The Mac's start time is the ssh attach,
+    /// which a reconnect or relaunch moves while claude runs on on the host,
+    /// and the host's clock isn't the Mac's; a crashed host claude's
+    /// leftovers fade after this long.
+    static let remoteSinceGrace: TimeInterval = 30 * 60
+
+    static func unfinished(
+        worktreePath: String, since: Date?, now: Date = Date(), source: RemoteSubagentSource
+    ) async throws -> [SubagentInfo] {
+        let list = try await source.subagents(projectDirectory: AgentSessionLocator.encode(cwd: worktreePath))
+        let since = since.map { min($0, now.addingTimeInterval(-remoteSinceGrace)) }
+        return select(list.entries, since: since, now: now).map { info in
+            var info = info
+            info.conversationID = list.conversationID
+            return info
+        }
+    }
+
+    /// The rules, wherever the files are: not marked finished, written since
+    /// the tab's agent started, and for a meta file without `finished`,
+    /// written lately. In the order they started.
+    static func select(_ entries: [SubagentMetaEntry], since: Date?, now: Date) -> [SubagentInfo] {
+        let found: [(info: SubagentInfo, started: Date)] = entries.compactMap { entry in
+            guard let meta = try? JSONDecoder().decode(Meta.self, from: entry.meta), meta.finished != true else {
+                return nil
             }
+            if let since, let written = entry.modified, written < since { return nil }
+            if meta.finished == nil {
+                guard let written = entry.modified,
+                      now.timeIntervalSince(written) <= unmarkedActivityWindow else { return nil }
+            }
+            let info = SubagentInfo(
+                agentID: entry.agentID,
+                agentType: meta.agentType ?? "agent",
+                description: meta.description ?? "",
+                spawnDepth: meta.spawnDepth ?? 1,
+                background: meta.requestShape == "background",
+                lastWrite: entry.modified,
+                transcriptPath: entry.transcriptPath
+            )
+            return (info, entry.created ?? .distantFuture)
+        }
         return found.sorted { lhs, rhs in
             lhs.started != rhs.started ? lhs.started < rhs.started : lhs.info.agentID < rhs.info.agentID
         }.map(\.info)

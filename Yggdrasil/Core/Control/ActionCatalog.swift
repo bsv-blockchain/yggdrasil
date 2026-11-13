@@ -88,7 +88,7 @@ enum ActionCatalog {
                 scope: .full,
                 params: [tabParam, Param("agent", .string, "A subagent id from tab_subagents.")]
             ) { params, context in
-                try .array(TabActions.subagentTranscript(
+                try await .array(TabActions.subagentTranscript(
                     tabID: params.int("tab"), agentID: params.string("agent"), services: context.services
                 ).map(ControlEncoding.subagentEntry))
             },

@@ -55,17 +55,33 @@ struct SubagentTranscriptView: View {
             return .handled
         }
         .onAppear {
-            loader.start(path: selection.info.transcriptPath)
+            loader.start(feed)
             takeFocus()
         }
         .onDisappear { loader.stop() }
         .onChange(of: selection.info.agentID) { _, _ in
-            loader.start(path: selection.info.transcriptPath)
+            loader.start(feed)
             takeFocus()
         }
     }
 
     private static let bottom = "bottom"
+
+    /// On a host the transcript is only reachable through its helper, for
+    /// the conversation the subagent was listed in.
+    private var feed: SubagentTranscriptLoader.Feed? {
+        guard tab.hostID != nil else { return .local(path: selection.info.transcriptPath) }
+        guard let host = services.host(for: tab), let conversation = selection.info.conversationID else { return nil }
+        let source = TabActions.remoteSubagentSource(host)
+        let directory = AgentSessionLocator.encode(cwd: tab.worktreePath)
+        let agentID = selection.info.agentID
+        return .remote { knownSize in
+            try await source.tail(
+                projectDirectory: directory, conversationID: conversation, agentID: agentID,
+                maxBytes: AgentSessionProbe.maxTailBytes, knownSize: knownSize
+            )
+        }
+    }
 
     /// After this runloop turn: selecting a tab focuses its terminal, which
     /// would otherwise win.
@@ -136,42 +152,78 @@ struct SubagentTranscriptView: View {
     }
 }
 
-/// Reads the transcript's tail and reads it again whenever the subagents
-/// folder changes, only while the view is on screen.
+/// Reads the transcript's tail, and again as it grows, only while the view
+/// is on screen: on this Mac whenever the subagents folder changes, on a
+/// host every few seconds through its helper. Parsing happens off the main
+/// actor: the tail can be a megabyte.
 @MainActor
 @Observable
 final class SubagentTranscriptLoader {
+    enum Feed {
+        case local(path: String)
+        /// Fetches the tail, given the size already read so an unchanged
+        /// file isn't sent again.
+        case remote(fetch: @Sendable (UInt64?) async throws -> SubagentTail)
+    }
+
+    /// How long a host's transcript waits before it's fetched again.
+    static let remoteInterval: Duration = .seconds(3)
+
     private(set) var entries: [SubagentEntry] = []
     private(set) var missing = false
     @ObservationIgnored private var watcher: WorktreeWatcher?
-    @ObservationIgnored private var path: String?
-    /// Bumped per read, so a slow read can't overwrite a newer one.
+    @ObservationIgnored private var poll: Task<Void, Never>?
+    /// Bumped per start and per local read, so a slow read can't overwrite
+    /// a newer one or another subagent's.
     @ObservationIgnored private var generation = 0
 
-    func start(path: String?) {
+    /// nil: there's nothing to read, such as a host tab whose host is gone.
+    func start(_ feed: Feed?) {
         stop()
-        self.path = path
+        generation += 1
         entries = []
-        missing = false
-        reload()
-        guard let path else { return }
-        let directory = (path as NSString).deletingLastPathComponent
-        let watcher = WorktreeWatcher(path: directory) { [weak self] in self?.reload() }
-        watcher.start()
-        self.watcher = watcher
+        missing = feed == nil
+        switch feed {
+        case let .local(path)?:
+            readLocal(path)
+            let directory = (path as NSString).deletingLastPathComponent
+            let watcher = WorktreeWatcher(path: directory) { [weak self] in self?.readLocal(path) }
+            watcher.start()
+            self.watcher = watcher
+        case let .remote(fetch)?:
+            let current = generation
+            poll = Task { [weak self] in
+                var knownSize: UInt64?
+                // One fetch at a time: the next waits for this one, which
+                // has a deadline, so a slow link can't pile up ssh sessions.
+                while !Task.isCancelled {
+                    let reply = try? await withDeadline(TabActions.remoteDeadline) { try await fetch(knownSize) }
+                    if case let .lines(data, size)? = reply {
+                        knownSize = size
+                        let parsed = await Task.detached {
+                            SubagentTranscriptParser.entries(inTail: data, startsAtFileStart: true)
+                        }.value
+                        self?.show(parsed, generation: current)
+                    } else if reply == SubagentTail.none {
+                        self?.show(nil, generation: current)
+                    }
+                    // Unchanged, or the host couldn't be asked: keep what's shown.
+                    try? await Task.sleep(for: Self.remoteInterval)
+                }
+            }
+        case nil:
+            break
+        }
     }
 
     func stop() {
         watcher?.stop()
         watcher = nil
+        poll?.cancel()
+        poll = nil
     }
 
-    /// Read and parsed off the main actor: the tail can be a megabyte.
-    private func reload() {
-        guard let path else {
-            missing = true
-            return
-        }
+    private func readLocal(_ path: String) {
         generation += 1
         let current = generation
         Task {
@@ -181,10 +233,14 @@ final class SubagentTranscriptLoader {
                 else { return nil }
                 return SubagentTranscriptParser.entries(inTail: data, startsAtFileStart: fromStart)
             }.value
-            // A newer read, or another transcript, came in meanwhile.
-            guard current == generation, path == self.path else { return }
-            missing = parsed == nil
-            if let parsed, parsed != entries { entries = parsed }
+            show(parsed, generation: current)
         }
+    }
+
+    private func show(_ parsed: [SubagentEntry]?, generation current: Int) {
+        // A newer read, or another subagent, came in meanwhile.
+        guard current == generation else { return }
+        missing = parsed == nil
+        if let parsed, parsed != entries { entries = parsed }
     }
 }
