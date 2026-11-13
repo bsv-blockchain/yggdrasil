@@ -156,7 +156,9 @@ struct SidebarSessionsLayout: View {
 
     @ViewBuilder
     private var mainPane: some View {
-        if services.tabs.tabs.isEmpty {
+        let manager = services.tabs.managerTab
+        let managerOpened = manager.map { services.sessions.isOpened(tabID: $0.id) } ?? false
+        if services.tabs.tabs.isEmpty, !managerOpened {
             emptyMainPane
         } else {
             // Stack one MainPaneView per *opened* tab and toggle visibility via
@@ -165,14 +167,21 @@ struct SidebarSessionsLayout: View {
             // Tabs not opened this run aren't mounted at all: mounting every
             // tab started an agent and a WebKit process per tab at launch —
             // 44 idle agents (~11 GB) and 37 WebKit processes on a real setup.
+            // Once opened, the Yggdrasil session stays mounted too, also when
+            // the last tab closes: unmounting it would end its claude.
             ZStack {
                 ForEach(services.tabs.tabs.filter { services.sessions.isOpened(tabID: $0.id) }, id: \.id) { tab in
                     MainPaneView(services: services, selectedTab: tab)
                         .opacity(tab.id == services.tabs.selectedID ? 1 : 0)
                         .allowsHitTesting(tab.id == services.tabs.selectedID)
                 }
+                if let manager, managerOpened {
+                    ManagerPaneView(services: services, tab: manager)
+                        .opacity(manager.id == services.tabs.selectedID ? 1 : 0)
+                        .allowsHitTesting(manager.id == services.tabs.selectedID)
+                }
                 if services.tabs.selectedID == nil {
-                    selectedTabHasNoSession
+                    if services.tabs.tabs.isEmpty { emptyMainPane } else { selectedTabHasNoSession }
                 }
             }
             .onChange(of: services.tabs.selectedID, initial: true) { _, id in

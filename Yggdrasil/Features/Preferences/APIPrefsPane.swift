@@ -133,9 +133,8 @@ struct APIPrefsPane: View {
         }
     }
 
-    /// The command-line client inside this app bundle.
     private var yggctl: String {
-        Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/yggctl").path
+        ControlService.yggctlPath
     }
 
     private var mcpURL: String? {

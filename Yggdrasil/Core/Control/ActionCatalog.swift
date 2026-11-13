@@ -41,7 +41,7 @@ enum ActionCatalog {
                     "settings": ControlEncoding.settings(SettingsActions.read(services: services)),
                     "reviewsWaiting": .int(services.tabs.pendingReviewCount),
                     "assignedWaiting": .int(services.tabs.pendingAssignedCount),
-                    "selectedTab": .optional(services.tabs.selectedID),
+                    "selectedTab": .optional(services.tabs.selectedTabID),
                     "keyScope": .optional(context.key?.scope.rawValue)
                 ])
             },

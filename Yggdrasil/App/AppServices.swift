@@ -30,6 +30,9 @@ final class AppServices {
     let webViewPool: WebViewPool
     let tabStatus = TabStatusModel()
     let subagents = SubagentsModel()
+    /// The pinned Yggdrasil session's API key for this run; memory only, and
+    /// revoked at quit.
+    var managerKeySecret: String?
     let statusPoller: StatusPoller
     /// Builds worktrees off the click, one at a time per repo.
     let worktreePreparer: WorktreePreparer

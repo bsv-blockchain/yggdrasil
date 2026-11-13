@@ -25,7 +25,18 @@ enum Migrations {
         migrator.registerMigration("v18", migrate: v18)
         migrator.registerMigration("v19", migrate: v19)
         migrator.registerMigration("v20", migrate: v20)
+        migrator.registerMigration("v21", migrate: v21)
         return migrator
+    }
+
+    // MARK: - v21 — Tab kinds
+
+    /// The pinned Yggdrasil session is a `tab` row, so it gets session state
+    /// and resume like any tab, but it isn't one of the user's tabs.
+    private static func v21(_ db: Database) throws {
+        try db.alter(table: "tab") { table in
+            table.add(column: "kind", .text).notNull().defaults(to: "tab")
+        }
     }
 
     // MARK: - v20 — Control API keys

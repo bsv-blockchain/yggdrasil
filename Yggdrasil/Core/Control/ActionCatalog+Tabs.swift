@@ -224,7 +224,7 @@ extension ActionCatalog {
             ) { params, context in
                 let delta = try params.string("direction") == "next" ? 1 : -1
                 TabActions.selectRelative(by: delta, services: context.services)
-                return .optional(context.services.tabs.selectedID)
+                return .optional(context.services.tabs.selectedTabID)
             },
             ControlAction(
                 name: "tab.close",

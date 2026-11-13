@@ -17,6 +17,16 @@ final class TabsModel {
     /// the GitHub pane synthesize a URL for tabs whose PR/issue hasn't been
     /// synced yet (so we don't gate the WebView on the next 60s sync tick).
     var repoByTabID: [Int64: Repo] = [:]
+    /// The pinned Yggdrasil session's row, once it has been opened. Not in
+    /// `tabs`: it isn't one of the user's tabs.
+    private(set) var managerTab: YggdrasilTab?
+
+    /// `selectedID` when it's one of the user's tabs; nil while the pinned
+    /// Yggdrasil session is showing.
+    var selectedTabID: Int64? {
+        selectedID == managerTab?.id ? nil : selectedID
+    }
+
     /// The ssh host each remote tab runs on, by name.
     var hostNameByTabID: [Int64: String] = [:]
     /// Cache: tabID → resolved agent identity (Claude/Codex/Gemini/Copilot/Grok).
@@ -57,7 +67,9 @@ final class TabsModel {
     /// Reload from the DB. Cheap enough to call after any mutation.
     func reload() {
         do {
-            tabs = try store.list()
+            let rows = try store.list()
+            tabs = rows.filter { $0.kind == .tab }
+            managerTab = rows.first { $0.kind == .manager }
             let result = try resolveTaskAndRepoMaps()
             tasksByTabID = result.taskMap
             prTasksByTabID = result.prTaskMap
@@ -80,7 +92,7 @@ final class TabsModel {
                 uniquingKeysWith: { first, _ in first }
             )
             // Drop selection if the row vanished.
-            if let selected = selectedID, !tabs.contains(where: { $0.id == selected }) {
+            if let selected = selectedID, selected != managerTab?.id, !tabs.contains(where: { $0.id == selected }) {
                 selectedID = tabs.first?.id
             } else if selectedID == nil {
                 selectedID = tabs.first?.id

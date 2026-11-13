@@ -58,6 +58,23 @@ struct YggdrasilTab: Codable, FetchableRecord, MutablePersistableRecord, Equatab
     /// ssh host the tab's agent and worktree live on; nil means this Mac.
     var hostID: Int64?
 
+    enum Kind: String, Codable {
+        /// One of the user's tabs.
+        case tab
+        /// The pinned Yggdrasil session: kept out of the tab list, the API
+        /// and the status poller.
+        case manager
+
+        /// An unknown kind, from a newer build, loads as a tab rather than
+        /// failing the whole list, as with `PreparationState`.
+        init(from decoder: Decoder) throws {
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            self = Kind(rawValue: raw) ?? .tab
+        }
+    }
+
+    var kind: Kind = .tab
+
     enum CodingKeys: String, CodingKey {
         case id
         case taskID = "task_id"
@@ -72,6 +89,7 @@ struct YggdrasilTab: Codable, FetchableRecord, MutablePersistableRecord, Equatab
         case preparationState = "preparation_state"
         case preparationError = "preparation_error"
         case hostID = "host_id"
+        case kind
     }
 
     mutating func didInsert(_ inserted: InsertionSuccess) {
