@@ -28,6 +28,7 @@ actor WorktreeManager {
     ///   then `git worktree add <path> <branch>`.
     /// - For regular refs: `git worktree add -b <branch> <path> <baseRef ?? default>`,
     ///   unless `<branch>` already exists locally — then plain `worktree add <path> <branch>`.
+    ///   A base only a remote has is given as `<remote>/<name>` (see `remoteIfUnresolved`).
     func ensure(repo: Repo, branch: String, baseRef: String? = nil) async throws -> URL {
         guard let mainPath = site.mainPath(for: repo) else {
             throw WorktreeError.parseFailure(reason: "repo \(repo.fullName) has no localMainPath")
@@ -154,11 +155,32 @@ actor WorktreeManager {
     /// What a new branch starts from: the given ref, else the default branch —
     /// freshly fetched from origin where the site asks for it.
     private func branchBase(repo: Repo, baseRef: String?, mainURL: URL) async -> String {
-        if let baseRef { return baseRef }
+        // The sheet and the API always pass the default branch; that's the
+        // same as passing none, which on a host means fetching it fresh.
+        if let baseRef, baseRef != repo.defaultBranch {
+            return await remoteIfUnresolved(baseRef, mainURL: mainURL)
+        }
         if site.refreshesDefaultBranch, await refreshDefaultBranch(repo, in: mainURL) {
             return "origin/\(repo.defaultBranch)"
         }
-        return repo.defaultBranch
+        return await remoteIfUnresolved(repo.defaultBranch, mainURL: mainURL)
+    }
+
+    /// A base that doesn't resolve here but is a remote's branch, such as
+    /// the default branch in a checkout that never had it locally, becomes
+    /// `<remote>/<name>` (origin's when several have it). Given as is,
+    /// `git worktree add -b <branch> <path> <name>` makes a local `<name>`
+    /// from the remote one and checks *that* out instead of `<branch>`
+    /// (git 2.54), so the tab's agent would work on the default branch.
+    private func remoteIfUnresolved(_ ref: String, mainURL: URL) async -> String {
+        guard await (try? git.run(args: ["rev-parse", "--verify", "--quiet", ref], cwd: mainURL)) == nil,
+              let listed = try? await git.run(
+                  args: ["for-each-ref", "--format=%(refname:short)", "refs/remotes/*/\(ref)"], cwd: mainURL
+              )
+        else { return ref }
+        let candidates = listed.stdout.split(separator: "\n").map(String.init)
+        if candidates.contains("origin/\(ref)") { return "origin/\(ref)" }
+        return candidates.count == 1 ? candidates[0] : ref
     }
 
     /// `git fetch origin <default>`; false (keep the checkout's own copy) when
