@@ -30,6 +30,18 @@ final class RemoteSubagentTests: XCTestCase {
         XCTAssertEqual(entries[0].meta, Data(#"{"agentType":"Explore","finished":false}"#.utf8))
     }
 
+    func testParsesAWorkflowsAgents() throws {
+        let list = try SSHSubagentSource.parseSubagents("""
+        subagents s1
+        W\twf_01-ab\tprobe-files\ta1\t1700000450\t0\t{"agentType":"workflow-subagent","description":"probe:1","workflowPhase":"Probe"}
+
+        """)
+        let entry = try XCTUnwrap(list.entries.first)
+        XCTAssertEqual(entry.agentID, "wf_01-ab:a1")
+        XCTAssertEqual(entry.workflow, SubagentWorkflow(runID: "wf_01-ab", name: "probe-files"))
+        XCTAssertEqual(entry.modified, Date(timeIntervalSince1970: 1_700_000_450))
+    }
+
     func testAnEmptyOrStrangeReplyIsAnError() throws {
         // "" is what ProcessRunner returns for output that isn't valid UTF-8.
         XCTAssertThrowsError(try SSHSubagentSource.parseSubagents(""))

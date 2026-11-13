@@ -79,6 +79,45 @@ final class SubagentProbeTests: XCTestCase {
         XCTAssertEqual(found.last?.spawnDepth, 2)
     }
 
+    func testARunningWorkflowsAgentsAreListedFromItsJournal() {
+        // Workflow agents' meta files never say "finished"; the run's journal
+        // does, and the run's own file only appears when it ends.
+        let files = conversation()
+        let run = "\(project)/s/subagents/workflows/wf_01-ab"
+        files.add("\(project)/s/workflows/scripts/review-x-wf_01-ab.js", "x")
+        files.add("\(run)/journal.jsonl", """
+        {"type":"launched"}
+        {"type":"started","key":"k1","agentId":"a1","label":"review:a","phase":"Review"}
+        {"type":"started","key":"k2","agentId":"a2","label":"review:b","phase":"Review"}
+        {"type":"result","key":"k2","agentId":"a2","result":"done"}
+        """)
+        for agent in ["a1", "a2"] {
+            files.add("\(run)/agent-\(agent).meta.json",
+                      #"{"agentType":"code-reviewer","description":"review:\#(agent)","workflowPhase":"Review"}"#)
+            // Written well outside the window for meta files without "finished".
+            files.add("\(run)/agent-\(agent).jsonl", "", created: 10, modified: 20)
+        }
+        files.add("\(project)/s/workflows/wf_02-cd.json", #"{"status":"completed"}"#)
+        files.add("\(project)/s/subagents/workflows/wf_02-cd/journal.jsonl",
+                  #"{"type":"started","key":"k","agentId":"z9","label":"l","phase":"P"}"#)
+        files.add("\(project)/s/subagents/workflows/wf_02-cd/agent-z9.meta.json", #"{"agentType":"x"}"#)
+
+        let found = probe(files).unfinished(worktreePath: worktree, since: nil, now: now)
+
+        XCTAssertEqual(found.map(\.agentID), ["wf_01-ab:a1"])
+        XCTAssertEqual(found.first?.workflow, SubagentWorkflow(runID: "wf_01-ab", name: "review-x"))
+        XCTAssertEqual(found.first?.phase, "Review")
+        XCTAssertEqual(found.first?.transcriptPath, "\(run)/agent-a1.jsonl")
+    }
+
+    func testAWorkflowAgentsTranscriptPath() {
+        let files = conversation()
+        XCTAssertEqual(
+            probe(files).transcriptPath(worktreePath: worktree, agentID: "wf_01-ab:a1"),
+            "\(project)/s/subagents/workflows/wf_01-ab/agent-a1.jsonl"
+        )
+    }
+
     func testNoConversationNoSubagents() {
         XCTAssertEqual(probe(StubSubagentFS()).unfinished(worktreePath: worktree, since: nil, now: now), [])
     }
@@ -125,12 +164,12 @@ private final class StubSubagentFS: SubagentFileSystem, @unchecked Sendable {
         )
     }
 
+    /// Files and folders directly under `path`, as a directory listing has them.
     func fileNames(inDirectory path: String) -> [String] {
-        files.keys.compactMap { key in
+        Array(Set(files.keys.compactMap { key in
             guard key.hasPrefix(path + "/") else { return nil }
-            let name = String(key.dropFirst(path.count + 1))
-            return name.contains("/") ? nil : name
-        }
+            return key.dropFirst(path.count + 1).split(separator: "/").first.map(String.init)
+        }))
     }
 
     func contents(atPath path: String) -> Data? {

@@ -468,17 +468,23 @@ struct SidebarView: View {
     @ViewBuilder
     private func subagentRows(for tab: YggdrasilTab) -> some View {
         if let id = tab.id {
-            ForEach(TabActions.runningSubagents(id, services: services), id: \.agentID) { info in
-                SubagentRow(
-                    info: info,
-                    isSelected: services.subagents.selection(forTabID: id)?.info.agentID == info.agentID
-                )
-                .onTapGesture {
-                    services.subagents.select(info, tabID: id)
-                    tabsModel.select(id)
-                    onSelect(id)
+            ForEach(SubagentTreeRows.rows(TabActions.runningSubagents(id, services: services)), id: \.id) { row in
+                switch row {
+                case let .workflow(workflow, agents):
+                    WorkflowRow(workflow: workflow, agents: agents)
+                case let .agent(info, indent):
+                    SubagentRow(
+                        info: info,
+                        indent: indent,
+                        isSelected: services.subagents.selection(forTabID: id)?.info.agentID == info.agentID
+                    )
+                    .onTapGesture {
+                        services.subagents.select(info, tabID: id)
+                        tabsModel.select(id)
+                        onSelect(id)
+                    }
+                    .padding(.vertical, 1)
                 }
-                .padding(.vertical, 1)
             }
         }
     }

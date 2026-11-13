@@ -16,6 +16,18 @@ struct SubagentInfo: Equatable {
     /// On a host: the conversation it belongs to, which the transcript view
     /// asks the host for. nil on this Mac, where `transcriptPath` says it.
     var conversationID: String?
+    /// The workflow run it's an agent of; nil for a plain subagent. Its
+    /// `agentID` is then `<run>:<agent>`.
+    var workflow: SubagentWorkflow?
+    /// A workflow agent's phase, as the workflow names it.
+    var phase: String?
+}
+
+/// A Claude Code workflow run (`<session>/subagents/workflows/<run>/`).
+struct SubagentWorkflow: Hashable {
+    let runID: String
+    /// From its script, saved as `workflows/scripts/<name>-<run>.js`.
+    let name: String
 }
 
 /// One subagent's meta file and its transcript's dates, read here or on a host.
@@ -26,6 +38,9 @@ struct SubagentMetaEntry: Equatable {
     let created: Date?
     /// On a host, the agent's file name: its folder is the host's.
     let transcriptPath: String
+    /// Set for an agent of a running workflow, which is only listed while
+    /// its journal says it runs: its meta file never says "finished".
+    var workflow: SubagentWorkflow?
 }
 
 /// Filesystem seam for `SubagentProbe`.
@@ -71,10 +86,36 @@ struct SubagentProbe {
                 agentID: agentID, meta: data, modified: dates?.modified, created: dates?.created, transcriptPath: path
             )
         }
-        return Self.select(entries, since: since, now: now)
+        return Self.select(entries + workflowEntries(subagentsDirectory: directory), since: since, now: now)
     }
 
-    /// The same for a tab on an ssh host, from its `ygg subagents`.
+    /// The agents of the conversation's running workflows. A run is running
+    /// until `<session>/workflows/<run>.json` appears; an agent of it, from
+    /// its journal's "started" until any later event for it.
+    private func workflowEntries(subagentsDirectory directory: String) -> [SubagentMetaEntry] {
+        let session = (directory as NSString).deletingLastPathComponent
+        let runs = "\(directory)/workflows"
+        let scripts = fileSystem.fileNames(inDirectory: "\(session)/workflows/scripts")
+        return fileSystem.fileNames(inDirectory: runs).sorted().flatMap { run -> [SubagentMetaEntry] in
+            guard fileSystem.dates(atPath: "\(session)/workflows/\(run).json") == nil,
+                  let journal = fileSystem.contents(atPath: "\(runs)/\(run)/journal.jsonl")
+            else { return [] }
+            let suffix = "-\(run).js"
+            let name = scripts.first { $0.hasSuffix(suffix) }.map { String($0.dropLast(suffix.count)) } ?? run
+            let workflow = SubagentWorkflow(runID: run, name: name)
+            return WorkflowJournal.running(journal).compactMap { agent in
+                let path = "\(runs)/\(run)/agent-\(agent).jsonl"
+                guard let meta = fileSystem.contents(atPath: "\(runs)/\(run)/agent-\(agent).meta.json")
+                else { return nil }
+                let dates = fileSystem.dates(atPath: path)
+                return SubagentMetaEntry(
+                    agentID: "\(run):\(agent)", meta: meta, modified: dates?.modified, created: dates?.created,
+                    transcriptPath: path, workflow: workflow
+                )
+            }
+        }
+    }
+
     /// How far before the tab's start a host's subagent may have last
     /// written and still count. The Mac's start time is the ssh attach,
     /// which a reconnect or relaunch moves while claude runs on on the host,
@@ -82,6 +123,7 @@ struct SubagentProbe {
     /// leftovers fade after this long.
     static let remoteSinceGrace: TimeInterval = 30 * 60
 
+    /// The same for a tab on an ssh host, from its `ygg subagents`.
     static func unfinished(
         worktreePath: String, since: Date?, now: Date = Date(), source: RemoteSubagentSource
     ) async throws -> [SubagentInfo] {
@@ -99,11 +141,12 @@ struct SubagentProbe {
     /// written lately. In the order they started.
     static func select(_ entries: [SubagentMetaEntry], since: Date?, now: Date) -> [SubagentInfo] {
         let found: [(info: SubagentInfo, started: Date)] = entries.compactMap { entry in
-            guard let meta = try? JSONDecoder().decode(Meta.self, from: entry.meta), meta.finished != true else {
-                return nil
-            }
+            let ofWorkflow = entry.workflow != nil
+            guard let meta = try? JSONDecoder().decode(Meta.self, from: entry.meta),
+                  ofWorkflow || meta.finished != true
+            else { return nil }
             if let since, let written = entry.modified, written < since { return nil }
-            if meta.finished == nil {
+            if !ofWorkflow, meta.finished == nil {
                 guard let written = entry.modified,
                       now.timeIntervalSince(written) <= unmarkedActivityWindow else { return nil }
             }
@@ -114,7 +157,9 @@ struct SubagentProbe {
                 spawnDepth: meta.spawnDepth ?? 1,
                 background: meta.requestShape == "background",
                 lastWrite: entry.modified,
-                transcriptPath: entry.transcriptPath
+                transcriptPath: entry.transcriptPath,
+                workflow: entry.workflow,
+                phase: meta.workflowPhase
             )
             return (info, entry.created ?? .distantFuture)
         }
@@ -126,7 +171,12 @@ struct SubagentProbe {
     /// Where a subagent of the worktree's newest conversation keeps its
     /// transcript, whether or not it's still listed.
     func transcriptPath(worktreePath: String, agentID: String) -> String? {
-        subagentsDirectory(worktreePath: worktreePath).map { "\($0)/agent-\(agentID).jsonl" }
+        subagentsDirectory(worktreePath: worktreePath).map { directory in
+            let parts = agentID.split(separator: ":", maxSplits: 1)
+            return parts.count == 2
+                ? "\(directory)/workflows/\(parts[0])/agent-\(parts[1]).jsonl"
+                : "\(directory)/agent-\(agentID).jsonl"
+        }
     }
 
     private func subagentsDirectory(worktreePath: String) -> String? {
@@ -143,6 +193,7 @@ struct SubagentProbe {
         let spawnDepth: Int?
         let requestShape: String?
         let finished: Bool?
+        let workflowPhase: String?
     }
 }
 
@@ -172,5 +223,41 @@ struct LiveSubagentFileSystem: SubagentFileSystem {
 
     func readTail(path: String, maxBytes: Int) throws -> (data: Data, startsAtFileStart: Bool) {
         try transcriptsFS.readTail(path: path, maxBytes: maxBytes)
+    }
+}
+
+/// A workflow run's `journal.jsonl`: "started" per agent, then a "result"
+/// (or another event) when it's done.
+enum WorkflowJournal {
+    /// Agents started and not yet done, in the order they started.
+    static func running(_ data: Data) -> [String] {
+        var started: [String] = []
+        var ended: Set<String> = []
+        for line in data.split(separator: UInt8(ascii: "\n")) {
+            guard let event = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any],
+                  let agent = event["agentId"] as? String
+            else { continue }
+            if event["type"] as? String == "started" {
+                if !started.contains(agent) { started.append(agent) }
+            } else {
+                ended.insert(agent)
+            }
+        }
+        return started.filter { !ended.contains($0) }
+    }
+}
+
+/// A subagent's id as the app passes it around: `<agent>`, or
+/// `<run>:<agent>` for an agent of a workflow run.
+enum SubagentID {
+    /// What the host's helper accepts: anything else would be refused with
+    /// its usage error, which the app reads as an old helper.
+    static func isValid(_ id: String) -> Bool {
+        let parts = id.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        let agent = parts.last ?? ""
+        guard !agent.isEmpty, agent.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return false }
+        guard parts.count == 2 else { return true }
+        let run = parts[0]
+        return !run.isEmpty && run.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }
     }
 }

@@ -35,7 +35,7 @@ extension TabActions {
         let tab = try tab(tabID, services)
         // Checked here too: the helper answers a bad id with its usage error,
         // which the app reads as "old helper" and reinstalls it.
-        guard !agentID.isEmpty, agentID.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else {
+        guard SubagentID.isValid(agentID) else {
             throw ActionError.invalidArgument("agent")
         }
         if let hostID = tab.hostID {

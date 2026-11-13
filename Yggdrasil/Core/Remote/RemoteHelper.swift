@@ -14,7 +14,7 @@ import Foundation
 /// tcsh login shell can't misparse it. The login shell is only asked for the
 /// PATH its rc files set, via `env; exit`, whose output doesn't depend on the shell.
 enum RemoteHelper {
-    static let version = 7
+    static let version = 8
     static let path = "~/.yggdrasil/bin/ygg"
     static let requiredTools = ["claude", "git", "gh", "dtach"]
 
@@ -204,6 +204,47 @@ enum RemoteHelper {
                 t="- -"
             fi
             printf '%s\\t%s\\t%s\\t%s\\n' "$id" "${t%% *}" "${t#* }" "$meta"
+        done
+        # Running workflows' agents: a run folder under subagents/workflows
+        # whose <session>/workflows/<run>.json (written at the end) isn't
+        # there yet, and whose journal has "started" for the agent and nothing
+        # after. "W\\t<run>\\t<name>\\t<id>\\t<mtime>\\t<birth>\\t<meta>"; the
+        # name comes from the script saved as workflows/scripts/<name>-<run>.js.
+        base="${newest%.jsonl}"
+        for run in "$base"/subagents/workflows/*/; do
+            [ -d "$run" ] || continue
+            run=${run%/}; rid=${run##*/}
+            [ -f "$base/workflows/$rid.json" ] && continue
+            name=$rid
+            for script in "$base/workflows/scripts/"*"-$rid.js"; do
+                [ -f "$script" ] && { name=${script##*/}; name=${name%-"$rid".js}; }
+            done
+            started=" "; ended=" "
+            if [ -f "$run/journal.jsonl" ]; then
+                while IFS= read -r line || [ -n "$line" ]; do
+                    case "$line" in *'"agentId":"'*) ;; *) continue ;; esac
+                    aid=${line#*'"agentId":"'}; aid=${aid%%'"'*}
+                    case "$aid" in ''|*[!A-Za-z0-9]*) continue ;; esac
+                    case "$line" in
+                        *'"type":"started"'*) started="$started$aid " ;;
+                        *) ended="$ended$aid " ;;
+                    esac
+                done < "$run/journal.jsonl"
+            fi
+            for aid in $started; do
+                case "$ended" in *" $aid "*) continue ;; esac
+                m="$run/agent-$aid.meta.json"
+                [ -f "$m" ] || continue
+                meta=""
+                while IFS= read -r line || [ -n "$line" ]; do meta="$meta$line"; done < "$m"
+                j="$run/agent-$aid.jsonl"
+                if [ -f "$j" ]; then
+                    t=$(stat -c '%Y %W' "$j" 2>/dev/null || stat -f '%m %B' "$j")
+                else
+                    t="- -"
+                fi
+                printf 'W\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$rid" "$name" "$aid" "${t%% *}" "${t#* }" "$meta"
+            done
         done ;;
     subagent-tail)
         # The last <max-bytes> of one subagent's transcript in conversation
@@ -212,9 +253,17 @@ enum RemoteHelper {
         [ $# -ge 5 ] || usage
         case "$2" in ''|.*|*/*) usage ;; esac
         case "$3" in ''|*[!A-Za-z0-9-]*) usage ;; esac
-        case "$4" in ''|*[!A-Za-z0-9]*) usage ;; esac
         case "$5" in ''|*[!0-9]*) usage ;; esac
-        f="$HOME/.claude/projects/$2/$3/subagents/agent-$4.jsonl"
+        # <agent>, or <run>:<agent> for an agent of a workflow run.
+        case "$4" in
+            *:*)
+                run=${4%%:*}; aid=${4#*:}
+                case "$run" in ''|*[!A-Za-z0-9_-]*) usage ;; esac
+                case "$aid" in ''|*[!A-Za-z0-9]*) usage ;; esac
+                f="$HOME/.claude/projects/$2/$3/subagents/workflows/$run/agent-$aid.jsonl" ;;
+            ''|*[!A-Za-z0-9]*) usage ;;
+            *) f="$HOME/.claude/projects/$2/$3/subagents/agent-$4.jsonl" ;;
+        esac
         if [ ! -f "$f" ]; then echo none; exit 0; fi
         size=$(stat -c '%s' "$f" 2>/dev/null || stat -f '%z' "$f")
         if [ "${6:-}" = "$size" ]; then echo "same $size"; exit 0; fi

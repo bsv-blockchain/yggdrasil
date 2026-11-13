@@ -84,7 +84,9 @@ enum ControlEncoding {
             "description": .string(info.description),
             "spawnDepth": .int(info.spawnDepth),
             "background": .bool(info.background),
-            "lastWrite": info.lastWrite.map { .string(ISO8601DateFormatter().string(from: $0)) } ?? .null
+            "lastWrite": info.lastWrite.map { .string(ISO8601DateFormatter().string(from: $0)) } ?? .null,
+            "workflow": info.workflow.map { .object(["run": .string($0.runID), "name": .string($0.name)]) } ?? .null,
+            "phase": .optional(info.phase)
         ])
     }
 

@@ -68,6 +68,7 @@ struct SSHSubagentSource: RemoteSubagentSource {
         lines.removeFirst()
         let conversation = header.dropFirst("subagents".count).trimmingCharacters(in: .whitespaces)
         let entries = try lines.map { line in
+            if line.hasPrefix("W\t") { return try workflowEntry(line, conversation: conversation) }
             let fields = line.split(separator: "\t", maxSplits: 3, omittingEmptySubsequences: false)
             guard fields.count == 4, !fields[0].isEmpty else { throw Failure.unreadableReply }
             return SubagentMetaEntry(
@@ -79,6 +80,22 @@ struct SSHSubagentSource: RemoteSubagentSource {
             )
         }
         return RemoteSubagentList(conversationID: conversation.isEmpty ? nil : conversation, entries: entries)
+    }
+
+    /// `W\t<run>\t<name>\t<agent>\t<mtime>\t<birth>\t<meta json>`: an agent of a
+    /// running workflow.
+    private static func workflowEntry(_ line: Substring, conversation: String) throws -> SubagentMetaEntry {
+        let fields = line.split(separator: "\t", maxSplits: 6, omittingEmptySubsequences: false)
+        guard fields.count == 7, !fields[1].isEmpty, !fields[3].isEmpty else { throw Failure.unreadableReply }
+        let run = String(fields[1])
+        return SubagentMetaEntry(
+            agentID: "\(run):\(fields[3])",
+            meta: Data(fields[6].utf8),
+            modified: date(fields[4]),
+            created: date(fields[5]),
+            transcriptPath: "\(conversation)/subagents/workflows/\(run)/agent-\(fields[3]).jsonl",
+            workflow: SubagentWorkflow(runID: run, name: String(fields[2]))
+        )
     }
 
     /// `none`, `same <size>`, or `ok <size>` then the lines.
