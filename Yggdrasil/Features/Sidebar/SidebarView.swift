@@ -58,16 +58,27 @@ struct SidebarView: View {
     /// The rows exactly as rendered, flattened top-to-bottom — grouping
     /// included. Published to `TabsModel.visibleTabIDs` so ⌘⇧{ / ⌘⇧} traverse
     /// what the eye sees.
-    private var displayOrderTabIDs: [Int64] {
+    private func displayOrderTabIDs(_ shown: [YggdrasilTab]) -> [Int64] {
         let ordered: [YggdrasilTab] = groupByRepo
             ? SidebarGrouping.groupByRepo(
-                tabs: filteredTabs, repoByTabID: tabsModel.repoByTabID
+                tabs: shown, repoByTabID: tabsModel.repoByTabID
             ).flatMap(\.tabs)
-            : filteredTabs
+            : shown
         return ordered.compactMap(\.id)
     }
 
-    private var filteredTabs: [YggdrasilTab] {
+    /// `matching` with the open tab put back in its place when the search or
+    /// pill dropped it. Otherwise answering a "Needs me" tab's Claude made the
+    /// tab you're in vanish from the list, taking its context menu with it.
+    static func keepingOpenTab(
+        matching: [YggdrasilTab], all: [YggdrasilTab], selectedID: Int64?
+    ) -> [YggdrasilTab] {
+        guard let selectedID, all.contains(where: { $0.id == selectedID }) else { return matching }
+        let keep = Set(matching.compactMap(\.id)).union([selectedID])
+        return all.filter { $0.id.map(keep.contains) ?? false }
+    }
+
+    private var matchingTabs: [YggdrasilTab] {
         let bySearch = tabsModel.filtered(by: debouncedQuery)
         switch activeFilter {
         case .all: return bySearch
@@ -86,6 +97,9 @@ struct SidebarView: View {
     }
 
     var body: some View {
+        // Once per render: matching builds every tab's row model.
+        let matching = matchingTabs
+        let shown = Self.keepingOpenTab(matching: matching, all: tabsModel.tabs, selectedID: tabsModel.selectedID)
         VStack(spacing: 0) {
             workspaceHeader
             ManagerRow(isSelected: tabsModel.managerTab.map { $0.id == tabsModel.selectedID } ?? false)
@@ -98,10 +112,10 @@ struct SidebarView: View {
                 .background(YggdrasilTheme.divider(scheme))
             if tabsModel.tabs.isEmpty {
                 emptyState
-            } else if filteredTabs.isEmpty {
+            } else if shown.isEmpty {
                 noMatchesState
             } else {
-                tabList
+                tabList(shown: shown, matchingIDs: Set(matching.compactMap(\.id)))
             }
         }
         .frame(maxWidth: .infinity)
@@ -109,7 +123,7 @@ struct SidebarView: View {
         .onChange(of: rawSearchQuery) { _, newValue in
             scheduleDebouncedQueryUpdate(to: newValue)
         }
-        .onChange(of: displayOrderTabIDs, initial: true) { _, ids in
+        .onChange(of: displayOrderTabIDs(shown), initial: true) { _, ids in
             tabsModel.visibleTabIDs = ids
         }
         .onAppear {
@@ -336,7 +350,9 @@ struct SidebarView: View {
 
     // MARK: - Tab list
 
-    private var tabList: some View {
+    /// `shown` is what the search and pill match plus the open tab, which
+    /// is dimmed when it's only there because it's open.
+    private func tabList(shown: [YggdrasilTab], matchingIDs: Set<Int64>) -> some View {
         // .onMove on macOS SwiftUI Lists never reliably fires without an
         // explicit edit mode, so we use the modern drag-and-drop primitives
         // (.draggable + .dropDestination) instead. Each row is the drag
@@ -344,26 +360,31 @@ struct SidebarView: View {
         // the source/destination tab IDs and calls TabsModel.move(...) which
         // persists via TabStore.reorder.
         let reorderEnabled = debouncedQuery.isEmpty && activeFilter == .all
+        let matches = { (tab: YggdrasilTab) in tab.id.map(matchingIDs.contains) ?? false }
 
         return ScrollView {
             LazyVStack(spacing: 0) {
                 if groupByRepo {
                     let groups = SidebarGrouping.groupByRepo(
-                        tabs: filteredTabs,
+                        tabs: shown,
                         repoByTabID: tabsModel.repoByTabID
                     )
                     ForEach(groups) { group in
                         groupHeader(title: group.title)
                         ForEach(group.tabs, id: \.id) { tab in
-                            rowView(for: tab, reorderEnabled: reorderEnabled)
+                            rowView(for: tab, reorderEnabled: reorderEnabled, dimmed: !matches(tab))
                             subagentRows(for: tab)
                         }
                     }
                 } else {
-                    ForEach(filteredTabs, id: \.id) { tab in
-                        rowView(for: tab, reorderEnabled: reorderEnabled)
+                    ForEach(shown, id: \.id) { tab in
+                        rowView(for: tab, reorderEnabled: reorderEnabled, dimmed: !matches(tab))
                         subagentRows(for: tab)
                     }
+                }
+                // Only the open tab is listed: still say the filter found nothing.
+                if matchingIDs.isEmpty {
+                    noMatchesState.padding(.top, 24)
                 }
             }
             .padding(.horizontal, 4)
@@ -383,12 +404,13 @@ struct SidebarView: View {
     }
 
     @ViewBuilder
-    private func rowView(for tab: YggdrasilTab, reorderEnabled: Bool) -> some View {
+    private func rowView(for tab: YggdrasilTab, reorderEnabled: Bool, dimmed: Bool) -> some View {
         let row = TabRow(
             model: tabsModel.model(for: tab, status: services.tabStatus, grouped: groupByRepo),
             agent: tabsModel.agentIdentity(for: tab),
             isSelected: tabsModel.selectedID == tab.id
         )
+        .opacity(dimmed ? 0.6 : 1)
         .contentShape(Rectangle())
         .onTapGesture {
             if let id = tab.id {
