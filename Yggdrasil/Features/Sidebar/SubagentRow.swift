@@ -4,6 +4,8 @@ import SwiftUI
 /// transcript in the main pane.
 struct SubagentRow: View {
     let info: SubagentInfo
+    /// Steps below the tab, from `SubagentTreeRows`.
+    let indent: Int
     let isSelected: Bool
     @Environment(\.colorScheme) private var scheme
 
@@ -15,7 +17,8 @@ struct SubagentRow: View {
             ProgressView()
                 .controlSize(.mini)
                 .accessibilityHidden(true)
-            Text(info.agentType)
+            // A workflow agent's phase says more than its type.
+            Text(info.phase ?? info.agentType)
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
                 .foregroundStyle(YggdrasilTheme.textDim(scheme))
                 .padding(.horizontal, 5)
@@ -34,7 +37,7 @@ struct SubagentRow: View {
                     .help("Runs in the background")
             }
         }
-        .padding(.leading, 18 + CGFloat(max(info.spawnDepth - 1, 0)) * 12)
+        .padding(.leading, 18 + CGFloat(indent) * 12)
         .padding(.trailing, 8)
         .padding(.vertical, 4)
         .background(
@@ -44,5 +47,37 @@ struct SubagentRow: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(info.agentType) subagent: \(info.description)")
+    }
+}
+
+/// A running workflow under its tab, above its agents. Not selectable: the
+/// agents are.
+struct WorkflowRow: View {
+    let workflow: SubagentWorkflow
+    let agents: Int
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.turn.down.right")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(YggdrasilTheme.textFaint(scheme))
+            Image(systemName: "flowchart")
+                .font(.system(size: 10))
+                .foregroundStyle(YggdrasilTheme.accent)
+            Text(workflow.name)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(YggdrasilTheme.text(scheme))
+                .lineLimit(1)
+            Text("\(agents) running")
+                .font(.system(size: 10))
+                .foregroundStyle(YggdrasilTheme.textMute(scheme))
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 18)
+        .padding(.trailing, 8)
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Workflow \(workflow.name), \(agents) agents running")
     }
 }
