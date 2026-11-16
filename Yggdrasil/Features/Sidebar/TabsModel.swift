@@ -39,7 +39,8 @@ final class TabsModel {
     var pendingAssignedCount: Int = 0
     var selectedID: Int64?
     /// IDs of the rows the sidebar is currently rendering, in display order —
-    /// search query, filter pill, and repo grouping all applied. `SidebarView`
+    /// search query, filter pill, and repo grouping all applied, with the open
+    /// tab kept in its place (`SidebarView.keepingOpenTab`). `SidebarView`
     /// keeps this in sync so ⌘⇧{ / ⌘⇧} step to the row visually adjacent to the
     /// selection rather than walking the unfiltered persisted order.
     ///
@@ -203,9 +204,9 @@ final class TabsModel {
         let live = Set(tabs.compactMap(\.id))
         let order = (visibleTabIDs ?? tabs.compactMap(\.id)).filter(live.contains)
         guard !order.isEmpty else { return }
-        // A selection outside the visible set (its row is filtered out, or the
-        // search hides it) has no neighbour to step from — enter the visible
-        // list from whichever end the user is heading toward.
+        // A selection outside the visible set (the Yggdrasil session, whose
+        // row isn't a tab, or a stale order) has no neighbour to step from —
+        // enter the visible list from whichever end the user is heading toward.
         guard let current = selectedID,
               let currentIdx = order.firstIndex(of: current) else {
             select(delta >= 0 ? order[0] : order[order.count - 1])
