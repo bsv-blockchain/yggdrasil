@@ -67,7 +67,24 @@ struct SidebarView: View {
         return ordered.compactMap(\.id)
     }
 
+    /// The tabs the search and pill match, plus the open tab — see
+    /// `keepingOpenTab`.
     private var filteredTabs: [YggdrasilTab] {
+        Self.keepingOpenTab(matching: matchingTabs, all: tabsModel.tabs, selectedID: tabsModel.selectedID)
+    }
+
+    /// `matching` with the open tab put back in its place when the search or
+    /// pill dropped it. Otherwise answering a "Needs me" tab's Claude made the
+    /// tab you're in vanish from the list, taking its context menu with it.
+    static func keepingOpenTab(
+        matching: [YggdrasilTab], all: [YggdrasilTab], selectedID: Int64?
+    ) -> [YggdrasilTab] {
+        guard let selectedID, all.contains(where: { $0.id == selectedID }) else { return matching }
+        let keep = Set(matching.compactMap(\.id)).union([selectedID])
+        return all.filter { $0.id.map(keep.contains) ?? false }
+    }
+
+    private var matchingTabs: [YggdrasilTab] {
         let bySearch = tabsModel.filtered(by: debouncedQuery)
         switch activeFilter {
         case .all: return bySearch
@@ -344,6 +361,10 @@ struct SidebarView: View {
         // the source/destination tab IDs and calls TabsModel.move(...) which
         // persists via TabStore.reorder.
         let reorderEnabled = debouncedQuery.isEmpty && activeFilter == .all
+        // The open tab is listed even when the search or pill doesn't match
+        // it; dim it then, so the list still reads as the filter's result.
+        let matchingIDs = Set(matchingTabs.compactMap(\.id))
+        let matches = { (tab: YggdrasilTab) in tab.id.map(matchingIDs.contains) ?? false }
 
         return ScrollView {
             LazyVStack(spacing: 0) {
@@ -355,13 +376,13 @@ struct SidebarView: View {
                     ForEach(groups) { group in
                         groupHeader(title: group.title)
                         ForEach(group.tabs, id: \.id) { tab in
-                            rowView(for: tab, reorderEnabled: reorderEnabled)
+                            rowView(for: tab, reorderEnabled: reorderEnabled, dimmed: !matches(tab))
                             subagentRows(for: tab)
                         }
                     }
                 } else {
                     ForEach(filteredTabs, id: \.id) { tab in
-                        rowView(for: tab, reorderEnabled: reorderEnabled)
+                        rowView(for: tab, reorderEnabled: reorderEnabled, dimmed: !matches(tab))
                         subagentRows(for: tab)
                     }
                 }
@@ -383,12 +404,13 @@ struct SidebarView: View {
     }
 
     @ViewBuilder
-    private func rowView(for tab: YggdrasilTab, reorderEnabled: Bool) -> some View {
+    private func rowView(for tab: YggdrasilTab, reorderEnabled: Bool, dimmed: Bool) -> some View {
         let row = TabRow(
             model: tabsModel.model(for: tab, status: services.tabStatus, grouped: groupByRepo),
             agent: tabsModel.agentIdentity(for: tab),
             isSelected: tabsModel.selectedID == tab.id
         )
+        .opacity(dimmed ? 0.6 : 1)
         .contentShape(Rectangle())
         .onTapGesture {
             if let id = tab.id {
