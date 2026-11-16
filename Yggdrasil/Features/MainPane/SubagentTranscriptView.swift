@@ -23,24 +23,20 @@ struct SubagentTranscriptView: View {
             Rectangle()
                 .fill(YggdrasilTheme.border(scheme))
                 .frame(height: 0.5)
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 10) {
-                        if loader.entries.isEmpty {
-                            Text(loader.missing ? "No transcript yet." : "Loading…")
-                                .foregroundStyle(YggdrasilTheme.textMute(scheme))
-                        }
-                        ForEach(Array(loader.entries.enumerated()), id: \.offset) { _, entry in
-                            row(entry)
-                        }
-                        Color.clear.frame(height: 1).id(Self.bottom)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    if loader.items.isEmpty {
+                        Text(loader.missing ? "No transcript yet." : "Loading…")
+                            .foregroundStyle(YggdrasilTheme.textMute(scheme))
                     }
-                    .padding(14)
-                    .textSelection(.enabled)
+                    ForEach(loader.items) { item in
+                        row(item.entry)
+                    }
                 }
-                .onChange(of: loader.entries.count) { _, _ in
-                    proxy.scrollTo(Self.bottom, anchor: .bottom)
-                }
+                .padding(14)
+                .textSelection(.enabled)
+                // Follows new output until the reader scrolls up.
+                .background(TranscriptFollower(token: selection.info.agentID))
             }
         }
         .background(YggdrasilTheme.bgPane(scheme))
@@ -64,8 +60,6 @@ struct SubagentTranscriptView: View {
             takeFocus()
         }
     }
-
-    private static let bottom = "bottom"
 
     /// On a host the transcript is only reachable through its helper, for
     /// the conversation the subagent was listed in.
@@ -169,7 +163,11 @@ final class SubagentTranscriptLoader {
     /// How long a host's transcript waits before it's fetched again.
     static let remoteInterval: Duration = .seconds(3)
 
-    private(set) var entries: [SubagentEntry] = []
+    private(set) var items: [SubagentTranscriptItem] = []
+    var entries: [SubagentEntry] {
+        items.map(\.entry)
+    }
+
     private(set) var missing = false
     @ObservationIgnored private var watcher: WorktreeWatcher?
     @ObservationIgnored private var poll: Task<Void, Never>?
@@ -181,7 +179,7 @@ final class SubagentTranscriptLoader {
     func start(_ feed: Feed?) {
         stop()
         generation += 1
-        entries = []
+        items = []
         missing = feed == nil
         switch feed {
         case let .local(path)?:
@@ -201,7 +199,7 @@ final class SubagentTranscriptLoader {
                     if case let .lines(data, size)? = reply {
                         knownSize = size
                         let parsed = await Task.detached {
-                            SubagentTranscriptParser.entries(inTail: data, startsAtFileStart: true)
+                            SubagentTranscriptParser.items(inTail: data, startsAtFileStart: true)
                         }.value
                         self?.show(parsed, generation: current)
                     } else if reply == SubagentTail.none {
@@ -227,20 +225,36 @@ final class SubagentTranscriptLoader {
         generation += 1
         let current = generation
         Task {
-            let parsed: [SubagentEntry]? = await Task.detached {
+            let parsed: [SubagentTranscriptItem]? = await Task.detached {
                 guard let (data, fromStart) = try? LiveTranscriptFileSystem()
                     .readTail(path: path, maxBytes: AgentSessionProbe.maxTailBytes)
                 else { return nil }
-                return SubagentTranscriptParser.entries(inTail: data, startsAtFileStart: fromStart)
+                return SubagentTranscriptParser.items(inTail: data, startsAtFileStart: fromStart)
             }.value
             show(parsed, generation: current)
         }
     }
 
-    private func show(_ parsed: [SubagentEntry]?, generation current: Int) {
+    private func show(_ parsed: [SubagentTranscriptItem]?, generation current: Int) {
         // A newer read, or another subagent, came in meanwhile.
         guard current == generation else { return }
         missing = parsed == nil
-        if let parsed, parsed != entries { entries = parsed }
+        // Only on a change: an equal assignment would still redraw.
+        if let parsed {
+            let merged = Self.merged(items, with: parsed)
+            if merged != items { items = merged }
+        }
+    }
+
+    /// `parsed` continued onto what's `shown`. Past 1 MB the read window
+    /// slides and older rows fall off its front; keeping them means nothing
+    /// above the reader moves while the transcript grows. A transcript that
+    /// no longer has the last shown row (rewritten, replaced) starts over.
+    nonisolated static func merged(
+        _ shown: [SubagentTranscriptItem], with parsed: [SubagentTranscriptItem]
+    ) -> [SubagentTranscriptItem] {
+        guard let last = shown.last?.id, let index = parsed.lastIndex(where: { $0.id == last }) else { return parsed }
+        let new = parsed[parsed.index(after: index)...]
+        return new.isEmpty ? shown : shown + new
     }
 }

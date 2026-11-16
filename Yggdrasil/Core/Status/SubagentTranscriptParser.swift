@@ -10,6 +10,12 @@ enum SubagentEntry: Equatable {
     case toolResult(toolUseID: String, preview: String, isError: Bool)
 }
 
+/// An entry and the identity its row keeps while the transcript grows.
+struct SubagentTranscriptItem: Equatable, Identifiable {
+    let id: String
+    let entry: SubagentEntry
+}
+
 /// Turns a subagent's transcript into `SubagentEntry`s. The format is Claude
 /// Code's own and undocumented, so anything unrecognised is skipped rather
 /// than failing the whole view: `thinking` blocks, `api-request*` and
@@ -35,19 +41,39 @@ enum SubagentTranscriptParser {
     /// `startsAtFileStart` false means the chunk begins mid-file, so its
     /// first line is a fragment and is dropped.
     static func entries(inTail data: Data, startsAtFileStart: Bool) -> [SubagentEntry] {
+        items(inTail: data, startsAtFileStart: startsAtFileStart).map(\.entry)
+    }
+
+    /// The entries with an identity that survives the tail window sliding:
+    /// the record's `uuid` plus the entry's place in that record. A record
+    /// without one falls back to a hash of its line; repeats get a suffix,
+    /// so ids stay unique either way.
+    static func items(inTail data: Data, startsAtFileStart: Bool) -> [SubagentTranscriptItem] {
         var lines = data.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: true)
         if !startsAtFileStart, !lines.isEmpty { lines.removeFirst() }
-        return lines.flatMap { line -> [SubagentEntry] in
-            guard let record = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any],
-                  let type = record["type"] as? String, type == "user" || type == "assistant",
-                  let message = record["message"] as? [String: Any]
+        var seen: [String: Int] = [:]
+        return lines.flatMap { line -> [SubagentTranscriptItem] in
+            guard let record = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any]
             else { return [] }
-            if let text = message["content"] as? String {
-                return type == "user" ? nonEmpty(text).map { [.prompt($0)] } ?? [] : []
+            let base = record["uuid"] as? String ?? "line-\(line.hashValue)"
+            return entries(of: record).enumerated().map { index, entry in
+                let id = "\(base)/\(index)"
+                let repeats = seen[id, default: 0]
+                seen[id] = repeats + 1
+                return SubagentTranscriptItem(id: repeats == 0 ? id : "\(id)~\(repeats)", entry: entry)
             }
-            guard let blocks = message["content"] as? [[String: Any]] else { return [] }
-            return blocks.compactMap(entry)
         }
+    }
+
+    private static func entries(of record: [String: Any]) -> [SubagentEntry] {
+        guard let type = record["type"] as? String, type == "user" || type == "assistant",
+              let message = record["message"] as? [String: Any]
+        else { return [] }
+        if let text = message["content"] as? String {
+            return type == "user" ? nonEmpty(text).map { [.prompt($0)] } ?? [] : []
+        }
+        guard let blocks = message["content"] as? [[String: Any]] else { return [] }
+        return blocks.compactMap(entry)
     }
 
     private static func entry(_ block: [String: Any]) -> SubagentEntry? {
