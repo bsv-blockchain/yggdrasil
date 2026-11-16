@@ -68,6 +68,12 @@ struct SubagentProbe {
     /// counts as running only while its transcript keeps growing.
     static let unmarkedActivityWindow: TimeInterval = 120
 
+    /// A workflow agent's journal says when it's done, but a run that's
+    /// stopped or whose claude crashes may never say so: its agents count
+    /// only while their transcripts were written this recently. Long, so a
+    /// slow tool call (a test suite, a build) doesn't hide a live agent.
+    static let workflowActivityWindow: TimeInterval = 30 * 60
+
     /// The subagents still working, in the order they started, in the
     /// newest conversation of the worktree's project folder: the one the
     /// status dot reads, which follows the tab's claude across /clear.
@@ -100,10 +106,10 @@ struct SubagentProbe {
             guard fileSystem.dates(atPath: "\(session)/workflows/\(run).json") == nil,
                   let journal = fileSystem.contents(atPath: "\(runs)/\(run)/journal.jsonl")
             else { return [] }
-            let suffix = "-\(run).js"
-            let name = scripts.first { $0.hasSuffix(suffix) }.map { String($0.dropLast(suffix.count)) } ?? run
-            let workflow = SubagentWorkflow(runID: run, name: name)
-            return WorkflowJournal.running(journal).compactMap { agent in
+            let workflow = SubagentWorkflow(runID: run, name: Self.workflowName(run: run, scripts: scripts))
+            // What the host's helper would refuse to tail isn't listed, here
+            // or there, so both list the same agents.
+            return WorkflowJournal.running(journal).filter { SubagentID.isValid("\(run):\($0)") }.compactMap { agent in
                 let path = "\(runs)/\(run)/agent-\(agent).jsonl"
                 guard let meta = fileSystem.contents(atPath: "\(runs)/\(run)/agent-\(agent).meta.json")
                 else { return nil }
@@ -114,6 +120,19 @@ struct SubagentProbe {
                 )
             }
         }
+    }
+
+    /// The run's name from its saved script, `<name>-<run>.js`; the last in
+    /// order when there are several, as the helper's glob picks. A name the
+    /// helper couldn't send as a field falls back to the run id.
+    static func workflowName(run: String, scripts: [String]) -> String {
+        let suffix = "-\(run).js"
+        guard let script = scripts.filter({ $0.hasSuffix(suffix) }).max() else { return run }
+        let name = String(script.dropLast(suffix.count))
+        let safe = !name.isEmpty && name.allSatisfy {
+            $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "_" || $0 == "-")
+        }
+        return safe ? name : run
     }
 
     /// How far before the tab's start a host's subagent may have last
@@ -146,9 +165,15 @@ struct SubagentProbe {
                   ofWorkflow || meta.finished != true
             else { return nil }
             if let since, let written = entry.modified, written < since { return nil }
-            if !ofWorkflow, meta.finished == nil {
-                guard let written = entry.modified,
-                      now.timeIntervalSince(written) <= unmarkedActivityWindow else { return nil }
+            let window: TimeInterval? = if ofWorkflow {
+                workflowActivityWindow
+            } else if meta.finished == nil {
+                unmarkedActivityWindow
+            } else {
+                nil
+            }
+            if let window {
+                guard let written = entry.modified, now.timeIntervalSince(written) <= window else { return nil }
             }
             let info = SubagentInfo(
                 agentID: entry.agentID,

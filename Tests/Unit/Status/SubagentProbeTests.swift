@@ -110,6 +110,51 @@ final class SubagentProbeTests: XCTestCase {
         XCTAssertEqual(found.first?.transcriptPath, "\(run)/agent-a1.jsonl")
     }
 
+    func testAWorkflowAgentWithoutRecentWorkIsLeftOut() {
+        // A stopped or crashed run may never get its <run>.json. Its agents
+        // fade once their transcripts go quiet, and one without a transcript
+        // doesn't show at all.
+        let meta = Data(#"{"agentType":"workflow-subagent"}"#.utf8)
+        let workflow = SubagentWorkflow(runID: "wf_01-ab", name: "x")
+        func entry(_ agent: String, modified: Date?) -> SubagentMetaEntry {
+            SubagentMetaEntry(
+                agentID: "wf_01-ab:\(agent)", meta: meta, modified: modified, created: nil,
+                transcriptPath: "/p", workflow: workflow
+            )
+        }
+        let found = SubagentProbe.select([
+            entry("live", modified: now.addingTimeInterval(-60)),
+            entry("quiet", modified: now.addingTimeInterval(-SubagentProbe.workflowActivityWindow - 1)),
+            entry("none", modified: nil)
+        ], since: nil, now: now)
+        XCTAssertEqual(found.map(\.agentID), ["wf_01-ab:live"])
+    }
+
+    func testWorkflowRunsAndAgentsTheHelperWouldRefuseAreSkipped() {
+        // The same rules as the host's helper, so a local tab and a host tab
+        // list the same agents and every listed one can be opened.
+        let files = conversation()
+        let good = "\(project)/s/subagents/workflows/wf_01-ab"
+        let bad = "\(project)/s/subagents/workflows/wf bad"
+        files.add("\(good)/journal.jsonl", """
+        {"type":"started","key":"k1","agentId":"a-2","label":"l","phase":"P"}
+        {"type":"started","key":"k2","agentId":"a3","label":"l","phase":"P"}
+        """)
+        files.add("\(bad)/journal.jsonl", #"{"type":"started","key":"k","agentId":"a1","label":"l","phase":"P"}"#)
+        for path in ["\(good)/agent-a-2", "\(good)/agent-a3", "\(bad)/agent-a1"] {
+            files.add("\(path).meta.json", #"{"agentType":"x"}"#)
+            files.add("\(path).jsonl", "", created: 10, modified: 20)
+        }
+        // Two scripts for the run: the helper's glob takes the last in order.
+        files.add("\(project)/s/workflows/scripts/alpha-wf_01-ab.js", "x")
+        files.add("\(project)/s/workflows/scripts/beta-wf_01-ab.js", "x")
+
+        let found = probe(files).unfinished(worktreePath: worktree, since: nil, now: now)
+
+        XCTAssertEqual(found.map(\.agentID), ["wf_01-ab:a3"])
+        XCTAssertEqual(found.first?.workflow?.name, "beta")
+    }
+
     func testAWorkflowAgentsTranscriptPath() {
         let files = conversation()
         XCTAssertEqual(

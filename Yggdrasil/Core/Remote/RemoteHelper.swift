@@ -214,25 +214,30 @@ enum RemoteHelper {
         for run in "$base"/subagents/workflows/*/; do
             [ -d "$run" ] || continue
             run=${run%/}; rid=${run##*/}
+            # A run subagent-tail would refuse isn't listed: selecting one of
+            # its agents would read as an old helper and reinstall it.
+            case "$rid" in *[!A-Za-z0-9_-]*) continue ;; esac
             [ -f "$base/workflows/$rid.json" ] && continue
             name=$rid
             for script in "$base/workflows/scripts/"*"-$rid.js"; do
                 [ -f "$script" ] && { name=${script##*/}; name=${name%-"$rid".js}; }
             done
-            started=" "; ended=" "
-            if [ -f "$run/journal.jsonl" ]; then
-                while IFS= read -r line || [ -n "$line" ]; do
-                    case "$line" in *'"agentId":"'*) ;; *) continue ;; esac
-                    aid=${line#*'"agentId":"'}; aid=${aid%%'"'*}
-                    case "$aid" in ''|*[!A-Za-z0-9]*) continue ;; esac
-                    case "$line" in
-                        *'"type":"started"'*) started="$started$aid " ;;
-                        *) ended="$ended$aid " ;;
-                    esac
-                done < "$run/journal.jsonl"
-            fi
-            for aid in $started; do
-                case "$ended" in *" $aid "*) continue ;; esac
+            # A name that would break the fields falls back to the run id.
+            case "$name" in ''|*[!A-Za-z0-9._-]*) name=$rid ;; esac
+            [ -f "$run/journal.jsonl" ] || continue
+            # The agents started and not since ended, once each, in the order
+            # they started. Each line's first key is its type. awk, not a sh
+            # loop: a big run's journal is a megabyte, every few seconds.
+            for aid in $(awk '
+                match($0, /^\\{"type":"[a-z_]+"/) {
+                    t = substr($0, 10, RLENGTH - 10)
+                    if (!match($0, /"agentId":"[A-Za-z0-9]+"/)) next
+                    a = substr($0, RSTART + 11, RLENGTH - 12)
+                    if (t != "started") ended[a] = 1
+                    else if (!(a in seen)) { seen[a] = 1; order[++n] = a }
+                }
+                END { for (i = 1; i <= n; i++) if (!(order[i] in ended)) print order[i] }
+            ' "$run/journal.jsonl"); do
                 m="$run/agent-$aid.meta.json"
                 [ -f "$m" ] || continue
                 meta=""
