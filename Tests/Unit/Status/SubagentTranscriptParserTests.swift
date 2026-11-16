@@ -79,6 +79,36 @@ final class SubagentTranscriptParserTests: XCTestCase {
         XCTAssertEqual(entries, [.prompt("[Request interrupted by user]"), .text("Done.")])
     }
 
+    func testEachEntryOfARecordGetsItsOwnIDFromTheRecordsUUID() {
+        let line = #"{"type":"assistant","uuid":"u1","message":{"content":[{"type":"text","text":"Looking."},"#
+            + #"{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"/a"}}]}}"#
+        let items = SubagentTranscriptParser.items(inTail: Data(line.utf8), startsAtFileStart: true)
+        XCTAssertEqual(items.map(\.id), ["u1/0", "u1/1"])
+    }
+
+    func testIDsStayTheSameWhenTheTailWindowSlides() {
+        // Past 1 MB the view reads a moving window: older lines fall off the
+        // front. Rows that are still there must keep their identity, or the
+        // list re-renders and jumps under the reader.
+        let records = ["a", "b", "c"].map {
+            #"{"type":"assistant","uuid":"\#($0)","message":{"content":[{"type":"text","text":"\#($0)"}]}}"#
+        }
+        let whole = SubagentTranscriptParser.items(
+            inTail: Data(records.joined(separator: "\n").utf8), startsAtFileStart: true
+        )
+        let slid = SubagentTranscriptParser.items(
+            inTail: Data((["ment\"}}"] + records.dropFirst()).joined(separator: "\n").utf8), startsAtFileStart: false
+        )
+        XCTAssertEqual(slid, Array(whole.dropFirst()))
+    }
+
+    func testRecordsWithoutAUUIDStillGetDistinctIDs() {
+        let line = #"{"type":"assistant","message":{"content":[{"type":"text","text":"Same."}]}}"#
+        let items = SubagentTranscriptParser.items(inTail: Data("\(line)\n\(line)".utf8), startsAtFileStart: true)
+        XCTAssertEqual(items.count, 2)
+        XCTAssertEqual(Set(items.map(\.id)).count, 2)
+    }
+
     private func parse(_ lines: [String]) -> [SubagentEntry] {
         SubagentTranscriptParser.entries(inTail: Data(lines.joined(separator: "\n").utf8), startsAtFileStart: true)
     }
