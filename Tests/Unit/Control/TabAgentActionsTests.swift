@@ -136,7 +136,7 @@ final class TabAgentActionsTests: XCTestCase {
         let codex = try AgentActions.add(name: "Codex", command: "codex", args: [], services: services)
         do {
             _ = try await TabActions.open(
-                .init(repo: repo, branchInput: "x", baseBranch: nil, host: nil, agent: codex, prompt: "go"),
+                .init(repo: repo, branchInput: "x", baseBranch: nil, host: nil, agent: codex, prompt: .custom("go")),
                 services: services
             )
             XCTFail("expected promptNeedsClaude")
@@ -150,7 +150,14 @@ final class TabAgentActionsTests: XCTestCase {
         let repo = try addRepo()
         let claude = try XCTUnwrap(services.agentStore.getDefault())
         let tabID = try await TabActions.open(
-            .init(repo: repo, branchInput: "x", baseBranch: nil, host: nil, agent: claude, prompt: "fix the build"),
+            .init(
+                repo: repo,
+                branchInput: "x",
+                baseBranch: nil,
+                host: nil,
+                agent: claude,
+                prompt: .custom("fix the build")
+            ),
             services: services
         )
         XCTAssertEqual(services.sessions.takePrompt(tabID: tabID), "fix the build")

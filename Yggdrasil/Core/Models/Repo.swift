@@ -20,6 +20,10 @@ struct Repo: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
     /// the repo itself (e.g. a private issue repo whose PRs go to a public
     /// one). Nil = same repo. Default target for "Link PR…".
     var prRepoID: Int64?
+    /// This repository's starting prompts (`StartingPrompt`) for a PR to
+    /// review and for an issue: nil uses the global one, empty is off.
+    var reviewPrompt: String?
+    var issuePrompt: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -32,6 +36,8 @@ struct Repo: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
         case upstreamName = "upstream_name"
         case upstreamCheckedAt = "upstream_checked_at"
         case prRepoID = "pr_repo_id"
+        case reviewPrompt = "review_prompt"
+        case issuePrompt = "issue_prompt"
     }
 
     mutating func didInsert(_ inserted: InsertionSuccess) {
@@ -48,6 +54,14 @@ struct Repo: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
     func prRepo(among repos: [Repo]) -> Repo {
         guard let prRepoID, let target = repos.first(where: { $0.id == prRepoID }) else { return self }
         return target
+    }
+
+    /// The repository's own template for `kind`; nil uses the global one.
+    func startingPrompt(_ kind: StartingPrompt.Kind) -> String? {
+        switch kind {
+        case .review: reviewPrompt
+        case .issue: issuePrompt
+        }
     }
 
     /// GitHub repos whose issues + PRs feed this tracked row: always the repo

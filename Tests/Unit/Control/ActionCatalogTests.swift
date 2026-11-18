@@ -23,7 +23,7 @@ final class ActionCatalogTests: XCTestCase {
         // Dragging rows; the pane header; the diff toolbar.
         "tab.reorder", "tab.setLayout", "tab.reloadGitHub", "tab.setDiffScope",
         // Settings → Repositories, Coding ▸ Add/Remove Tracked Repo, onboarding.
-        "repo.add", "repo.remove", "repo.setLocalPath", "repo.clone", "repo.setPRRepo",
+        "repo.add", "repo.remove", "repo.setLocalPath", "repo.clone", "repo.setPRRepo", "repo.setStartingPrompt",
         // Settings → Agents, Coding ▸ agent items.
         "agent.add", "agent.update", "agent.remove", "agent.setDefault",
         // Settings → Hosts.

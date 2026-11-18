@@ -50,7 +50,7 @@ enum TabActions {
         var agent: CodingAgent
         var select = true
         /// What a new Claude conversation starts with.
-        var prompt: String?
+        var prompt: StartingPrompt.Choice = .template
     }
 
     /// The New Session sheet's Start. The worktree is built in the background,
@@ -58,7 +58,11 @@ enum TabActions {
     /// cloned already; on a host it's cloned with the worktree.
     static func open(_ request: OpenRequest, services: AppServices) async throws -> Int64 {
         let repo = request.repo
-        try checkPrompt(request.prompt, agent: request.agent)
+        let prompt = try startingPrompt(
+            request.prompt,
+            for: branchSubject(request.branchInput, repo: repo, lenient: false, services: services),
+            repo: repo, agent: request.agent, services: services
+        )
         let plan = plan(branchInput: request.branchInput, agentName: request.agent.name, baseBranch: request.baseBranch)
         guard request.host != nil || repo.localMainPath != nil,
               let path = try services.plannedWorktreePath(repo: repo, branch: plan.branch, host: request.host)
@@ -70,15 +74,8 @@ enum TabActions {
         return try await insertAndPrepare(
             branch: plan.branch, path: path, taskID: taskID, baseRef: plan.baseRef,
             repo: repo, host: request.host, agent: request.agent, select: request.select,
-            prompt: request.prompt, services: services
+            prompt: prompt, services: services
         )
-    }
-
-    private static func checkPrompt(_ prompt: String?, agent: CodingAgent) throws {
-        guard prompt != nil else { return }
-        guard AgentTerminalSurface.pinsClaudeSession(command: agent.command, args: agent.args) else {
-            throw ActionError.promptNeedsClaude
-        }
     }
 
     // The open paths take what the New Session sheet and pickers collect.
@@ -86,9 +83,16 @@ enum TabActions {
     /// Opens a row of Assigned Tasks or Review Requests, linked to its task.
     static func openTask(
         _ task: YggdrasilTask, repo: Repo, mode: TaskPickerMode, host: RemoteHost?, agent: CodingAgent,
-        select: Bool = true, prompt: String? = nil, services: AppServices
+        select: Bool = true, prompt choice: StartingPrompt.Choice = .template, services: AppServices
     ) async throws -> Int64 {
-        try checkPrompt(prompt, agent: agent)
+        // From Review Requests it's a PR to review; from Assigned Tasks an
+        // issue, or a PR of your own, which gets none.
+        let subject: StartingPrompt.Subject? = switch (mode, task.type) {
+        case (.review, _): .init(kind: .review, number: task.number, url: task.githubURL)
+        case (.assigned, .issue): .init(kind: .issue, number: task.number, url: task.githubURL)
+        case (.assigned, .pullRequest): nil
+        }
+        let prompt = try startingPrompt(choice, for: subject, repo: repo, agent: agent, services: services)
         let branch = mode.branchName(for: task, agentName: agent.name)
         guard host != nil || repo.localMainPath != nil,
               let path = try services.plannedWorktreePath(repo: repo, branch: branch, host: host)
@@ -110,8 +114,11 @@ enum TabActions {
     /// not be synced, so the tab isn't linked to a task.
     static func openIssue(
         number: Int, title: String, url: String, repo: Repo, host: RemoteHost?, agent: CodingAgent,
-        select: Bool = true, services: AppServices
+        select: Bool = true, prompt choice: StartingPrompt.Choice = .template, services: AppServices
     ) async throws -> Int64 {
+        let prompt = try startingPrompt(
+            choice, for: .init(kind: .issue, number: number, url: url), repo: repo, agent: agent, services: services
+        )
         let issue = YggdrasilTask(
             id: nil, repoID: repo.id ?? 0, type: .issue, number: number,
             title: title, body: nil, state: .open, authorLogin: "",
@@ -125,7 +132,7 @@ enum TabActions {
         else { throw ActionError.repoNotCloned(repo.fullName) }
         return try await insertAndPrepare(
             branch: branch, path: path, taskID: nil, baseRef: nil,
-            repo: repo, host: host, agent: agent, select: select, services: services
+            repo: repo, host: host, agent: agent, select: select, prompt: prompt, services: services
         )
     }
 

@@ -203,6 +203,31 @@ enum ActionCatalog {
                 return .bool(true)
             },
             ControlAction(
+                name: "repo.setStartingPrompt",
+                summary: "Set a repository's own starting prompt for a PR to review or an issue. Leave prompt out to use the global one.",
+                scope: .full,
+                params: [
+                    repoParam,
+                    Param(
+                        "kind",
+                        .string,
+                        "Which tabs it's for.",
+                        choices: StartingPrompt.Kind.allCases.map(\.rawValue)
+                    ),
+                    Param("prompt", .string, startingPromptDoc("this repository's PR or issue"), required: false)
+                ]
+            ) { params, context in
+                let repo = try ControlEncoding.repo(named: params.string("repo"), services: context.services)
+                guard let kind = try StartingPrompt.Kind(rawValue: params.string("kind")) else {
+                    throw ActionError.invalidArgument("kind")
+                }
+                try RepoActions.setStartingPrompt(
+                    repoID: repo.id ?? 0, kind: kind, template: params.optionalString("prompt"),
+                    services: context.services
+                )
+                return .bool(true)
+            },
+            ControlAction(
                 name: "repo.clone", summary: "Clone a repository with gh and use the clone for its tabs.",
                 scope: .full,
                 params: [
@@ -383,7 +408,9 @@ enum ActionCatalog {
                         .boolean,
                         "Put both intervals back to their defaults.",
                         required: false
-                    )
+                    ),
+                    Param("reviewPrompt", .string, startingPromptDoc("a PR to review"), required: false),
+                    Param("issuePrompt", .string, startingPromptDoc("an issue"), required: false)
                 ]
             ) { params, context in
                 try await setSettings(params, services: context.services)
@@ -437,7 +464,18 @@ enum ActionCatalog {
                 statusProbeSeconds: params.optionalInt("statusProbeSeconds").map(Int.init), services: services
             )
         }
+        for kind in StartingPrompt.Kind.allCases {
+            if let template = params.optionalString("\(kind.rawValue)Prompt") {
+                try SettingsActions.setStartingPrompt(kind, template: template, services: services)
+            }
+        }
         return ControlEncoding.settings(SettingsActions.read(services: services))
+    }
+
+    /// What a `*Prompt` parameter is, for `subject`.
+    static func startingPromptDoc(_ subject: String) -> String {
+        "What a new tab for \(subject) starts its Claude with. "
+            + StartingPrompt.placeholders.joined(separator: ", ") + " are filled in. Empty: nothing."
     }
 }
 
