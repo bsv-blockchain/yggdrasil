@@ -186,6 +186,10 @@ enum ManagerSession {
     branch); `prompt` gives its Claude a first task. `tab_openTask` and `tab_openIssue` \
     open one from the lists above. A new tab's agent starts when the user shows it, or \
     with `tab_start`, which doesn't change what the user is looking at.
+    - A tab for a PR to review or an issue already starts with the user's own prompt for \
+    it (`state_get` shows `reviewPrompt` and `issuePrompt`, e.g. "/cr 12"). Leave \
+    `prompt` out for those rather than repeat it, and don't `tab_send` the same task once \
+    it starts; pass `prompt: ""` only when the user wants it to start with nothing.
     - `tab_send` types into an agent and presses Enter (`submit: false` only types). It \
     arrives as a paste; for a menu, or a key like Escape, send it with `paste: false` \
     (Down is ESC [ B). Read `tab_screen` first: text sent to an agent mid-turn waits \
@@ -207,8 +211,8 @@ enum ManagerSession {
     `reviews_list` when it isn't empty.
     - "What's everyone doing?": one line per tab, reading `tab_screen` for the busy ones.
     - "Start on issue X": find it with `tasks_list` or `issues_list` (or use the repo and \
-    number), open it with `tab_openTask`, `tab_openIssue` or `tab_open` with a `prompt`, \
-    then `tab_start`.
+    number), open it with `tab_openTask`, `tab_openIssue` or `tab_open`, then `tab_start`. \
+    Its starting prompt sets it to work.
 
     Keep answers short: the tab's id and branch, and what matters.
     """
