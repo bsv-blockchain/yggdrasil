@@ -58,10 +58,16 @@ enum TabActions {
     /// cloned already; on a host it's cloned with the worktree.
     static func open(_ request: OpenRequest, services: AppServices) async throws -> Int64 {
         let repo = request.repo
+        // The lookup only matters for the template; the sheet sends its own.
+        let subject = request.prompt == .template
+            ? branchSubject(request.branchInput, repo: repo, lenient: false, services: services)
+            : nil
         let prompt = try startingPrompt(
             request.prompt,
-            for: branchSubject(request.branchInput, repo: repo, lenient: false, services: services),
-            repo: repo, agent: request.agent, services: services
+            for: subject,
+            repo: repo,
+            agent: request.agent,
+            services: services
         )
         let plan = plan(branchInput: request.branchInput, agentName: request.agent.name, baseBranch: request.baseBranch)
         guard request.host != nil || repo.localMainPath != nil,

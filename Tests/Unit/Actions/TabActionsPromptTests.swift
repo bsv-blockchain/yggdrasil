@@ -6,8 +6,9 @@ import XCTest
 /// prompt waits in `SessionsModel` until the agent's first start.
 @MainActor
 final class TabActionsPromptTests: XCTestCase {
-    private var services: AppServices!
-    private var root: URL!
+    // Not private: the helpers are in an extension.
+    var services: AppServices!
+    var root: URL!
 
     override func setUp() async throws {
         services = try AppServices(database: YggdrasilDatabase.inMemory())
@@ -246,8 +247,53 @@ final class TabActionsPromptTests: XCTestCase {
         )
     }
 
-    // MARK: - Helpers
+    func testTheKindComesFromThePrefixAndTheLookupFromTheType() throws {
+        // A fork's row also holds its upstream's tasks, so issue #5 and PR #5
+        // can both be there.
+        let repo = try addRepo()
+        let pull = try addTask(repo: repo, type: .pullRequest, number: 5)
+        try markReviewRequested(pull)
+        _ = try addTask(repo: repo, type: .issue, number: 5)
+        func subject(_ input: String) -> StartingPrompt.Subject? {
+            TabActions.branchSubject(input, repo: repo, lenient: false, services: services)
+        }
+        XCTAssertEqual(subject("pr-5")?.url, "https://github.com/acme/widget/pull/5")
+        XCTAssertEqual(subject("issue-5")?.url, "https://github.com/acme/widget/issues/5")
+        // "issue" elsewhere in the name doesn't make it an issue.
+        XCTAssertEqual(subject("fix-issue-pr-5")?.kind, .review)
+    }
 
+    func testABareNumberIsWhateverTheSyncHasForIt() throws {
+        let repo = try addRepo()
+        _ = try addTask(repo: repo, type: .issue, number: 7)
+        let subject = TabActions.branchSubject("#7", repo: repo, lenient: false, services: services)
+        XCTAssertEqual(subject?.kind, .issue)
+        XCTAssertEqual(subject?.url, "https://github.com/acme/widget/issues/7")
+    }
+
+    func testAPastedURLIsForItsOwnRepository() throws {
+        // The sheet's picker can still be on another repo when a URL is pasted.
+        let widget = try addRepo()
+        let other = try addRepo(name: "gadget")
+        try RepoActions.setStartingPrompt(
+            repoID: XCTUnwrap(other.id),
+            kind: .review,
+            template: "/gadget {number}",
+            services: services
+        )
+        let input = "https://github.com/acme/gadget/pull/15"
+        XCTAssertEqual(NewTabSheet.repo(forBranchInput: input, among: [widget, other])?.id, other.id)
+        XCTAssertNil(NewTabSheet.repo(forBranchInput: "pr-15", among: [widget, other]))
+        XCTAssertEqual(
+            try TabActions.suggestedPrompt(branchInput: input, repo: other, agent: claude(), services: services),
+            "/gadget 15"
+        )
+    }
+}
+
+// MARK: - Helpers
+
+extension TabActionsPromptTests {
     private func openPrompt(_ repo: Repo, _ branch: String) async throws -> String? {
         let tabID = try await TabActions.open(
             .init(repo: repo, branchInput: branch, baseBranch: nil, host: nil, agent: claude(), select: false),
@@ -264,11 +310,11 @@ final class TabActionsPromptTests: XCTestCase {
         try XCTUnwrap(services.agentStore.getDefault())
     }
 
-    private func addRepo() throws -> Repo {
+    private func addRepo(name: String = "widget") throws -> Repo {
         let repo = try services.database.queue.write { db -> Repo in
             var repo = Repo(
-                id: nil, owner: "acme", name: "widget", defaultBranch: "main",
-                localMainPath: root.appendingPathComponent("widget").path, addedAt: Date()
+                id: nil, owner: "acme", name: name, defaultBranch: "main",
+                localMainPath: root.appendingPathComponent(name).path, addedAt: Date()
             )
             try repo.insert(db)
             return repo
@@ -282,7 +328,8 @@ final class TabActionsPromptTests: XCTestCase {
             var task = YggdrasilTask(
                 id: nil, repoID: repo.id!, type: type, number: number,
                 title: "T\(number)", body: nil, state: .open, authorLogin: "someone",
-                githubURL: "https://github.com/acme/widget/\(type == .issue ? "issues" : "pull")/\(number)", apiURL: "",
+                githubURL: "https://github.com/\(repo.fullName)/\(type == .issue ? "issues" : "pull")/\(number)",
+                apiURL: "",
                 createdAt: Date(), updatedAt: Date(), lastSyncedAt: Date(),
                 etag: nil, labelsJSON: "[]", milestoneTitle: nil
             )

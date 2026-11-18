@@ -273,7 +273,11 @@ struct NewTabSheet: View {
                     .foregroundStyle(YggdrasilTheme.textDim(scheme))
                 TextField("None", text: Binding(
                     get: { startingPrompt },
-                    set: { startingPrompt = $0
+                    // Only a real change counts as an edit: a call with the
+                    // same text must not stop the field following the branch.
+                    set: { text in
+                        guard text != startingPrompt else { return }
+                        startingPrompt = text
                         startingPromptEdited = true
                     }
                 ))
@@ -309,7 +313,9 @@ struct NewTabSheet: View {
     /// their own.
     private func suggestStartingPrompt() {
         guard !startingPromptEdited else { return }
-        guard let repo = selectedRepo, let agent = agents.first(where: { $0.id == selectedAgentID }) else {
+        guard let repo = Self.repo(forBranchInput: branchName, among: repos) ?? selectedRepo,
+              let agent = agents.first(where: { $0.id == selectedAgentID })
+        else {
             startingPrompt = ""
             return
         }
@@ -381,10 +387,10 @@ struct NewTabSheet: View {
         // If the user pasted a GitHub URL, switch the repo picker to the
         // matching tracked repo (when available) before resolving the rest
         // of the confirm path. Avoids "wrong repo" surprises.
-        let interpretedSlug = Self.interpretBranchInput(branchName).repoSlug
-        if let slug = interpretedSlug,
-           let match = repos.first(where: { "\($0.owner)/\($0.name)".lowercased() == slug.lowercased() }) {
+        if let match = Self.repo(forBranchInput: branchName, among: repos) {
             selectedRepoID = match.id
+            // The prompt follows the repo the URL names.
+            suggestStartingPrompt()
         }
 
         guard let repoID = selectedRepoID,
@@ -474,6 +480,12 @@ struct NewTabSheet: View {
             self.error = "Could not clone \(repo.fullName). Check your network connection and that you're signed in with gh, then try again."
             return false
         }
+    }
+
+    /// The tracked repository a pasted GitHub URL names, if any.
+    static func repo(forBranchInput input: String, among repos: [Repo]) -> Repo? {
+        guard let slug = interpretBranchInput(input).repoSlug?.lowercased() else { return nil }
+        return repos.first { $0.fullName.lowercased() == slug }
     }
 
     /// Extracts a PR/issue number from a branch name like "pr-643" or "#643",

@@ -127,8 +127,6 @@ struct GeneralPrefsPane: View {
         }
     }
 
-    /// Applies once the stepper has been still for a moment: every apply
-    /// rebuilds the scheduler, which syncs GitHub immediately.
     private func setStartingPrompt(_ kind: StartingPrompt.Kind, _ template: String) -> Bool {
         do {
             try SettingsActions.setStartingPrompt(kind, template: template, services: services)
@@ -142,6 +140,8 @@ struct GeneralPrefsPane: View {
         return true
     }
 
+    /// Applies once the stepper has been still for a moment: every apply
+    /// rebuilds the scheduler, which syncs GitHub immediately.
     private func applyIntervals() {
         pendingApply?.cancel()
         let (sync, status) = (syncSeconds, statusProbeSeconds)

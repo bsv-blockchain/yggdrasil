@@ -135,6 +135,8 @@ struct RepoPrefsPane: View {
                     global: SettingsActions.startingPrompt(kind, services: services)
                 ) { template in
                     updateStartingPrompt(kind, template, for: repo)
+                } onEdit: { template in
+                    editStartingPrompt(kind, template, for: repo)
                 }
             }
         } header: {
@@ -164,6 +166,17 @@ struct RepoPrefsPane: View {
     }
 
     // MARK: - Actions
+
+    /// Saves a typed custom template, unless the repository has left Custom
+    /// meanwhile: switching the picker removes the field, which saves what
+    /// was typed on its way out.
+    private func editStartingPrompt(_ kind: StartingPrompt.Kind, _ template: String, for repo: Repo) -> Bool {
+        guard let id = repo.id else { return false }
+        let current = try? services.database.queue.read { db in try Repo.fetchOne(db, key: id) }
+        guard let stored = current?.startingPrompt(kind), !stored.isEmpty else { return true }
+        updateStartingPrompt(kind, template, for: repo)
+        return true
+    }
 
     private func updateStartingPrompt(_ kind: StartingPrompt.Kind, _ template: String?, for repo: Repo) {
         guard let id = repo.id else { return }
@@ -292,6 +305,8 @@ private struct StartingPromptOverride: View {
     let value: String?
     let global: String
     let onChange: (String?) -> Void
+    /// A custom template typed in; false puts the field back.
+    let onEdit: (String) -> Bool
 
     private enum Mode: Hashable {
         case global
@@ -318,9 +333,9 @@ private struct StartingPromptOverride: View {
             Text("None").tag(Mode.none)
         }
         if mode == .custom {
-            SettingsTextField(title: "Prompt", prompt: "None", value: value ?? "") { template in
-                onChange(template)
-                return true
+            // Empty puts the text back: None is how to turn it off.
+            SettingsTextField(title: "Prompt", prompt: global, value: value ?? "") { template in
+                !template.isEmpty && onEdit(template)
             }
         }
     }

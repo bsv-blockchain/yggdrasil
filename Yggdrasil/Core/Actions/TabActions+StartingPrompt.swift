@@ -34,38 +34,57 @@ extension TabActions {
     }
 
     /// The PR or issue a typed branch names: `pr-N`, `issue-N`, `#N` or a
-    /// GitHub URL. A PR is one to review as Review Requests defines it, or,
-    /// when `lenient`, when it isn't known to be one of the user's own.
+    /// GitHub URL. The prefix the number follows says which; a bare `#N` is
+    /// whatever the sync has for it, else a PR. A PR is one to review as
+    /// Review Requests defines it, or, when `lenient`, when it isn't known to
+    /// be one of the user's own.
     static func branchSubject(
         _ branchInput: String, repo: Repo, lenient: Bool, services: AppServices
     ) -> StartingPrompt.Subject? {
         let branch = NewTabSheet.interpretBranchInput(branchInput).branch
         guard let number = NewTabSheet.parsePRNumber(branch), let repoID = repo.id else { return nil }
-        let isIssue = branch.lowercased().contains("issue")
-        let synced = try? services.database.queue.read { db -> SyncedTask? in
-            guard let task = try YggdrasilTask
+        let named = namedKind(branchInput: branchInput, branch: branch)
+        // By type too: a fork's row holds its upstream's tasks, so issue #5
+        // and PR #5 can both be there.
+        let synced = (try? services.database.queue.read { db -> [SyncedTask] in
+            try YggdrasilTask
                 .filter(Column("repo_id") == repoID && Column("number") == number)
-                .fetchOne(db), let taskID = task.id
-            else { return nil }
-            return try SyncedTask(
-                task: task,
-                toReview: TaskQueries.isToReview(db, taskID: taskID),
-                mine: PRAuthored.fetchOne(db, key: taskID) != nil
-            )
-        }
-        let found = synced ?? nil
-        if isIssue {
-            let url = found?.task.githubURL ?? "https://github.com/\(repo.fullName)/issues/\(number)"
+                .fetchAll(db)
+                .compactMap { task in
+                    guard let taskID = task.id else { return nil }
+                    return try SyncedTask(
+                        task: task,
+                        toReview: TaskQueries.isToReview(db, taskID: taskID),
+                        mine: PRAuthored.fetchOne(db, key: taskID) != nil
+                    )
+                }
+        }) ?? []
+        let issue = synced.first { $0.task.type == .issue }
+        let pull = synced.first { $0.task.type == .pullRequest }
+        let kind = named ?? (issue != nil && pull == nil ? .issue : .review)
+        if kind == .issue {
+            let url = issue?.task.githubURL ?? "https://github.com/\(repo.fullName)/issues/\(number)"
             return .init(kind: .issue, number: number, url: url)
         }
-        let isReview = if let found {
-            found.toReview || (lenient && found.task.type == .pullRequest && !found.mine)
+        let isReview = if let pull {
+            pull.toReview || (lenient && !pull.mine)
         } else {
             lenient
         }
         guard isReview else { return nil }
-        let url = found?.task.githubURL ?? "https://github.com/\(repo.fullName)/pull/\(number)"
+        let url = pull?.task.githubURL ?? "https://github.com/\(repo.fullName)/pull/\(number)"
         return .init(kind: .review, number: number, url: url)
+    }
+
+    /// `.issue` or `.review` from the `issue`/`pr` prefix right before the
+    /// number (so `fix-issue-pr-12` is a PR), or nil for a bare `#N` or `N`.
+    private static func namedKind(branchInput: String, branch: String) -> StartingPrompt.Kind? {
+        let input = branchInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if input.drop(while: { $0 == "#" }).allSatisfy(\.isNumber) { return nil }
+        guard let match = branch.lowercased().firstMatch(of: #/(?:^|-)(?:review-)?(pr|issue)[-/]?\d+$/#) else {
+            return nil
+        }
+        return match.1 == "issue" ? .issue : .review
     }
 
     /// A synced task, whether it's a PR to review, and whether the user wrote it.
