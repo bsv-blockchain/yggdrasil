@@ -203,6 +203,30 @@ final class TabActionsPromptTests: XCTestCase {
         XCTAssertNil(plainPrompt, "a plain branch")
     }
 
+    func testAPRAssignedToYouThatSomeoneElseWroteIsOneToReview() async throws {
+        // As Review Requests lists it, on every path: tab.open, and
+        // openTask even when it isn't in the list (it already has a tab).
+        let repo = try addRepo()
+        let assigned = try addTask(repo: repo, type: .pullRequest, number: 20)
+        try markAssigned(assigned)
+        let opened = try await openPrompt(repo, "pr-20")
+        XCTAssertEqual(opened, "/cr 20")
+        let again = try await TabActions.openTask(
+            assigned, repo: repo, mode: .assigned, host: nil, agent: claude(), services: services
+        )
+        XCTAssertEqual(services.sessions.takePrompt(tabID: again), "/cr 20")
+    }
+
+    func testYourOwnPRYouWereAskedToReviewIsOneToReview() async throws {
+        // Review Requests lists it, so it starts like the others there.
+        let repo = try addRepo()
+        let both = try addTask(repo: repo, type: .pullRequest, number: 21)
+        try markAuthored(both)
+        try markReviewRequested(both)
+        let opened = try await openPrompt(repo, "pr-21")
+        XCTAssertEqual(opened, "/cr 21")
+    }
+
     func testTheSheetSuggestsTheTemplateForAnyPRButYourOwn() throws {
         let repo = try addRepo()
         let mine = try addTask(repo: repo, type: .pullRequest, number: 13)
@@ -270,6 +294,12 @@ final class TabActionsPromptTests: XCTestCase {
     private func markReviewRequested(_ task: YggdrasilTask) throws {
         try services.database.queue.write { db in
             try PRReviewRequest(taskID: task.id!, requestedAt: Date()).insert(db)
+        }
+    }
+
+    private func markAssigned(_ task: YggdrasilTask) throws {
+        try services.database.queue.write { db in
+            try PRAssigned(taskID: task.id!, recordedAt: Date()).insert(db)
         }
     }
 

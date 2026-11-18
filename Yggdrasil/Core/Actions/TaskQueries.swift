@@ -15,15 +15,27 @@ enum TaskQueries {
 
     /// PRs to review: review-requested, plus assigned but not authored. A PR
     /// I both wrote and was asked to review lands here too.
-    private static let toReviewFilter = """
+    private static let reviewPRFilter = """
     task.type = 'pr'
       AND (
         task.id IN (SELECT task_id FROM pr_review_request)
      OR (task.id IN (SELECT task_id FROM pr_assigned)
          AND task.id NOT IN (SELECT task_id FROM pr_authored))
       )
+    """
+
+    private static let toReviewFilter = """
+    \(reviewPRFilter)
       AND task.id NOT IN (\(openedTaskIDsSQL))
     """
+
+    /// Whether the task is a PR to review, as Review Requests defines it,
+    /// whether or not a tab has it already.
+    static func isToReview(_ db: Database, taskID: Int64) throws -> Bool {
+        try Bool.fetchOne(
+            db, sql: "SELECT EXISTS (SELECT 1 FROM task WHERE task.id = ? AND \(reviewPRFilter))", arguments: [taskID]
+        ) ?? false
+    }
 
     /// Issues assigned to me (the sync only mirrors those) plus PRs I wrote.
     private static let assignedFilter = """

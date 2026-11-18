@@ -1,7 +1,7 @@
 import Foundation
 
 /// What a new tab's Claude starts with when the tab is for a PR to review
-/// or an issue: a template the user sets globally (Settings ▸ Agents) and
+/// or an issue: a template the user sets globally (Settings ▸ General) and
 /// per repository, filled in for that PR or issue.
 enum StartingPrompt {
     enum Kind: String, CaseIterable {

@@ -34,8 +34,8 @@ extension TabActions {
     }
 
     /// The PR or issue a typed branch names: `pr-N`, `issue-N`, `#N` or a
-    /// GitHub URL. A PR is one to review when it's in Review Requests, or,
-    /// when `lenient`, when it isn't one of the user's own.
+    /// GitHub URL. A PR is one to review as Review Requests defines it, or,
+    /// when `lenient`, when it isn't known to be one of the user's own.
     static func branchSubject(
         _ branchInput: String, repo: Repo, lenient: Bool, services: AppServices
     ) -> StartingPrompt.Subject? {
@@ -49,7 +49,7 @@ extension TabActions {
             else { return nil }
             return try SyncedTask(
                 task: task,
-                requested: PRReviewRequest.fetchOne(db, key: taskID) != nil,
+                toReview: TaskQueries.isToReview(db, taskID: taskID),
                 mine: PRAuthored.fetchOne(db, key: taskID) != nil
             )
         }
@@ -59,7 +59,7 @@ extension TabActions {
             return .init(kind: .issue, number: number, url: url)
         }
         let isReview = if let found {
-            found.task.type == .pullRequest && !found.mine && (found.requested || lenient)
+            found.toReview || (lenient && found.task.type == .pullRequest && !found.mine)
         } else {
             lenient
         }
@@ -68,11 +68,17 @@ extension TabActions {
         return .init(kind: .review, number: number, url: url)
     }
 
-    /// A synced task, and whether the user was asked to review it or wrote it.
+    /// A synced task, whether it's a PR to review, and whether the user wrote it.
     private struct SyncedTask {
         let task: YggdrasilTask
-        let requested: Bool
+        let toReview: Bool
         let mine: Bool
+    }
+
+    /// Whether a synced task is a PR to review (`TaskQueries.isToReview`).
+    static func isToReview(_ task: YggdrasilTask, services: AppServices) -> Bool {
+        guard let id = task.id else { return false }
+        return (try? services.database.queue.read { db in try TaskQueries.isToReview(db, taskID: id) }) ?? false
     }
 
     private static func takesPrompt(_ agent: CodingAgent) -> Bool {

@@ -12,7 +12,7 @@ extension ActionCatalog {
     private static let prompt = Param(
         "prompt", .string, """
         What the new Claude conversation starts with, once its worktree is ready and it starts. Left out, a \
-        PR to review or an issue starts with the user's template for it (Settings ▸ Agents, e.g. "/cr 12"), \
+        PR to review or an issue starts with the user's template for it (Settings ▸ General, e.g. "/cr 12"), \
         so don't send the same instruction again; "" starts with nothing. On a host it passes through the \
         command line, so other users of that host can see it in their process list.
         """, required: false

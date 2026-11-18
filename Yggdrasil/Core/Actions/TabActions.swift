@@ -86,11 +86,13 @@ enum TabActions {
         select: Bool = true, prompt choice: StartingPrompt.Choice = .template, services: AppServices
     ) async throws -> Int64 {
         // From Review Requests it's a PR to review; from Assigned Tasks an
-        // issue, or a PR of your own, which gets none.
+        // issue, or a PR of your own, which gets none. A PR to review that
+        // already has a tab isn't in Review Requests and comes as assigned.
+        let review = StartingPrompt.Subject(kind: .review, number: task.number, url: task.githubURL)
         let subject: StartingPrompt.Subject? = switch (mode, task.type) {
-        case (.review, _): .init(kind: .review, number: task.number, url: task.githubURL)
+        case (.review, _): review
         case (.assigned, .issue): .init(kind: .issue, number: task.number, url: task.githubURL)
-        case (.assigned, .pullRequest): nil
+        case (.assigned, .pullRequest): isToReview(task, services: services) ? review : nil
         }
         let prompt = try startingPrompt(choice, for: subject, repo: repo, agent: agent, services: services)
         let branch = mode.branchName(for: task, agentName: agent.name)
