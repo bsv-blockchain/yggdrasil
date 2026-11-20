@@ -29,6 +29,10 @@ struct NewTabSheet: View {
     @State private var inProgress: Bool = false
     @State private var cloning: Bool = false
     @State private var error: String?
+    /// What the new Claude conversation starts with. Follows the template for
+    /// the PR or issue the branch names until the user edits it.
+    @State private var startingPrompt = ""
+    @State private var startingPromptEdited = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -83,7 +87,10 @@ struct NewTabSheet: View {
         .onAppear(perform: load)
         .onChange(of: selectedRepoID) { _, _ in
             baseBranch = selectedRepo?.defaultBranch ?? ""
+            suggestStartingPrompt()
         }
+        .onChange(of: branchName) { _, _ in suggestStartingPrompt() }
+        .onChange(of: selectedAgentID) { _, _ in suggestStartingPrompt() }
         .accessibilityIdentifier("sidebar.newtab.sheet")
     }
 
@@ -246,7 +253,75 @@ struct NewTabSheet: View {
                 .foregroundStyle(YggdrasilTheme.textMute(scheme))
                 .fixedSize(horizontal: false, vertical: true)
             }
+
+            if selectedAgentTakesPrompt {
+                startingPromptRow
+            }
         }
+    }
+
+    private var startingPromptRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Starting prompt")
+                .font(.system(size: 11, weight: .semibold))
+                .tracking(0.4)
+                .textCase(.uppercase)
+                .foregroundStyle(YggdrasilTheme.textMute(scheme))
+
+            HStack(spacing: 7) {
+                Image(systemName: "text.bubble")
+                    .foregroundStyle(YggdrasilTheme.textDim(scheme))
+                TextField("None", text: Binding(
+                    get: { startingPrompt },
+                    // Only a real change counts as an edit: a call with the
+                    // same text must not stop the field following the branch.
+                    set: { text in
+                        guard text != startingPrompt else { return }
+                        startingPrompt = text
+                        startingPromptEdited = true
+                    }
+                ))
+                .textFieldStyle(.plain)
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundStyle(YggdrasilTheme.text(scheme))
+                .accessibilityIdentifier("newtab.prompt")
+            }
+            .padding(.horizontal, 11)
+            .frame(height: 32)
+            .background(YggdrasilTheme.bgPaneSoft(scheme))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(YggdrasilTheme.border(scheme), lineWidth: 0.5)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+
+            Text(
+                "What Claude starts with. Filled in for a PR to review or an issue from Settings ▸ General; empty sends nothing."
+            )
+            .font(.system(size: 10))
+            .foregroundStyle(YggdrasilTheme.textMute(scheme))
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var selectedAgentTakesPrompt: Bool {
+        guard let agent = agents.first(where: { $0.id == selectedAgentID }) else { return false }
+        return AgentTerminalSurface.pinsClaudeSession(command: agent.command, args: agent.args)
+    }
+
+    /// The template for what the branch names, unless the user has written
+    /// their own.
+    private func suggestStartingPrompt() {
+        guard !startingPromptEdited else { return }
+        guard let repo = Self.repo(forBranchInput: branchName, among: repos) ?? selectedRepo,
+              let agent = agents.first(where: { $0.id == selectedAgentID })
+        else {
+            startingPrompt = ""
+            return
+        }
+        startingPrompt = (try? TabActions.suggestedPrompt(
+            branchInput: branchName, repo: repo, agent: agent, services: services
+        )) ?? ""
     }
 
     private var defaultBranchPlaceholder: String {
@@ -312,10 +387,10 @@ struct NewTabSheet: View {
         // If the user pasted a GitHub URL, switch the repo picker to the
         // matching tracked repo (when available) before resolving the rest
         // of the confirm path. Avoids "wrong repo" surprises.
-        let interpretedSlug = Self.interpretBranchInput(branchName).repoSlug
-        if let slug = interpretedSlug,
-           let match = repos.first(where: { "\($0.owner)/\($0.name)".lowercased() == slug.lowercased() }) {
+        if let match = Self.repo(forBranchInput: branchName, among: repos) {
             selectedRepoID = match.id
+            // The prompt follows the repo the URL names.
+            suggestStartingPrompt()
         }
 
         guard let repoID = selectedRepoID,
@@ -344,7 +419,10 @@ struct NewTabSheet: View {
             // The worktree is built in the background: doing it here blocked
             // the sheet on `git fetch`, and behind every PR fetch in flight.
             _ = try await TabActions.open(
-                .init(repo: repo, branchInput: branchName, baseBranch: baseBranch, host: host, agent: agent),
+                .init(
+                    repo: repo, branchInput: branchName, baseBranch: baseBranch, host: host, agent: agent,
+                    prompt: selectedAgentTakesPrompt ? StartingPrompt.Choice(startingPrompt) : .none
+                ),
                 services: services
             )
             dismiss()
@@ -402,6 +480,12 @@ struct NewTabSheet: View {
             self.error = "Could not clone \(repo.fullName). Check your network connection and that you're signed in with gh, then try again."
             return false
         }
+    }
+
+    /// The tracked repository a pasted GitHub URL names, if any.
+    static func repo(forBranchInput input: String, among repos: [Repo]) -> Repo? {
+        guard let slug = interpretBranchInput(input).repoSlug?.lowercased() else { return nil }
+        return repos.first { $0.fullName.lowercased() == slug }
     }
 
     /// Extracts a PR/issue number from a branch name like "pr-643" or "#643",

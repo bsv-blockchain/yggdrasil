@@ -11,8 +11,10 @@ extension ActionCatalog {
     private static let agent = Param("agent", .string, "Agent name. Default: the default agent.", required: false)
     private static let prompt = Param(
         "prompt", .string, """
-        What the new Claude conversation starts with, once its worktree is ready and it starts. On a host it \
-        passes through the command line, so other users of that host can see it in their process list.
+        What the new Claude conversation starts with, once its worktree is ready and it starts. Left out, a \
+        PR to review or an issue starts with the user's template for it (Settings ▸ General, e.g. "/cr 12"), \
+        so don't send the same instruction again; "" starts with nothing. On a host it passes through the \
+        command line, so other users of that host can see it in their process list.
         """, required: false
     )
     private static let select = Param(
@@ -77,7 +79,8 @@ extension ActionCatalog {
                     task, repo: repo, mode: toReview ? .review : .assigned,
                     host: ControlEncoding.host(named: params.optionalString("host"), services: services),
                     agent: ControlEncoding.agent(named: params.optionalString("agent"), services: services),
-                    select: params.bool("select", default: false), prompt: params.optionalString("prompt"),
+                    select: params.bool("select", default: false),
+                    prompt: StartingPrompt.Choice(params.optionalString("prompt")),
                     services: services
                 ))
             },
@@ -88,7 +91,7 @@ extension ActionCatalog {
                     Param("repo", .string, "owner/name; must be tracked."),
                     Param("number", .integer, "The issue number."),
                     Param("title", .string, "Its title.", required: false),
-                    host, agent, select
+                    host, agent, prompt, select
                 ]
             ) { params, context in
                 let services = context.services
@@ -99,7 +102,8 @@ extension ActionCatalog {
                     url: "https://github.com/\(repo.fullName)/issues/\(number)", repo: repo,
                     host: ControlEncoding.host(named: params.optionalString("host"), services: services),
                     agent: ControlEncoding.agent(named: params.optionalString("agent"), services: services),
-                    select: params.bool("select", default: false), services: services
+                    select: params.bool("select", default: false),
+                    prompt: StartingPrompt.Choice(params.optionalString("prompt")), services: services
                 ))
             },
             ControlAction(
@@ -140,7 +144,7 @@ extension ActionCatalog {
             .init(
                 repo: repo, branchInput: branch, baseBranch: params.optionalString("base") ?? repo.defaultBranch,
                 host: host, agent: agent, select: params.bool("select", default: false),
-                prompt: params.optionalString("prompt")
+                prompt: StartingPrompt.Choice(params.optionalString("prompt"))
             ),
             services: services
         ))

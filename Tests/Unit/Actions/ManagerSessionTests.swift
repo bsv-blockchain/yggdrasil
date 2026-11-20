@@ -73,6 +73,14 @@ final class ManagerSessionTests: XCTestCase {
         }
     }
 
+    func testThePromptKnowsReviewAndIssueTabsStartThemselves() {
+        // Otherwise the session sends "/cr 12" to a tab that already started
+        // with it.
+        let prompt = ManagerSession.instructions
+        XCTAssertTrue(prompt.contains("reviewPrompt"), prompt)
+        XCTAssertTrue(prompt.contains("Leave `prompt` out"), prompt)
+    }
+
     func testClaudeItselfAsksBeforeAnythingThatChangesThings() throws {
         // The prompt's rule alone didn't hold: the model took "close X" as
         // the yes. Claude Code's "ask" rules prompt even with

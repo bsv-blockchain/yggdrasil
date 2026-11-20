@@ -115,7 +115,9 @@ enum ControlEncoding {
             "repo": .string(repo.fullName),
             "defaultBranch": .string(repo.defaultBranch),
             "localPath": .optional(repo.localMainPath),
-            "prRepoID": .optional(repo.prRepoID)
+            "prRepoID": .optional(repo.prRepoID),
+            "reviewPrompt": repo.reviewPrompt.map(JSONValue.string) ?? .null,
+            "issuePrompt": repo.issuePrompt.map(JSONValue.string) ?? .null
         ])
     }
 
@@ -150,7 +152,9 @@ enum ControlEncoding {
             "groupByRepo": .bool(settings.groupByRepo),
             "defaultHostID": .optional(settings.defaultHostID),
             "syncSeconds": .int(settings.syncSeconds),
-            "statusProbeSeconds": .int(settings.statusProbeSeconds)
+            "statusProbeSeconds": .int(settings.statusProbeSeconds),
+            "reviewPrompt": .string(settings.reviewPrompt),
+            "issuePrompt": .string(settings.issuePrompt)
         ])
     }
 

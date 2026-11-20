@@ -58,6 +58,23 @@ enum RepoActions {
         }
     }
 
+    /// The repository's own starting prompt for `kind`: a template, empty
+    /// for none, or nil to use the global one. Only that column is written,
+    /// so a stale copy of the row saved elsewhere can't undo it.
+    static func setStartingPrompt(
+        repoID: Int64, kind: StartingPrompt.Kind, template: String?, services: AppServices
+    ) throws {
+        let column = switch kind {
+        case .review: "review_prompt"
+        case .issue: "issue_prompt"
+        }
+        let value = template?.trimmingCharacters(in: .whitespacesAndNewlines)
+        try services.database.queue.write { db in
+            try db.execute(sql: "UPDATE repo SET \(column) = ? WHERE id = ?", arguments: [value, repoID])
+            guard db.changesCount == 1 else { throw ActionError.unknownRepo(repoID) }
+        }
+    }
+
     private static func requireFolder(_ path: String) throws {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
@@ -183,6 +200,9 @@ enum SettingsActions {
         var defaultHostID: Int64?
         var syncSeconds: Int
         var statusProbeSeconds: Int
+        /// The global starting-prompt templates; empty is off.
+        var reviewPrompt: String
+        var issuePrompt: String
     }
 
     static func read(services: AppServices, defaults: UserDefaults = .standard) -> Snapshot {
@@ -192,7 +212,23 @@ enum SettingsActions {
             groupByRepo: AppearanceSettings.readGroupByRepo(services: services),
             defaultHostID: services.defaultHostID,
             syncSeconds: services.intervals.syncSeconds,
-            statusProbeSeconds: services.intervals.statusProbeSeconds
+            statusProbeSeconds: services.intervals.statusProbeSeconds,
+            reviewPrompt: startingPrompt(.review, services: services),
+            issuePrompt: startingPrompt(.issue, services: services)
+        )
+    }
+
+    /// The global starting-prompt template for `kind`, or its default.
+    static func startingPrompt(_ kind: StartingPrompt.Kind, services: AppServices) -> String {
+        StartingPrompt.template(
+            kind, repoOverride: nil, global: try? services.settingsStore.get(forKey: StartingPrompt.settingKey(kind))
+        )
+    }
+
+    /// Sets the global starting-prompt template for `kind`; empty turns it off.
+    static func setStartingPrompt(_ kind: StartingPrompt.Kind, template: String, services: AppServices) throws {
+        try services.settingsStore.set(
+            template.trimmingCharacters(in: .whitespacesAndNewlines), forKey: StartingPrompt.settingKey(kind)
         )
     }
 

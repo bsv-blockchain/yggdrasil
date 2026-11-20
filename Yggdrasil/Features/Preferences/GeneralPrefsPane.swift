@@ -13,6 +13,8 @@ struct GeneralPrefsPane: View {
     @State private var syncSeconds: Int
     @State private var statusProbeSeconds: Int
     @State private var pendingApply: Task<Void, Never>?
+    @State private var reviewPrompt: String
+    @State private var issuePrompt: String
 
     /// State is read up front so the `onChange` handlers only see user edits.
     init(services: AppServices) {
@@ -26,6 +28,8 @@ struct GeneralPrefsPane: View {
             .defaultHostID : nil)
         _syncSeconds = State(initialValue: services.intervals.syncSeconds)
         _statusProbeSeconds = State(initialValue: services.intervals.statusProbeSeconds)
+        _reviewPrompt = State(initialValue: SettingsActions.startingPrompt(.review, services: services))
+        _issuePrompt = State(initialValue: SettingsActions.startingPrompt(.issue, services: services))
     }
 
     var body: some View {
@@ -59,6 +63,24 @@ struct GeneralPrefsPane: View {
             }
 
             Section {
+                SettingsTextField(title: "PR to review", prompt: "None", value: reviewPrompt) { template in
+                    setStartingPrompt(.review, template)
+                }
+                SettingsTextField(title: "Issue", prompt: "None", value: issuePrompt) { template in
+                    setStartingPrompt(.issue, template)
+                }
+            } header: {
+                Text("Starting Prompts")
+            } footer: {
+                Text("""
+                What Claude starts with in a new tab for a PR you're asked to review, or for an issue. \
+                \(StartingPrompt.placeholders.joined(separator: ", ")) are filled in; empty sends nothing. \
+                A repository can have its own under Repositories.
+                """)
+                .foregroundStyle(.secondary)
+            }
+
+            Section {
                 intervalStepper("GitHub sync", value: $syncSeconds, range: IntervalSettings.syncRange, step: 5)
                 intervalStepper(
                     "Git status", value: $statusProbeSeconds, range: IntervalSettings.statusProbeRange, step: 1
@@ -78,7 +100,7 @@ struct GeneralPrefsPane: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 560)
+        .frame(width: 520, height: 680)
         .onChange(of: theme) { _, mode in SettingsActions.setTheme(mode, services: services) }
         .onChange(of: terminalTheme) { _, mode in SettingsActions.setTerminalTheme(mode) }
         .onChange(of: groupByRepo) { _, value in SettingsActions.setGroupByRepo(value, services: services) }
@@ -103,6 +125,19 @@ struct GeneralPrefsPane: View {
                 Stepper(title, value: value, in: range, step: step).labelsHidden()
             }
         }
+    }
+
+    private func setStartingPrompt(_ kind: StartingPrompt.Kind, _ template: String) -> Bool {
+        do {
+            try SettingsActions.setStartingPrompt(kind, template: template, services: services)
+        } catch {
+            return false
+        }
+        switch kind {
+        case .review: reviewPrompt = template
+        case .issue: issuePrompt = template
+        }
+        return true
     }
 
     /// Applies once the stepper has been still for a moment: every apply

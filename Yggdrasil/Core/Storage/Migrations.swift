@@ -26,7 +26,19 @@ enum Migrations {
         migrator.registerMigration("v19", migrate: v19)
         migrator.registerMigration("v20", migrate: v20)
         migrator.registerMigration("v21", migrate: v21)
+        migrator.registerMigration("v22", migrate: v22)
         return migrator
+    }
+
+    // MARK: - v22 — Per-repo starting prompts
+
+    /// A repository's own starting-prompt templates: NULL uses the global
+    /// one, an empty string turns it off for the repository.
+    private static func v22(_ db: Database) throws {
+        try db.alter(table: "repo") { table in
+            table.add(column: "review_prompt", .text)
+            table.add(column: "issue_prompt", .text)
+        }
     }
 
     // MARK: - v21 — Tab kinds

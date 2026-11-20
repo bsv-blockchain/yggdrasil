@@ -119,9 +119,32 @@ struct RepoPrefsPane: View {
                 Text("Link PR… looks up a bare PR number in this repository.")
                     .foregroundStyle(.secondary)
             }
+
+            startingPrompts(repo)
         }
         .formStyle(.grouped)
         .id(repo.id)
+    }
+
+    private func startingPrompts(_ repo: Repo) -> some View {
+        Section {
+            ForEach(StartingPrompt.Kind.allCases, id: \.self) { kind in
+                StartingPromptOverride(
+                    kind: kind,
+                    value: repo.startingPrompt(kind),
+                    global: SettingsActions.startingPrompt(kind, services: services)
+                ) { template in
+                    updateStartingPrompt(kind, template, for: repo)
+                } onEdit: { template in
+                    editStartingPrompt(kind, template, for: repo)
+                }
+            }
+        } header: {
+            Text("Starting Prompts")
+        } footer: {
+            Text("What Claude starts with in a new tab for this repository's PRs to review and issues.")
+                .foregroundStyle(.secondary)
+        }
     }
 
     static func isValidGitRepo(_ path: String) -> Bool {
@@ -143,6 +166,27 @@ struct RepoPrefsPane: View {
     }
 
     // MARK: - Actions
+
+    /// Saves a typed custom template, unless the repository has left Custom
+    /// meanwhile: switching the picker removes the field, which saves what
+    /// was typed on its way out.
+    private func editStartingPrompt(_ kind: StartingPrompt.Kind, _ template: String, for repo: Repo) -> Bool {
+        guard let id = repo.id else { return false }
+        let current = try? services.database.queue.read { db in try Repo.fetchOne(db, key: id) }
+        guard let stored = current?.startingPrompt(kind), !stored.isEmpty else { return true }
+        updateStartingPrompt(kind, template, for: repo)
+        return true
+    }
+
+    private func updateStartingPrompt(_ kind: StartingPrompt.Kind, _ template: String?, for repo: Repo) {
+        guard let id = repo.id else { return }
+        do {
+            try RepoActions.setStartingPrompt(repoID: id, kind: kind, template: template, services: services)
+            reload()
+        } catch {
+            NSAlert.show("Couldn't change the starting prompt", message: error.actionMessage)
+        }
+    }
 
     private func reload() {
         do {
@@ -250,5 +294,58 @@ extension NSAlert {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+}
+
+/// A repository's own starting prompt for one kind of tab: the global one,
+/// its own, or none.
+private struct StartingPromptOverride: View {
+    let kind: StartingPrompt.Kind
+    /// nil uses the global template; empty is none.
+    let value: String?
+    let global: String
+    let onChange: (String?) -> Void
+    /// A custom template typed in; false puts the field back.
+    let onEdit: (String) -> Bool
+
+    private enum Mode: Hashable {
+        case global
+        case custom
+        case none
+    }
+
+    private var mode: Mode {
+        guard let value else { return .global }
+        return value.isEmpty ? .none : .custom
+    }
+
+    private var title: String {
+        switch kind {
+        case .review: "PR to review"
+        case .issue: "Issue"
+        }
+    }
+
+    var body: some View {
+        Picker(title, selection: Binding(get: { mode }, set: choose)) {
+            Text(global.isEmpty ? "Global (none)" : "Global: \(global)").tag(Mode.global)
+            Text("Custom").tag(Mode.custom)
+            Text("None").tag(Mode.none)
+        }
+        if mode == .custom {
+            // Empty puts the text back: None is how to turn it off.
+            SettingsTextField(title: "Prompt", prompt: global, value: value ?? "") { template in
+                !template.isEmpty && onEdit(template)
+            }
+        }
+    }
+
+    private func choose(_ mode: Mode) {
+        switch mode {
+        case .global: onChange(nil)
+        case .none: onChange("")
+        // Starts from the global one, to edit.
+        case .custom: onChange(global.isEmpty ? StartingPrompt.defaults[kind] ?? "" : global)
+        }
     }
 }
