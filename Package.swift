@@ -28,7 +28,7 @@ let package = Package(
     name: "YggdrasilCoreSpike",
     platforms: [.macOS(.v14)],
     dependencies: [
-        .package(url: "https://github.com/groue/GRDB.swift", from: "6.29.0"),
+        .package(url: "https://github.com/groue/GRDB.swift", from: "7.12.0"),
         .package(url: "https://github.com/migueldeicaza/SwiftTerm", .upToNextMinor(from: "1.15.0")),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess", from: "4.2.2"),
         .package(path: "Vendor/Clibgit2"),
