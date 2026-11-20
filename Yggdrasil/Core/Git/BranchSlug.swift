@@ -1,4 +1,8 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto // swift-crypto: the same API off Apple platforms
+#endif
 import Foundation
 
 /// Pure-function branch-name → filesystem-safe slug. Per spec §2.1:

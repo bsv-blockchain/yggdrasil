@@ -1,0 +1,39 @@
+# Spike only (branch claude-spike/windows-core): does Yggdrasil's Core build
+# with Swift on Windows? Not for main.
+name: spike-windows-core
+
+on:
+  push:
+    branches: [claude-spike/windows-core]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: compnerd/gha-setup-swift@9ff1ee4c44888c5817fc14d1b257ac8cabb4935f # v0.5.1
+        with:
+          swift-version: swift-6.1-release
+          swift-build: 6.1-RELEASE
+      - name: libgit2 and sqlite3 from vcpkg
+        shell: pwsh
+        run: '& "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install libgit2:x64-windows sqlite3:x64-windows'
+      - name: Build Core
+        shell: pwsh
+        run: |
+          $v = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows"
+          swift build --target YggdrasilCore -Xswiftc -continue-building-after-errors `
+            -Xcc "-I$v\include" -Xlinker "-L$v\lib" *> build.log
+          $code = $LASTEXITCODE
+          Get-Content build.log -Tail 200
+          exit $code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build.log

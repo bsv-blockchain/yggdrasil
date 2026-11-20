@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking // URLSession off Apple platforms
+#endif
 
 /// HTTP response from a Yggdrasil REST/GraphQL call after the client applied auth,
 /// ETag handling, and the 401-retry policy.

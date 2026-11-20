@@ -1,4 +1,9 @@
+#if !os(Windows) // spike: POSIX-only (no flock, waitpid, kill or forkpty on Windows)
+#if canImport(Darwin)
 import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 import Foundation
 
 /// Collects a child process we've signalled to stop.
@@ -61,3 +66,4 @@ enum ChildReaper {
         }
     }
 }
+#endif

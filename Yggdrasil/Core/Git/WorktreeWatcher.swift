@@ -1,3 +1,4 @@
+#if os(macOS) // spike: Darwin/Apple-only
 import CoreServices
 import Foundation
 
@@ -95,3 +96,4 @@ final class WorktreeWatcher {
         }
     }
 }
+#endif

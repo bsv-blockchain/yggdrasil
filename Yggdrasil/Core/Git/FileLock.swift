@@ -1,4 +1,9 @@
+#if !os(Windows) // spike: POSIX-only (no flock, waitpid, kill or forkpty on Windows)
+#if canImport(Darwin)
 import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 import Foundation
 
 /// POSIX advisory file lock (`flock(2)`) wrapper. Async-friendly: uses LOCK_NB +
@@ -112,3 +117,4 @@ enum FileLockError: Error, Equatable {
     case flockFailed(errno: Int32, path: String)
     case timedOut(path: String)
 }
+#endif

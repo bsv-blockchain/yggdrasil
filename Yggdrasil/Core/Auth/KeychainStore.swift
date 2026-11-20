@@ -1,3 +1,4 @@
+#if canImport(KeychainAccess) // spike: Apple-only
 import Foundation
 import KeychainAccess
 
@@ -32,3 +33,4 @@ struct KeychainAccessStore: KeychainStore {
         try keychain.remove(key)
     }
 }
+#endif

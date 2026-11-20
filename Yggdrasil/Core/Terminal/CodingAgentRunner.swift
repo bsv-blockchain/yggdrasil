@@ -1,4 +1,9 @@
+#if !os(Windows) // spike: POSIX-only (no flock, waitpid, kill or forkpty on Windows)
+#if canImport(Darwin)
 import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 import Foundation
 import SwiftTerm
 
@@ -203,3 +208,4 @@ extension CodingAgentRunner: LocalProcessDelegate {
 enum RunnerError: Error, Equatable {
     case waitTimedOut
 }
+#endif
